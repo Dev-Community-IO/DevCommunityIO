@@ -245,17 +245,17 @@ export function ProfilePages({ userId }: ProfilePagesProps) {
         </div>
 
         {/* Cover & Profile Section */}
-        <div className="relative">
-          {/* Cover Image */}
-          <div className="relative h-36 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
+        <div className="relative px-4 pt-4 pb-4">
+          {/* Cover Image as Background */}
+          <div className="absolute inset-0 h-48 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
             {selectedPage.coverImage && (
               <img src={selectedPage.coverImage} alt="Cover" className="w-full h-full object-cover" />
             )}
           </div>
 
-          {/* Profile Info Card */}
-          <div className="px-4 pb-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4 -mt-12">
+          {/* Profile Info Card - On top of cover */}
+          <div className="relative z-10 pt-8">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4">
               <div className="flex items-start gap-3 mb-4">
                 {/* Page Avatar */}
                 <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg">
