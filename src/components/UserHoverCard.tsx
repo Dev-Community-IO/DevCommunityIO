@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MapPin, Calendar, TrendingUp } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
@@ -81,7 +82,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
   };
 
   return (
-    <span className="relative inline-flex">
+    <>
       <span
         ref={triggerRef as any}
         onMouseEnter={handleMouseEnter}
@@ -92,10 +93,10 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
         {children}
       </span>
 
-      {showCard && (
+      {showCard && createPortal(
         <div
           ref={cardRef}
-          className="fixed z-[9999] animate-fade-in pointer-events-auto"
+          className="fixed z-[99999] animate-fade-in"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -143,8 +144,9 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </span>
+    </>
   );
 }

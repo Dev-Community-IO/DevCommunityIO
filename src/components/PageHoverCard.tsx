@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Users, Calendar, TrendingUp, ExternalLink } from 'lucide-react';
 import { Page } from '../types';
 
@@ -78,7 +79,7 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
   };
 
   return (
-    <span className="relative inline-flex">
+    <>
       <span
         ref={triggerRef as any}
         onMouseEnter={handleMouseEnter}
@@ -89,10 +90,10 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
         {children}
       </span>
 
-      {showCard && (
+      {showCard && createPortal(
         <div
           ref={cardRef}
-          className="fixed z-[9999] animate-fade-in pointer-events-auto"
+          className="fixed z-[99999] animate-fade-in"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -143,8 +144,9 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </span>
+    </>
   );
 }
