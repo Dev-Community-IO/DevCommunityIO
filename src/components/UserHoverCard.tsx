@@ -84,7 +84,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
   };
 
   return (
-    <>
+    <span className="relative inline-flex">
       <span
         ref={triggerRef as any}
         onMouseEnter={handleMouseEnter}
@@ -148,6 +148,6 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
           </div>
         </div>
       )}
-    </>
+    </span>
   );
 }

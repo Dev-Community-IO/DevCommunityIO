@@ -81,7 +81,7 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
   };
 
   return (
-    <>
+    <span className="relative inline-flex">
       <span
         ref={triggerRef as any}
         onMouseEnter={handleMouseEnter}
@@ -148,6 +148,6 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
           </div>
         </div>
       )}
-    </>
+    </span>
   );
 }
