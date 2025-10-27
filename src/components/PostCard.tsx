@@ -124,32 +124,26 @@ export function PostCard({ post, onClick }: PostCardProps) {
               {/* Author Name / Page Info */}
               {post.page ? (
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <UserHoverCard user={post.author}>
-                    <span className="font-semibold text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer truncate">
-                      {post.author.username}
-                    </span>
-                  </UserHoverCard>
+                  <span className="font-semibold text-sm truncate">
+                    {post.author.username}
+                  </span>
                   <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 font-medium">posted for</span>
                   <span className="font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer truncate">
                     {post.page.name}
                   </span>
                 </div>
               ) : (
-                <>
-                  <UserHoverCard user={post.author}>
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-sm hover:text-blue-500 transition-colors cursor-pointer truncate">
-                        {post.author.username}
-                      </span>
-                      {post.author.isVerified && (
-                        <VerifiedBadge size={14} className="flex-shrink-0" />
-                      )}
-                    </div>
-                  </UserHoverCard>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-medium text-sm truncate">
+                    {post.author.username}
+                  </span>
+                  {post.author.isVerified && (
+                    <VerifiedBadge size={14} className="flex-shrink-0" />
+                  )}
                   <span className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:inline">
                     {post.author.walletAddress}
                   </span>
-                </>
+                </div>
               )}
 
               <span className="text-xs text-gray-500 dark:text-gray-400">•</span>

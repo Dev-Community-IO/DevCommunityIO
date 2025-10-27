@@ -51,21 +51,32 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
     timeoutRef.current = setTimeout(() => {
       if (e.currentTarget) {
         calculatePosition(e.currentTarget);
+        setShowCard(true);
       }
-      setShowCard(true);
-    }, 500);
+    }, 300);
   };
 
   const handleMouseLeave = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    setTimeout(() => {
-      setShowCard(false);
-    }, 200);
+    setShowCard(false);
+  };
+
+  const handleCardMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  };
+
+  const handleCardMouseLeave = () => {
+    setShowCard(false);
   };
 
   if (!isValidElement(children)) {
@@ -90,12 +101,8 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
             top: `${position.top}px`,
             left: `${position.left}px`,
           }}
-          onMouseEnter={() => {
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current);
-            }
-          }}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={handleCardMouseEnter}
+          onMouseLeave={handleCardMouseLeave}
         >
           <div className="w-80 p-4 rounded-xl backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl">
             <div className="flex gap-3">
