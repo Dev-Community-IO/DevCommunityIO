@@ -85,6 +85,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
         ref={triggerRef as any}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={(e) => e.stopPropagation()}
         className="inline-flex"
       >
         {children}
@@ -93,13 +94,14 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
       {showCard && (
         <div
           ref={cardRef}
-          className="fixed z-[9999] animate-fade-in"
+          className="fixed z-[9999] animate-fade-in pointer-events-auto"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
           }}
           onMouseEnter={handleCardMouseEnter}
           onMouseLeave={handleCardMouseLeave}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="w-80 p-4 rounded-xl backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl">
             <div className="flex gap-3">
