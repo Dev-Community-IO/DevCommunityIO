@@ -148,12 +148,23 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         {filteredPages.map(page => (
           <div
             key={page.id}
-            className="cursor-pointer group"
+            className="cursor-pointer group pt-8"
             onClick={() => onPageClick(page.id)}
           >
-            <GlassCard className="p-0 overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+            <GlassCard className="relative overflow-visible hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+              {/* Logo - Positioned absolutely above the card */}
+              <div className="absolute -top-8 left-4 z-20">
+                <div className="w-16 h-16 rounded-xl overflow-hidden border-4 border-white dark:border-gray-900 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-xl group-hover:shadow-2xl transition-all duration-300 group-hover:scale-105">
+                  <img
+                    src={page.logo}
+                    alt={page.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+
               {/* Compact Cover Image */}
-              <div className="relative h-28 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
+              <div className="relative h-28 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
                 <img
                   src={page.coverImage}
                   alt={page.name}
@@ -161,7 +172,7 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
                 {page.trending && (
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 z-10">
                     <Badge variant="gradient" className="flex items-center gap-1 text-[10px] px-2 py-0.5 shadow-lg">
                       <TrendingUp size={10} />
                       Trending
@@ -171,17 +182,10 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
               </div>
 
               {/* Page Content */}
-              <div className="p-4 pb-5">
-                {/* Logo and Category Row */}
-                <div className="flex items-start justify-between gap-3 mb-3 -mt-10">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden border-4 border-white dark:border-gray-900 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-xl group-hover:shadow-2xl transition-all duration-300 group-hover:scale-105 flex-shrink-0">
-                    <img
-                      src={page.logo}
-                      alt={page.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5 mt-2">
+              <div className="p-4 pb-5 rounded-b-2xl">
+                {/* Category Badge */}
+                <div className="flex items-start justify-end mb-3">
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
                     {page.category}
                   </Badge>
                 </div>
