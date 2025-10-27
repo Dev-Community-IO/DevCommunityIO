@@ -4,8 +4,7 @@ import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
-import { UserHoverCard } from './UserHoverCard';
-import { PageHoverCard } from './PageHoverCard';
+import { Tooltip } from './Tooltip';
 import { EmojiReactions } from './EmojiReactions';
 import { useState } from 'react';
 
@@ -106,24 +105,24 @@ export function PostCard({ post, onClick }: PostCardProps) {
               {post.page ? (
                 <div className="relative flex-shrink-0 group flex items-center gap-0">
                   {/* Page Logo (Square) with enhanced design */}
-                  <PageHoverCard page={post.page}>
+                  <Tooltip content={post.page.name}>
                     <div className="w-9 h-9 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
                       <img src={post.page.logo} alt={post.page.name} className="w-full h-full object-cover" />
                     </div>
-                  </PageHoverCard>
+                  </Tooltip>
                   {/* Author Avatar (Touching) with enhanced design */}
-                  <UserHoverCard user={post.author}>
+                  <Tooltip content={`@${post.author.username}`}>
                     <div className="-ml-2 w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ring-2 ring-blue-500/20 hover:ring-blue-500/40 relative z-20">
                       <Avatar src={post.author.avatar} alt={post.author.username} size="sm" className="w-full h-full" />
                     </div>
-                  </UserHoverCard>
+                  </Tooltip>
                 </div>
               ) : (
-                <UserHoverCard user={post.author}>
+                <Tooltip content={`@${post.author.username}`}>
                   <div className="flex-shrink-0 w-6 h-6 cursor-pointer hover:scale-110 transition-transform duration-300">
                     <Avatar src={post.author.avatar} alt={post.author.username} size="sm" className="w-full h-full" />
                   </div>
-                </UserHoverCard>
+                </Tooltip>
               )}
 
               {/* Author Name / Page Info */}

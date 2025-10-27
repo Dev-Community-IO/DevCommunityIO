@@ -4,7 +4,7 @@ import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
-import { UserHoverCard } from './UserHoverCard';
+import { Tooltip } from './Tooltip';
 import { useState, useRef } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 
@@ -86,9 +86,9 @@ export function Comment({ comment, isReply = false }: CommentProps) {
       <GlassCard className="p-3 sm:p-4 hover:shadow-lg transition-shadow duration-300">
         <div className="flex gap-3 sm:gap-4">
           <div className="flex flex-col items-center gap-1.5">
-            <UserHoverCard user={comment.author}>
+            <Tooltip content={`@${comment.author.username}`}>
               <Avatar src={comment.author.avatar} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
-            </UserHoverCard>
+            </Tooltip>
             <div className="flex flex-col items-center gap-1 mt-1">
               <button
                 onClick={handleUpvote}
@@ -113,16 +113,14 @@ export function Comment({ comment, isReply = false }: CommentProps) {
           <div className="flex-1 space-y-2 sm:space-y-3 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
-                <UserHoverCard user={comment.author}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm sm:text-base hover:text-blue-500 transition-colors cursor-pointer">
-                      {comment.author.username}
-                    </span>
-                    {comment.author.isVerified && (
-                      <VerifiedBadge size={14} />
-                    )}
-                  </div>
-                </UserHoverCard>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-sm sm:text-base">
+                    {comment.author.username}
+                  </span>
+                  {comment.author.isVerified && (
+                    <VerifiedBadge size={14} />
+                  )}
+                </div>
                 <Badge variant="gradient" className="text-xs">{comment.author.reputation} rep</Badge>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <span className="hidden sm:inline">•</span>

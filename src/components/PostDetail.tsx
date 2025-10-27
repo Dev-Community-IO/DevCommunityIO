@@ -5,7 +5,7 @@ import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Comment } from './Comment';
 import { VerifiedBadge } from './VerifiedBadge';
-import { UserHoverCard } from './UserHoverCard';
+import { Tooltip } from './Tooltip';
 import { EmojiReactions } from './EmojiReactions';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
@@ -158,20 +158,18 @@ export function PostDetail({ post, onBack }: PostDetailProps) {
             <div>
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2.5 sm:gap-3">
-                  <UserHoverCard user={post.author}>
+                  <Tooltip content={`@${post.author.username}`}>
                     <Avatar src={post.author.avatar} alt={post.author.username} size="md" className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700" />
-                  </UserHoverCard>
+                  </Tooltip>
                   <div>
-                    <UserHoverCard user={post.author}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm sm:text-base hover:text-blue-500 transition-colors cursor-pointer">
-                          {post.author.username}
-                        </span>
-                        {post.author.isVerified && (
-                          <VerifiedBadge size={16} />
-                        )}
-                      </div>
-                    </UserHoverCard>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm sm:text-base">
+                        {post.author.username}
+                      </span>
+                      {post.author.isVerified && (
+                        <VerifiedBadge size={16} />
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       <span>{timeAgo(post.timestamp)}</span>
                       <span>•</span>
