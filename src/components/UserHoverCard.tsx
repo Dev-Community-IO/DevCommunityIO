@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, cloneElement, isValidElement } from 'react';
 import { MapPin, Calendar, TrendingUp } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
@@ -7,7 +7,7 @@ import { User } from '../types';
 
 interface UserHoverCardProps {
   user: User;
-  children: React.ReactNode;
+  children: React.ReactElement;
 }
 
 export function UserHoverCard({ user, children }: UserHoverCardProps) {
@@ -15,7 +15,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const cardRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     return () => {
@@ -25,31 +25,35 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
     };
   }, []);
 
-  const handleMouseEnter = () => {
+  const calculatePosition = (element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const cardWidth = 320;
+    const cardHeight = 300;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let top = rect.bottom + 8;
+    let left = rect.left;
+
+    if (left + cardWidth > viewportWidth) {
+      left = rect.right - cardWidth;
+    }
+
+    if (left < 16) {
+      left = 16;
+    }
+
+    if (top + cardHeight > viewportHeight) {
+      top = rect.top - cardHeight - 8;
+    }
+
+    setPosition({ top, left });
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     timeoutRef.current = setTimeout(() => {
-      if (triggerRef.current) {
-        const rect = triggerRef.current.getBoundingClientRect();
-        const cardWidth = 320;
-        const cardHeight = 300;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        let top = rect.bottom + 8;
-        let left = rect.left;
-
-        if (left + cardWidth > viewportWidth) {
-          left = viewportWidth - cardWidth - 16;
-        }
-
-        if (left < 16) {
-          left = 16;
-        }
-
-        if (top + cardHeight > viewportHeight) {
-          top = rect.top - cardHeight - 8;
-        }
-
-        setPosition({ top, left });
+      if (e.currentTarget) {
+        calculatePosition(e.currentTarget);
       }
       setShowCard(true);
     }, 500);
@@ -64,16 +68,19 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
     }, 200);
   };
 
+  if (!isValidElement(children)) {
+    return children;
+  }
+
+  const childWithEvents = cloneElement(children, {
+    ref: triggerRef,
+    onMouseEnter: handleMouseEnter,
+    onMouseLeave: handleMouseLeave,
+  } as any);
+
   return (
     <>
-      <div
-        ref={triggerRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className="inline-block"
-      >
-        {children}
-      </div>
+      {childWithEvents}
 
       {showCard && (
         <div
