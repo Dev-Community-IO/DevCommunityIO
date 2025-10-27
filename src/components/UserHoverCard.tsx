@@ -31,8 +31,9 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
     const cardHeight = 300;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const gap = 8;
 
-    let top = rect.bottom + 8;
+    let top = rect.top - cardHeight - gap;
     let left = rect.left + (rect.width / 2) - (cardWidth / 2);
 
     if (left + cardWidth > viewportWidth - 16) {
@@ -43,12 +44,8 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
       left = 16;
     }
 
-    if (top + cardHeight > viewportHeight - 16) {
-      top = rect.top - cardHeight - 8;
-    }
-
     if (top < 16) {
-      top = 16;
+      top = rect.bottom + gap;
     }
 
     setPosition({ top, left });
