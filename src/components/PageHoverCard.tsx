@@ -30,20 +30,22 @@ export function PageHoverCard({ page, children }: PageHoverCardProps) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const gap = 8;
+    const scrollY = window.scrollY || window.pageYOffset;
+    const scrollX = window.scrollX || window.pageXOffset;
 
-    let top = rect.top - cardHeight - gap;
-    let left = rect.left + (rect.width / 2) - (cardWidth / 2);
+    let top = rect.top + scrollY - cardHeight - gap;
+    let left = rect.left + scrollX + (rect.width / 2) - (cardWidth / 2);
 
-    if (left + cardWidth > viewportWidth - 16) {
-      left = viewportWidth - cardWidth - 16;
+    if (left + cardWidth > viewportWidth + scrollX - 16) {
+      left = viewportWidth + scrollX - cardWidth - 16;
     }
 
-    if (left < 16) {
-      left = 16;
+    if (left < scrollX + 16) {
+      left = scrollX + 16;
     }
 
-    if (top < 16) {
-      top = rect.bottom + gap;
+    if (rect.top - cardHeight - gap < 16) {
+      top = rect.bottom + scrollY + gap;
     }
 
     setPosition({ top, left });
