@@ -161,36 +161,44 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
   };
 
   return (
-    <div className="min-h-screen pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
-      <div className="max-w-4xl mx-auto pb-8">
-        <div className="mb-6">
-          <Button variant="ghost" icon={ArrowLeft} onClick={onBack}>
-            Back to Feed
-          </Button>
-        </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 animate-fade-in">
+      <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h1 className="text-lg font-bold flex-1">Create New Content</h1>
+      </div>
 
-        <GlassCard className="p-6">
-          <h1 className="text-2xl font-bold mb-6">Create New Content</h1>
+      <div className="max-w-2xl mx-auto pb-24">
+        <div className="p-4 space-y-5">
 
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Content Type Selection */}
-            <div>
-              <label className="block text-sm font-semibold mb-3">Content Type</label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Content Type</label>
+              <div className="grid grid-cols-2 gap-2.5">
                 {contentTypes.map(type => {
                   const Icon = type.icon;
+                  const isActive = contentType === type.id;
                   return (
                     <button
                       key={type.id}
                       onClick={() => setContentType(type.id)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                        contentType === type.id
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      className={`relative flex flex-col items-center gap-2 p-3.5 rounded-xl transition-all duration-300 ${
+                        isActive
+                          ? 'text-white shadow-lg'
+                          : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      <span className="font-medium text-sm">{type.name}</span>
-                      {contentType === type.id && <Check size={16} className="text-blue-500" />}
+                      {isActive && (
+                        <div className={`absolute inset-0 bg-gradient-to-br ${type.color} rounded-xl`} />
+                      )}
+                      <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="relative z-10" />
+                      <span className="font-semibold text-xs relative z-10">{type.name}</span>
+                      {isActive && <Check size={14} className="absolute top-2 right-2 z-10" />}
                     </button>
                   );
                 })}
@@ -199,42 +207,42 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
 
             {/* Post As Selection */}
             {!pageId && userPages.length > 0 && (
-              <div>
-                <label className="block text-sm font-semibold mb-2">Post As</label>
-                <div className="flex flex-wrap gap-2">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+                <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Post As</label>
+                <div className="space-y-2">
                   <button
                     onClick={() => setSelectedPageId(null)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                       !selectedPageId
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
+                        : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                     }`}
                   >
                     <Avatar
                       src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
                       alt="Your Profile"
                       size="sm"
-                      className="w-6 h-6"
+                      className="w-8 h-8 ring-2 ring-white/30"
                     />
-                    <span className="font-medium">Your Profile</span>
-                    {!selectedPageId && <Check size={16} className="text-blue-500" />}
+                    <span className="font-semibold flex-1 text-left">Your Profile</span>
+                    {!selectedPageId && <Check size={18} strokeWidth={2.5} />}
                   </button>
 
                   {userPages.map(page => (
                     <button
                       key={page.id}
                       onClick={() => setSelectedPageId(page.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                         selectedPageId === page.id
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                          ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
+                          : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-md overflow-hidden">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden ring-2 ring-white/30">
                         <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
                       </div>
-                      <span className="font-medium">{page.name}</span>
-                      {selectedPageId === page.id && <Check size={16} className="text-blue-500" />}
+                      <span className="font-semibold flex-1 text-left">{page.name}</span>
+                      {selectedPageId === page.id && <Check size={18} strokeWidth={2.5} />}
                     </button>
                   ))}
                 </div>
@@ -242,10 +250,10 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
             )}
 
             {/* Common Fields */}
-            <div>
-              <label className="block text-sm font-semibold mb-2">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
                 Title
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-xs text-gray-400 ml-2 font-normal">
                   ({title.length}/{TITLE_MAX_LENGTH})
                 </span>
               </label>
@@ -258,30 +266,30 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                   }
                 }}
                 placeholder={`Enter your ${contentType} title...`}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
               />
             </div>
 
             {/* Hackathon Specific Fields */}
             {contentType === 'hackathon' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Prize Amount</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Prize Amount</label>
                     <input
                       type="text"
                       value={prize}
                       onChange={(e) => setPrize(e.target.value)}
                       placeholder="$100,000"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Difficulty</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Difficulty</label>
                     <select
                       value={difficulty}
                       onChange={(e) => setDifficulty(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     >
                       <option value="beginner">Beginner</option>
                       <option value="intermediate">Intermediate</option>
@@ -289,133 +297,131 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Start Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Start Date</label>
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">End Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">End Date</label>
                     <input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {/* Event Specific Fields */}
             {contentType === 'event' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Event Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Date</label>
                     <input
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Time</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Time</label>
                     <input
                       type="time"
                       value={eventTime}
                       onChange={(e) => setEventTime(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location</label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="San Francisco, CA or Virtual Event"
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Location</label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="San Francisco, CA or Virtual Event"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Event Type</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Type</label>
                     <select
                       value={eventType}
                       onChange={(e) => setEventType(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     >
                       <option value="online">Online</option>
                       <option value="in-person">In-Person</option>
                       <option value="hybrid">Hybrid</option>
                     </select>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Max Attendees</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Max Attendees</label>
                     <input
                       type="number"
                       value={maxAttendees}
                       onChange={(e) => setMaxAttendees(e.target.value)}
                       placeholder="100"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Ticket Price</label>
-                    <input
-                      type="text"
-                      value={ticketPrice}
-                      onChange={(e) => setTicketPrice(e.target.value)}
-                      placeholder="Free or $99"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
-              </>
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Ticket Price</label>
+                  <input
+                    type="text"
+                    value={ticketPrice}
+                    onChange={(e) => setTicketPrice(e.target.value)}
+                    placeholder="Free or $99"
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                  />
+                </div>
+              </div>
             )}
 
             {/* Opportunity Specific Fields */}
             {contentType === 'opportunity' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Company Name</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name</label>
                     <input
                       type="text"
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
                       placeholder="Company Name"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Salary Range</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Salary Range</label>
                     <input
                       type="text"
                       value={salary}
                       onChange={(e) => setSalary(e.target.value)}
                       placeholder="$100k - $150k"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Job Type</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Job Type</label>
                     <select
                       value={jobType}
                       onChange={(e) => setJobType(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     >
                       <option value="full-time">Full-Time</option>
                       <option value="part-time">Part-Time</option>
@@ -424,54 +430,56 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Experience Level</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Experience Level</label>
                     <input
                       type="text"
                       value={experience}
                       onChange={(e) => setExperience(e.target.value)}
                       placeholder="3+ years"
-                      className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Location</label>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location</label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="San Francisco, CA or Remote"
-                    className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300"
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                   />
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
                     <input
                       type="checkbox"
                       checked={remote}
                       onChange={(e) => setRemote(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                      className="w-5 h-5 rounded-lg border-gray-300 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
                     />
-                    <span className="text-sm font-semibold">Remote Position</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">Remote Position</span>
                   </label>
                 </div>
-              </>
+              </div>
             )}
 
-            <div>
-              <label className="block text-sm font-semibold mb-2">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
                 Cover Image
-                <span className="text-xs text-gray-500 ml-2">(Optional, max 5MB)</span>
+                <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 5MB)</span>
               </label>
               {!coverImage ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-48 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-white/10 hover:border-blue-500 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3"
+                  className="w-full h-44 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3"
                 >
-                  <Upload size={32} className="text-gray-400" />
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500">
+                    <Upload size={28} className="text-white" />
+                  </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium">Click to upload cover image</p>
-                    <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Click to upload cover image</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 5MB</p>
                   </div>
                   <input
                     ref={fileInputRef}
@@ -482,7 +490,7 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                   />
                 </div>
               ) : (
-                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                <div className="relative w-full h-44 rounded-xl overflow-hidden">
                   <img
                     src={coverImage}
                     alt="Cover"
@@ -490,31 +498,31 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                   />
                   <button
                     onClick={handleRemoveCoverImage}
-                    className="absolute top-2 right-2 p-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-all duration-300"
+                    className="absolute top-3 right-3 p-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg transition-all duration-300"
                   >
                     <X size={16} />
                   </button>
                 </div>
               )}
               {imageError && (
-                <p className="text-red-500 text-xs mt-2">{imageError}</p>
+                <p className="text-red-500 text-xs mt-2 font-medium">{imageError}</p>
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2">Description</label>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Description</label>
               <MarkdownEditor
                 value={content}
                 onChange={setContent}
                 placeholder={`Write your ${contentType} description... (Markdown supported)`}
-                minHeight="300px"
+                minHeight="280px"
               />
             </div>
 
-            <div className="relative">
-              <label className="block text-sm font-semibold mb-2">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 relative">
+              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
                 Tags
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-xs text-gray-400 ml-2 font-normal">
                   ({tagsList.length}/{MAX_TAGS})
                 </span>
               </label>
@@ -530,15 +538,15 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                 onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
                 placeholder={tagsList.length >= MAX_TAGS ? "Maximum tags reached" : "Type to search tags..."}
                 disabled={tagsList.length >= MAX_TAGS}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-white/10 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base"
               />
               {showTagSuggestions && filteredTags.length > 0 && tagsList.length < MAX_TAGS && (
-                <div className="absolute z-10 w-full mt-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 left-4 right-4 mt-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl max-h-48 overflow-y-auto">
                   {filteredTags.slice(0, 10).map(tag => (
                     <button
                       key={tag}
                       onClick={() => handleAddTag(tag)}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 text-sm"
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 text-sm font-medium border-b border-gray-100 dark:border-gray-700 last:border-0"
                     >
                       #{tag}
                     </button>
@@ -550,14 +558,14 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                   {tagsList.map(tag => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-sm"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-sm"
                     >
                       #{tag}
                       <button
                         onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-blue-900 dark:hover:text-blue-100"
+                        className="hover:bg-white/20 rounded-full p-0.5 transition-all"
                       >
-                        <X size={14} />
+                        <X size={14} strokeWidth={2.5} />
                       </button>
                     </span>
                   ))}
@@ -565,16 +573,25 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
               )}
             </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="primary" onClick={handleSubmit}>
-                Publish {contentType.charAt(0).toUpperCase() + contentType.slice(1)}
-              </Button>
-              <Button variant="secondary" onClick={onBack}>
-                Cancel
-              </Button>
-            </div>
           </div>
-        </GlassCard>
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 shadow-2xl">
+        <div className="max-w-2xl mx-auto flex gap-3">
+          <button
+            onClick={onBack}
+            className="flex-1 py-3.5 px-6 rounded-xl font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="flex-1 py-3.5 px-6 rounded-xl font-bold text-white bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-lg shadow-blue-500/30 transition-all duration-300"
+          >
+            Publish {contentType.charAt(0).toUpperCase() + contentType.slice(1)}
+          </button>
+        </div>
       </div>
     </div>
   );
