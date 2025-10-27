@@ -70,7 +70,7 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
       </div>
 
       {/* Cover & Profile Section */}
-      <div className="relative">
+      <div className="relative z-30">
         {/* Cover Image */}
         <div className="relative h-48 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
           <img
@@ -81,7 +81,7 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
         </div>
 
         {/* Profile Card */}
-        <div className="px-4 pb-4 -mt-16 relative z-10">
+        <div className="px-4 pb-4 -mt-16 relative z-40">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4">
             {/* Logo and Name */}
             <div className="flex items-start gap-3 mb-4">
