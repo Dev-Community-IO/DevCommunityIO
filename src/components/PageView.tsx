@@ -57,115 +57,126 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Back Button */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-      >
-        <ArrowLeft size={20} />
-        Back to Pages
-      </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 animate-fade-in">
+      {/* Fixed Header with Back Button */}
+      <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-medium"
+        >
+          <ArrowLeft size={20} />
+          Back to Pages
+        </button>
+      </div>
 
-      <GlassCard className="p-0 overflow-hidden">
+      {/* Cover & Profile Section */}
+      <div className="relative">
         {/* Cover Image */}
-        <div className="relative h-64 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
+        <div className="relative h-48 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
           <img
             src={pageData.coverImage}
             alt="Cover"
             className="w-full h-full object-cover"
           />
-
-          {/* Page Logo on top of cover */}
-          <div className="absolute bottom-0 left-6 md:left-8 translate-y-1/2 z-20">
-            <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-900 flex-shrink-0 shadow-2xl">
-              <img
-                src={pageData.logo}
-                alt={pageData.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
         </div>
 
-        {/* Page Header */}
-        <div className="px-6 md:px-8 pb-6 pt-20">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-            {/* Page Info */}
-            <div className="flex-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-3xl font-bold">{pageData.name}</h1>
-                <Badge variant="secondary">{pageData.category}</Badge>
+        {/* Profile Card */}
+        <div className="px-4 pb-4 -mt-16 relative z-10">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4">
+            {/* Logo and Name */}
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg">
+                <img
+                  src={pageData.logo}
+                  alt={pageData.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
-              <p className="text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">
-                {pageData.description}
-              </p>
-              <div className="flex items-center gap-6 mt-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Users size={18} className="text-gray-400" />
-                  <span className="font-bold text-lg">{pageData.members.toLocaleString()}</span>
-                  <span className="text-gray-500 dark:text-gray-400">members</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MessageSquare size={18} className="text-gray-400" />
-                  <span className="font-bold text-lg">{pageData.posts}</span>
-                  <span className="text-gray-500 dark:text-gray-400">posts</span>
-                </div>
+              <div className="flex-1 min-w-0 pt-1">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1 truncate">{pageData.name}</h1>
+                <Badge variant="secondary" className="text-xs">{pageData.category}</Badge>
               </div>
             </div>
 
+            {/* Stats */}
+            <div className="flex items-center gap-4 mb-4 text-sm">
+              <div className="flex items-center gap-1.5">
+                <Users size={16} className="text-gray-400" />
+                <span className="font-bold text-gray-900 dark:text-white">{pageData.members.toLocaleString()}</span>
+                <span className="text-gray-500 dark:text-gray-400">members</span>
+              </div>
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
+              <div className="flex items-center gap-1.5">
+                <MessageSquare size={16} className="text-gray-400" />
+                <span className="font-bold text-gray-900 dark:text-white">{pageData.posts}</span>
+                <span className="text-gray-500 dark:text-gray-400">posts</span>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+              {pageData.description}
+            </p>
+
             {/* Action Buttons */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleFollowToggle}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg text-sm ${
                   isFollowing
-                    ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
                     : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
                 }`}
               >
-                <UserPlus size={20} />
+                <UserPlus size={18} />
                 {isFollowing ? 'Following' : 'Follow'}
               </button>
 
               <button
                 onClick={handleNotificationToggle}
-                className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                className={`p-2.5 rounded-xl transition-all ${
+                  notificationsEnabled
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
               >
                 {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
               </button>
 
-              <button className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+              <button className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-gray-700 dark:text-gray-300">
                 <Settings size={20} />
               </button>
             </div>
           </div>
-
-          {/* Tabs */}
-          <div className="flex gap-2 mt-8 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabType)}
-                  className={`flex items-center gap-2 px-6 py-3 font-semibold transition-all border-b-2 whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-500'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
-                >
-                  <Icon size={18} />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Tab Content */}
-      <div className="animate-fade-in">
+      {/* Tabs */}
+      <div className="sticky top-[57px] z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-2">
+        <div className="flex gap-1 overflow-x-auto hide-scrollbar">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-500'
+                    : 'border-transparent text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <Icon size={18} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 pb-8">
+
         {activeTab === 'posts' && (
           <PostFeed
             posts={mockPosts}
@@ -174,40 +185,43 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
         )}
 
         {activeTab === 'about' && (
-          <GlassCard className="p-6 md:p-8 space-y-6">
-            <div>
-              <h2 className="text-xl font-bold mb-3">About</h2>
-              <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+          <div className="space-y-4">
+            {/* About Section */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+              <h2 className="text-base font-bold mb-2 text-gray-900 dark:text-white">About</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                 {pageData.description}
               </p>
             </div>
 
-            <div>
-              <h2 className="text-xl font-bold mb-3">Page Rules</h2>
-              <ul className="space-y-2">
+            {/* Page Rules */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+              <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Page Rules</h2>
+              <ul className="space-y-3">
                 {pageData.rules.map((rule, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-xs flex items-center justify-center font-bold">
                       {index + 1}
                     </span>
-                    <span className="text-gray-600 dark:text-gray-400">{rule}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{rule}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div>
-              <h2 className="text-xl font-bold mb-4">Admins & Moderators</h2>
+            {/* Admins & Moderators */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+              <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Admins & Moderators</h2>
               <div className="space-y-3">
                 {pageData.admins.map(admin => (
-                  <div key={admin.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                  <div key={admin.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
                     <img
                       src={admin.avatar}
                       alt={admin.name}
-                      className="w-12 h-12 rounded-full"
+                      className="w-12 h-12 rounded-full flex-shrink-0"
                     />
-                    <div>
-                      <p className="font-semibold">{admin.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 dark:text-white truncate">{admin.name}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{admin.role}</p>
                     </div>
                   </div>
@@ -215,26 +229,30 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Meta Info */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-500 dark:text-gray-400">Created</p>
-                  <p className="font-semibold mt-1">{pageData.created}</p>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Created</p>
+                  <p className="font-bold text-gray-900 dark:text-white">{pageData.created}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500 dark:text-gray-400">Category</p>
-                  <p className="font-semibold mt-1">{pageData.category}</p>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</p>
+                  <p className="font-bold text-gray-900 dark:text-white">{pageData.category}</p>
                 </div>
               </div>
             </div>
-          </GlassCard>
+          </div>
         )}
 
         {activeTab === 'members' && (
-          <GlassCard className="p-6 md:p-8">
-            <h2 className="text-xl font-bold mb-4">Members ({pageData.members.toLocaleString()})</h2>
-            <p className="text-gray-600 dark:text-gray-400">Member list coming soon...</p>
-          </GlassCard>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-8 text-center">
+            <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
+            <h2 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">
+              {pageData.members.toLocaleString()} Members
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Member list coming soon...</p>
+          </div>
         )}
       </div>
     </div>
