@@ -29,10 +29,27 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
     timeoutRef.current = setTimeout(() => {
       if (triggerRef.current) {
         const rect = triggerRef.current.getBoundingClientRect();
-        setPosition({
-          top: rect.bottom + window.scrollY + 8,
-          left: rect.left + window.scrollX
-        });
+        const cardWidth = 320;
+        const cardHeight = 300;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let top = rect.bottom + 8;
+        let left = rect.left;
+
+        if (left + cardWidth > viewportWidth) {
+          left = viewportWidth - cardWidth - 16;
+        }
+
+        if (left < 16) {
+          left = 16;
+        }
+
+        if (top + cardHeight > viewportHeight) {
+          top = rect.top - cardHeight - 8;
+        }
+
+        setPosition({ top, left });
       }
       setShowCard(true);
     }, 500);
