@@ -144,70 +144,69 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
       </GlassCard>
 
       {/* Pages Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredPages.map(page => (
-          <GlassCard
+          <div
             key={page.id}
-            className="p-0 overflow-visible cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group relative"
+            className="cursor-pointer group"
             onClick={() => onPageClick(page.id)}
           >
-            {/* Compact Cover Image */}
-            <div className="relative h-24 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
-              <img
-                src={page.coverImage}
-                alt={page.name}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-              {page.trending && (
-                <div className="absolute top-2 right-2">
-                  <Badge variant="gradient" className="flex items-center gap-1 text-[10px] px-2 py-0.5 shadow-lg">
-                    <TrendingUp size={10} />
-                    Trending
+            <GlassCard className="p-0 overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+              {/* Compact Cover Image */}
+              <div className="relative h-28 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
+                <img
+                  src={page.coverImage}
+                  alt={page.name}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                {page.trending && (
+                  <div className="absolute top-2 right-2">
+                    <Badge variant="gradient" className="flex items-center gap-1 text-[10px] px-2 py-0.5 shadow-lg">
+                      <TrendingUp size={10} />
+                      Trending
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Page Content */}
+              <div className="p-4 pb-5">
+                {/* Logo and Category Row */}
+                <div className="flex items-start justify-between gap-3 mb-3 -mt-10">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border-4 border-white dark:border-gray-900 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-xl group-hover:shadow-2xl transition-all duration-300 group-hover:scale-105 flex-shrink-0">
+                    <img
+                      src={page.logo}
+                      alt={page.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5 mt-2">
+                    {page.category}
                   </Badge>
                 </div>
-              )}
-              {/* Logo on top of cover */}
-              <div className="absolute bottom-0 left-4 translate-y-1/2 z-10">
-                <div className="w-16 h-16 rounded-xl overflow-hidden border-4 border-white dark:border-gray-900 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-xl group-hover:shadow-2xl transition-all duration-300 group-hover:scale-110">
-                  <img
-                    src={page.logo}
-                    alt={page.name}
-                    className="w-full h-full object-cover"
-                  />
+
+                {/* Page Title */}
+                <h3 className="text-base font-bold group-hover:text-blue-500 transition-colors line-clamp-1 mb-1.5">
+                  {page.name}
+                </h3>
+
+                {/* Description */}
+                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed min-h-[32px]">
+                  {page.description}
+                </p>
+
+                {/* Stats */}
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <Users size={14} />
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {page.members.toLocaleString()}
+                  </span>
+                  <span>members</span>
                 </div>
               </div>
-            </div>
-
-            {/* Page Content */}
-            <div className="p-4 pt-10">
-              {/* Category Badge */}
-              <div className="flex items-start justify-end mb-2">
-                <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                  {page.category}
-                </Badge>
-              </div>
-
-              {/* Page Title */}
-              <h3 className="text-base font-bold group-hover:text-blue-500 transition-colors line-clamp-1 mb-1">
-                {page.name}
-              </h3>
-
-              {/* Description */}
-              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
-                {page.description}
-              </p>
-
-              {/* Stats */}
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-gray-800">
-                <Users size={14} />
-                <span className="font-semibold text-gray-900 dark:text-gray-100">
-                  {page.members.toLocaleString()}
-                </span>
-                <span>members</span>
-              </div>
-            </div>
-          </GlassCard>
+            </GlassCard>
+          </div>
         ))}
       </div>
 
