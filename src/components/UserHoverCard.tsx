@@ -33,18 +33,22 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
     const viewportHeight = window.innerHeight;
 
     let top = rect.bottom + 8;
-    let left = rect.left;
+    let left = rect.left + (rect.width / 2) - (cardWidth / 2);
 
-    if (left + cardWidth > viewportWidth) {
-      left = rect.right - cardWidth;
+    if (left + cardWidth > viewportWidth - 16) {
+      left = viewportWidth - cardWidth - 16;
     }
 
     if (left < 16) {
       left = 16;
     }
 
-    if (top + cardHeight > viewportHeight) {
+    if (top + cardHeight > viewportHeight - 16) {
       top = rect.top - cardHeight - 8;
+    }
+
+    if (top < 16) {
+      top = 16;
     }
 
     setPosition({ top, left });
