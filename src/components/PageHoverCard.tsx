@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { MapPin, Calendar, TrendingUp } from 'lucide-react';
-import { Avatar } from './Avatar';
-import { Badge } from './Badge';
-import { VerifiedBadge } from './VerifiedBadge';
-import { User } from '../types';
+import { Users, Calendar, TrendingUp, ExternalLink } from 'lucide-react';
+import { Page } from '../types';
 
-interface UserHoverCardProps {
-  user: User;
+interface PageHoverCardProps {
+  page: Page;
   children: React.ReactNode;
 }
 
-export function UserHoverCard({ user, children }: UserHoverCardProps) {
+export function PageHoverCard({ page, children }: PageHoverCardProps) {
   const [showCard, setShowCard] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const timeoutRef = useRef<NodeJS.Timeout>();
@@ -28,7 +25,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
   const calculatePosition = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     const cardWidth = 320;
-    const cardHeight = 300;
+    const cardHeight = 280;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
@@ -103,31 +100,33 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
         >
           <div className="w-80 p-4 rounded-xl backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl">
             <div className="flex gap-3">
-              <Avatar src={user.avatar} alt={user.username} size="lg" className="w-16 h-16" />
+              <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-bold text-base truncate">{user.username}</h4>
-                  {user.isVerified && <VerifiedBadge size={16} />}
+                  <h4 className="font-bold text-base truncate">{page.name}</h4>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                  {user.walletAddress}
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Organization Page
                 </p>
               </div>
             </div>
 
             <p className="mt-3 text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
-              Passionate about blockchain technology and decentralized systems. Building the future of Web3.
+              Official page for {page.name}. Follow for updates, announcements, and community content.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-3 text-sm">
               <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                <TrendingUp size={14} />
-                <span className="font-semibold">{user.reputation}</span>
-                <span>rep</span>
+                <Users size={14} />
+                <span className="font-semibold">2.5k</span>
+                <span>followers</span>
               </div>
               <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                <Calendar size={14} />
-                <span>Joined Jan 2024</span>
+                <TrendingUp size={14} />
+                <span className="font-semibold">156</span>
+                <span>posts</span>
               </div>
             </div>
 
@@ -135,8 +134,9 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
               <button className="flex-1 px-3 py-2 text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all">
                 Follow
               </button>
-              <button className="flex-1 px-3 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
-                Message
+              <button className="flex-1 px-3 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-1">
+                <span>Visit</span>
+                <ExternalLink size={12} />
               </button>
             </div>
           </div>
