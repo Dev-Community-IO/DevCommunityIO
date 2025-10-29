@@ -1,7 +1,9 @@
-import { Users, TrendingUp, ArrowLeft, Search, Filter, FileText } from 'lucide-react';
+import { Users, TrendingUp, ArrowLeft, Search, Filter, FileText, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
-import { useState } from 'react';
+import { Button } from './Button';
+import { useState, useEffect } from 'react';
+import { pagesService, Page } from '../services/api/pages.service';
 
 interface PagesListingProps {
   onPageClick: (pageId: string) => void;
@@ -11,81 +13,51 @@ interface PagesListingProps {
 export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [pages, setPages] = useState<Page[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const allPages = [
-    {
-      id: '1',
-      name: 'Web3 Developers Hub',
-      description: 'Community for Web3 developers to share knowledge and collaborate',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=web3dev',
-      coverImage: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 1250,
-      category: 'Development',
-      trending: true
-    },
-    {
-      id: '2',
-      name: 'DeFi Research Group',
-      description: 'Deep dive into DeFi protocols and mechanisms',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=defi',
-      coverImage: 'https://images.pexels.com/photos/6771900/pexels-photo-6771900.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 856,
-      category: 'DeFi',
-      trending: false
-    },
-    {
-      id: '3',
-      name: 'Smart Contract Auditors',
-      description: 'Professional network for smart contract security experts',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=audit',
-      coverImage: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 423,
-      category: 'Security',
-      trending: false
-    },
-    {
-      id: '4',
-      name: 'NFT Creators Alliance',
-      description: 'Artists and creators building the future of digital art',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=nft',
-      coverImage: 'https://images.pexels.com/photos/6954174/pexels-photo-6954174.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 2103,
-      category: 'NFTs',
-      trending: true
-    },
-    {
-      id: '5',
-      name: 'DAO Governance Forum',
-      description: 'Discussing and shaping decentralized governance models',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=dao',
-      coverImage: 'https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 987,
-      category: 'DAOs',
-      trending: false
-    },
-    {
-      id: '6',
-      name: 'Blockchain Beginners',
-      description: 'Start your journey into blockchain technology',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=beginners',
-      coverImage: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=800',
-      members: 3421,
-      category: 'Education',
-      trending: true
-    }
-  ];
+  useEffect(() => {
+    const fetchPages = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params: any = {};
+        if (searchQuery) params.search = searchQuery;
+        if (selectedFilter === 'trending') {
+          params.trending = true;
+        } else if (selectedFilter !== 'all') {
+          params.category = selectedFilter;
+        }
+        
+        const response = await pagesService.getPages(params);
+        setPages(response.data || response);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load pages');
+        console.error('Error fetching pages:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPages();
+  }, [searchQuery, selectedFilter]);
+
+  const allPages = pages.map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description || '',
+    logo: p.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${p.name}`,
+    coverImage: p.coverImageUrl || 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
+    members: p.memberCount,
+    category: p.category || 'General',
+    trending: p.isTrending
+  }));
 
   const categories = ['all', 'trending', ...Array.from(new Set(allPages.map(page => page.category)))];
 
-  const filteredPages = allPages.filter(page => {
-    const matchesSearch = page.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         page.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         page.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'all' ||
-                         (selectedFilter === 'trending' && page.trending) ||
-                         page.category === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredPages = allPages;
 
   return (
     <div className="space-y-4">
@@ -143,9 +115,34 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         </div>
       </GlassCard>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="ml-3 text-gray-600 dark:text-gray-400">Loading pages...</span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="text-center py-12">
+          <FileText size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
+          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load pages</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <Button 
+            variant="primary" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Pages Grid */}
+      {!loading && !error && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredPages.map(page => (
+        {filteredPages.length > 0 ? filteredPages.map(page => (
           <div
             key={page.id}
             className="cursor-pointer group pt-8"
@@ -170,55 +167,44 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
                   alt={page.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                 {page.trending && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <Badge variant="gradient" className="flex items-center gap-1 text-[10px] px-2 py-0.5 shadow-lg">
-                      <TrendingUp size={10} />
+                  <div className="absolute top-2 right-2">
+                    <Badge className="bg-orange-500/90 text-white text-xs font-semibold backdrop-blur-sm flex items-center gap-1">
+                      <TrendingUp size={12} />
                       Trending
                     </Badge>
                   </div>
                 )}
               </div>
 
-              {/* Page Content */}
-              <div className="p-4 pb-5 rounded-b-2xl">
-                {/* Category Badge */}
-                <div className="flex items-start justify-end mb-3">
-                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                    {page.category}
-                  </Badge>
-                </div>
-
-                {/* Page Title */}
-                <h3 className="text-base font-bold group-hover:text-blue-500 transition-colors line-clamp-1 mb-1.5">
+              {/* Content */}
+              <div className="p-4 pt-2">
+                <h3 className="font-bold text-lg mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
                   {page.name}
                 </h3>
-
-                {/* Description */}
-                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed min-h-[32px]">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
                   {page.description}
                 </p>
 
-                {/* Stats */}
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-gray-800">
-                  <Users size={14} />
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">
-                    {page.members.toLocaleString()}
-                  </span>
-                  <span>members</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <Users size={14} />
+                    <span>{page.members.toLocaleString()} members</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs capitalize">
+                    {page.category}
+                  </Badge>
                 </div>
               </div>
             </GlassCard>
           </div>
-        ))}
+        )) : (
+          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+            No pages found matching your search
+          </div>
+        )}
       </div>
-
-      {filteredPages.length === 0 && (
-        <div className="text-center py-12">
-          <FileText size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">No pages found matching your search</p>
-        </div>
       )}
     </div>
   );

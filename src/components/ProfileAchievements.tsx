@@ -20,23 +20,41 @@ export function ProfileAchievements({ userId }: ProfileAchievementsProps) {
           <Award size={20} className="text-yellow-500" />
           Achievements
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {achievements.map((achievement, index) => {
-            const Icon = achievement.icon;
-            return (
-              <div
-                key={index}
-                className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-800/50 hover:scale-105 transition-transform duration-300 cursor-pointer"
+        {achievements.length === 0 ? (
+          <div className="p-12 text-center space-y-4">
+            <div className="text-6xl">🏆</div>
+            <div>
+              <h3 className="text-xl font-bold mb-2">No Achievements Yet</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Start contributing to earn badges and achievements!
+              </p>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
               >
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${achievement.color} flex items-center justify-center mb-3`}>
-                  <Icon size={24} className="text-white" />
+                Start Contributing
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {achievements.map((achievement, index) => {
+              const Icon = achievement.icon;
+              return (
+                <div
+                  key={index}
+                  className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-800/50 hover:scale-105 transition-transform duration-300 cursor-pointer"
+                >
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${achievement.color} flex items-center justify-center mb-3`}>
+                    <Icon size={24} className="text-white" />
+                  </div>
+                  <h4 className="font-bold text-sm mb-1">{achievement.title}</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{achievement.description}</p>
                 </div>
-                <h4 className="font-bold text-sm mb-1">{achievement.title}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{achievement.description}</p>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </GlassCard>
     </div>
   );

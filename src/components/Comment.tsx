@@ -1,58 +1,106 @@
-import { ArrowUp, ArrowDown, MessageCircle, MoreHorizontal, Bold, Italic, Code, Link as LinkIcon, Eye } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Bold, Italic, Code, Link as LinkIcon, Eye, Trash2, AlertTriangle, Smile } from 'lucide-react';
 import { Comment as CommentType } from '../types';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Tooltip } from './Tooltip';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
+import { useAuth } from '../contexts/AuthContext';
+import commentsService from '../services/api/comments.service';
+import reactionsService from '../services/api/reactions.service';
 
 interface CommentProps {
   comment: CommentType;
+  postId?: string;
   isReply?: boolean;
+  onReplySuccess?: () => void;
+  onDelete?: () => void;
 }
 
-export function Comment({ comment, isReply = false }: CommentProps) {
-  const [upvoted, setUpvoted] = useState(comment.hasUpvoted);
-  const [downvoted, setDownvoted] = useState(comment.hasDownvoted);
-  const [upvotes, setUpvotes] = useState(comment.upvotes);
-  const [downvotes, setDownvotes] = useState(comment.downvotes);
+export function Comment({ comment, postId, isReply = false, onReplySuccess, onDelete }: CommentProps) {
+  const { user } = useAuth();
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
+  const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  
+  const isOwnComment = user && comment.author.id === user.id;
 
-  const handleUpvote = () => {
-    if (upvoted) {
-      setUpvoted(false);
-      setUpvotes(upvotes - 1);
-    } else {
-      setUpvoted(true);
-      setUpvotes(upvotes + 1);
-      if (downvoted) {
-        setDownvoted(false);
-        setDownvotes(downvotes - 1);
+  // Load emoji reactions on mount
+  useEffect(() => {
+    const loadReactions = async () => {
+      try {
+        const { reactions } = await reactionsService.getEmojis({ commentId: comment.id });
+        setEmojis(reactions || []);
+        
+        if (user) {
+          const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ commentId: comment.id });
+          setUserEmojis(userEmojisList || []);
+        }
+      } catch (error) {
+        console.error('Failed to load reactions:', error);
       }
+    };
+    loadReactions();
+  }, [comment.id, user]);
+
+  const handleEmojiReaction = async (emoji: string) => {
+    if (!user) {
+      alert('Please login to react');
+      return;
+    }
+
+    try {
+      const response = await reactionsService.addEmoji({ commentId: comment.id, emoji });
+      
+      // Update emojis list
+      const emojiIndex = emojis.findIndex(e => e.emoji === emoji);
+      
+      if (response.reacted) {
+        // Add emoji
+        if (emojiIndex >= 0) {
+          setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: e.count + 1 } : e));
+        } else {
+          setEmojis([...emojis, { emoji, count: 1 }]);
+        }
+        setUserEmojis([...userEmojis, emoji]);
+      } else {
+        // Remove emoji
+        if (emojiIndex >= 0) {
+          const newCount = emojis[emojiIndex].count - 1;
+          if (newCount > 0) {
+            setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: newCount } : e));
+          } else {
+            setEmojis(emojis.filter(e => e.emoji !== emoji));
+          }
+        }
+        setUserEmojis(userEmojis.filter(e => e !== emoji));
+      }
+    } catch (error) {
+      console.error('Failed to add emoji:', error);
     }
   };
 
-  const handleDownvote = () => {
-    if (downvoted) {
-      setDownvoted(false);
-      setDownvotes(downvotes - 1);
-    } else {
-      setDownvoted(true);
-      setDownvotes(downvotes + 1);
-      if (upvoted) {
-        setUpvoted(false);
-        setUpvotes(upvotes - 1);
-      }
-    }
-  };
-
-  const timeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  const timeAgo = (date: Date | string | undefined | null) => {
+    if (!date) return 'just now';
+    
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (!dateObj || isNaN(dateObj.getTime())) return 'just now';
+    
+    const seconds = Math.floor((new Date().getTime() - dateObj.getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m ago`;
@@ -81,33 +129,68 @@ export function Comment({ comment, isReply = false }: CommentProps) {
     }, 0);
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showMenu || showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu, showEmojiPicker]);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await commentsService.deleteComment(comment.id);
+      setShowConfirmDelete(false);
+      onDelete?.();
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      alert('Failed to delete comment');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleReplySubmit = async () => {
+    if (!replyText.trim() || !postId) return;
+
+    setIsSubmitting(true);
+    try {
+      await commentsService.createComment(postId, {
+        content: replyText,
+        parentId: comment.id
+      });
+      setReplyText('');
+      setShowReply(false);
+      setShowPreview(false);
+      onReplySuccess?.();
+    } catch (error) {
+      console.error('Failed to submit reply:', error);
+      alert('Failed to submit reply');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className={isReply ? 'ml-8 sm:ml-12' : ''}>
       <GlassCard className="p-3 sm:p-4 hover:shadow-lg transition-shadow duration-300">
         <div className="flex gap-3 sm:gap-4">
-          <div className="flex flex-col items-center gap-1.5">
+          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
             <Tooltip content={`@${comment.author.username}`}>
-              <Avatar src={comment.author.avatar} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
+              <Avatar src={(comment.author.avatar || comment.author.avatarUrl) || ''} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
             </Tooltip>
-            <div className="flex flex-col items-center gap-1 mt-1">
-              <button
-                onClick={handleUpvote}
-                className={`p-1.5 rounded-lg transition-all duration-300 hover:scale-110 ${
-                  upvoted ? 'bg-green-500/20 text-green-500' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <ArrowUp size={14} strokeWidth={upvoted ? 2.5 : 2} />
-              </button>
-              <span className="text-xs sm:text-sm font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800">{upvotes - downvotes}</span>
-              <button
-                onClick={handleDownvote}
-                className={`p-1.5 rounded-lg transition-all duration-300 hover:scale-110 ${
-                  downvoted ? 'bg-red-500/20 text-red-500' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <ArrowDown size={14} strokeWidth={downvoted ? 2.5 : 2} />
-              </button>
-            </div>
           </div>
 
           <div className="flex-1 space-y-2 sm:space-y-3 min-w-0">
@@ -129,20 +212,101 @@ export function Comment({ comment, isReply = false }: CommentProps) {
                   </span>
                   <span>•</span>
                   <span>
-                    {timeAgo(comment.timestamp)}
+                    {timeAgo(comment.createdAt || comment.timestamp)}
                   </span>
                 </div>
               </div>
-              <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
-                <MoreHorizontal size={16} />
-              </button>
+              {isOwnComment && (
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+
+                  {showMenu && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[9999] animate-fade-in">
+                      <button
+                        onClick={() => {
+                          setShowConfirmDelete(true);
+                          setShowMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                        Delete Comment
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 leading-relaxed">{comment.content}</p>
+              <MarkdownRenderer content={comment.content} compact />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Emoji Reactions */}
+              {emojis.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {emojis.map(({ emoji, count }) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleEmojiReaction(emoji)}
+                      className={`px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 ${
+                        userEmojis.includes(emoji)
+                          ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-400/50'
+                          : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-sm">{emoji}</span>
+                      <span className="font-semibold text-[10px]">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add Emoji Button */}
+              <div className="relative" ref={emojiPickerRef}>
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
+                >
+                  <Smile size={14} />
+                  <span>React</span>
+                </button>
+
+                {showEmojiPicker && (
+                  <div className="absolute bottom-full mb-3 left-0 z-[9999] animate-fade-in">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-3 min-w-[240px]">
+                      <div className="grid grid-cols-4 gap-2">
+                        {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              handleEmojiReaction(emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className={`p-3 text-2xl rounded-xl hover:scale-110 transition-all duration-200 ${
+                              userEmojis.includes(emoji) 
+                                ? 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg' 
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Arrow pointer */}
+                      <div className="absolute -bottom-2 left-4 w-4 h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Reply Button */}
               <button
                 onClick={() => setShowReply(!showReply)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
@@ -246,8 +410,12 @@ export function Comment({ comment, isReply = false }: CommentProps) {
                     >
                       Cancel
                     </button>
-                    <button className="px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-sm hover:shadow-md">
-                      Reply
+                    <button 
+                      onClick={handleReplySubmit}
+                      disabled={isSubmitting || !replyText.trim()}
+                      className="px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Reply'}
                     </button>
                   </div>
                 </div>
@@ -260,8 +428,53 @@ export function Comment({ comment, isReply = false }: CommentProps) {
       {comment.replies && comment.replies.length > 0 && (
         <div className="mt-3 sm:mt-4 space-y-3 sm:space-y-4 border-l-2 border-gray-200 dark:border-gray-700 pl-0">
           {comment.replies.map(reply => (
-            <Comment key={reply.id} comment={reply} isReply />
+            <Comment 
+              key={reply.id} 
+              comment={reply} 
+              postId={postId}
+              isReply 
+              onReplySuccess={onReplySuccess}
+              onDelete={onDelete}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showConfirmDelete && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowConfirmDelete(false)} style={{ zIndex: 99999 }}>
+          <div 
+            className="p-6 max-w-md w-full mx-4 animate-fade-in rounded-2xl backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20">
+              <AlertTriangle className="text-red-600 dark:text-red-400" size={24} />
+            </div>
+            
+            <h3 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
+              Delete Comment?
+            </h3>
+            
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
+              This action cannot be undone. Are you sure you want to delete this comment?
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmDelete(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white font-medium hover:from-red-600 hover:to-orange-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

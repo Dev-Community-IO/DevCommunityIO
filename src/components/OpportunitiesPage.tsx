@@ -1,8 +1,10 @@
-import { Briefcase, MapPin, DollarSign, Clock, ArrowLeft, Search, Filter, ExternalLink, Building, TrendingUp, Star, Zap } from 'lucide-react';
+import { Briefcase, MapPin, DollarSign, Clock, ArrowLeft, Search, Filter, ExternalLink, Building, TrendingUp, Star, Zap, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { opportunitiesService, Opportunity as APIOpportunity } from '../services/api/opportunities.service';
+import { ContentGridSkeletonList } from './skeletons';
 
 interface OpportunitiesPageProps {
   onBack?: () => void;
@@ -28,180 +30,57 @@ interface Opportunity {
 export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [opportunities, setOpportunities] = useState<APIOpportunity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const opportunities: Opportunity[] = [
-    {
-      id: '1',
-      title: 'Senior Smart Contract Engineer',
-      company: 'DeFi Protocol',
-      description: 'Lead the development of next-generation DeFi protocols with focus on security and scalability',
-      location: 'Remote',
-      type: 'full-time',
-      category: 'Engineering',
-      salary: '$150k - $200k',
-      experience: '5+ years',
-      posted: '2 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=defi',
-      tags: ['Solidity', 'DeFi', 'Smart Contracts'],
-      featured: true,
-      remote: true
-    },
-    {
-      id: '2',
-      title: 'Blockchain Product Manager',
-      company: 'Web3 Ventures',
-      description: 'Drive product strategy and roadmap for innovative Web3 consumer applications',
-      location: 'San Francisco, CA',
-      type: 'full-time',
-      category: 'Product',
-      salary: '$140k - $180k',
-      experience: '4+ years',
-      posted: '1 day ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=web3',
-      tags: ['Product', 'Web3', 'Strategy'],
-      featured: true,
-      remote: false
-    },
-    {
-      id: '3',
-      title: 'NFT Marketplace Developer',
-      company: 'Digital Art Studios',
-      description: 'Build scalable NFT marketplace features and integrate with major blockchain networks',
-      location: 'Remote',
-      type: 'contract',
-      category: 'Engineering',
-      salary: '$100 - $150/hr',
-      experience: '3+ years',
-      posted: '3 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=nft',
-      tags: ['NFT', 'React', 'Blockchain'],
-      featured: false,
-      remote: true
-    },
-    {
-      id: '4',
-      title: 'Community Manager',
-      company: 'DAO Collective',
-      description: 'Engage and grow our vibrant Web3 community across multiple channels',
-      location: 'Remote',
-      type: 'full-time',
-      category: 'Community',
-      salary: '$70k - $90k',
-      experience: '2+ years',
-      posted: '5 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=dao',
-      tags: ['Community', 'DAO', 'Social'],
-      featured: false,
-      remote: true
-    },
-    {
-      id: '5',
-      title: 'Security Researcher',
-      company: 'Audit Labs',
-      description: 'Conduct security audits and vulnerability assessments for smart contracts',
-      location: 'New York, NY',
-      type: 'full-time',
-      category: 'Security',
-      salary: '$130k - $170k',
-      experience: '4+ years',
-      posted: '1 week ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=security',
-      tags: ['Security', 'Audit', 'Solidity'],
-      featured: true,
-      remote: false
-    },
-    {
-      id: '6',
-      title: 'Web3 Marketing Lead',
-      company: 'Crypto Exchange',
-      description: 'Lead marketing initiatives and brand strategy for growing cryptocurrency platform',
-      location: 'Remote',
-      type: 'full-time',
-      category: 'Marketing',
-      salary: '$110k - $140k',
-      experience: '3+ years',
-      posted: '4 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=crypto',
-      tags: ['Marketing', 'Crypto', 'Growth'],
-      featured: false,
-      remote: true
-    },
-    {
-      id: '7',
-      title: 'Blockchain Research Intern',
-      company: 'Tech University Lab',
-      description: 'Research emerging blockchain technologies and contribute to academic publications',
-      location: 'Boston, MA',
-      type: 'internship',
-      category: 'Research',
-      salary: '$30/hr',
-      experience: 'Student',
-      posted: '1 week ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=research',
-      tags: ['Research', 'Academic', 'Blockchain'],
-      featured: false,
-      remote: false
-    },
-    {
-      id: '8',
-      title: 'Full Stack Web3 Developer',
-      company: 'Startup DAO',
-      description: 'Build end-to-end decentralized applications with modern tech stack',
-      location: 'Remote',
-      type: 'full-time',
-      category: 'Engineering',
-      salary: '$120k - $160k',
-      experience: '3+ years',
-      posted: '2 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=startup',
-      tags: ['Full Stack', 'React', 'Web3'],
-      featured: false,
-      remote: true
-    },
-    {
-      id: '9',
-      title: 'Tokenomics Designer',
-      company: 'Game Studio',
-      description: 'Design sustainable token economics for play-to-earn gaming ecosystem',
-      location: 'Remote',
-      type: 'contract',
-      category: 'Design',
-      salary: '$90 - $120/hr',
-      experience: '3+ years',
-      posted: '6 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=game',
-      tags: ['Tokenomics', 'Gaming', 'Economics'],
-      featured: false,
-      remote: true
-    },
-    {
-      id: '10',
-      title: 'DevRel Engineer',
-      company: 'Blockchain Platform',
-      description: 'Build developer tools, documentation, and foster developer community',
-      location: 'Austin, TX',
-      type: 'full-time',
-      category: 'DevRel',
-      salary: '$110k - $150k',
-      experience: '3+ years',
-      posted: '3 days ago',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=platform',
-      tags: ['DevRel', 'Community', 'Documentation'],
-      featured: true,
-      remote: false
-    }
-  ];
+  useEffect(() => {
+    const fetchOpportunities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params: any = {};
+        if (searchQuery) params.search = searchQuery;
+        if (selectedFilter !== 'all' && ['full-time', 'part-time', 'contract', 'internship'].includes(selectedFilter)) {
+          params.type = selectedFilter;
+        } else if (selectedFilter !== 'all') {
+          params.category = selectedFilter;
+        }
+        
+        const response = await opportunitiesService.getOpportunities(params);
+        setOpportunities(response.data || response);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load opportunities');
+        console.error('Error fetching opportunities:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const categories = ['all', ...Array.from(new Set(opportunities.map(o => o.category)))];
+    fetchOpportunities();
+  }, [searchQuery, selectedFilter]);
 
-  const filteredOpportunities = opportunities.filter(opp => {
-    const matchesSearch = opp.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         opp.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         opp.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         opp.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = selectedFilter === 'all' || opp.category === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const opportunitiesData: Opportunity[] = opportunities.map(o => ({
+    id: o.id,
+    title: o.title,
+    company: o.companyName,
+    description: o.description,
+    location: o.location,
+    type: o.type,
+    category: o.category,
+    salary: o.salary || 'Competitive',
+    experience: o.experience,
+    posted: o.postedAt ? new Date(o.postedAt).toLocaleDateString() : 'Recently',
+    logo: o.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${o.companyName}`,
+    tags: [],
+    featured: o.featured,
+    remote: o.remote
+  }));
+
+  const categories = ['all', ...Array.from(new Set(opportunitiesData.map(o => o.category)))];
+
+  const filteredOpportunities = opportunitiesData;
 
   const getTypeBadge = (type: string) => {
     const styles = {
@@ -266,8 +145,29 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
         </div>
       </GlassCard>
 
+      {/* Loading State */}
+      {loading && (
+        <ContentGridSkeletonList count={6} />
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <Briefcase size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
+          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load opportunities</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <Button 
+            variant="primary" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Featured Opportunities */}
-      {filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+      {!loading && !error && filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star size={20} className="text-yellow-500" />
@@ -328,13 +228,19 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                         <span>{opp.posted}</span>
                       </div>
                     </div>
+                    {opp.tags && opp.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
-                      {opp.tags.map(tag => (
-                        <span key={tag} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                          {tag}
+                        {opp.tags.map(tag => {
+                          const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                          const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                          return (
+                            <span key={tagKey} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                              #{tagName}
                         </span>
-                      ))}
+                          );
+                        })}
                     </div>
+                    )}
                     <Button variant="primary" className="w-full text-sm py-2">
                       <ExternalLink size={14} className="mr-2" />
                       Apply Now
@@ -348,6 +254,7 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
       )}
 
       {/* All Opportunities */}
+      {!loading && !error && (
       <div>
         {filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
           <h2 className="text-lg font-bold mb-3">All Opportunities</h2>
@@ -403,13 +310,19 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
+                    {opp.tags && opp.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {opp.tags.slice(0, 3).map(tag => (
-                        <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                          {tag}
+                        {opp.tags.slice(0, 3).map(tag => {
+                          const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                          const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                          return (
+                            <span key={tagKey} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                              #{tagName}
                         </span>
-                      ))}
+                          );
+                        })}
                     </div>
+                    )}
                     <Button variant="primary" className="text-xs py-1 px-3 ml-2">
                       Apply
                     </Button>
@@ -420,8 +333,9 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
           ))}
         </div>
       </div>
+      )}
 
-      {filteredOpportunities.length === 0 && (
+      {!loading && !error && filteredOpportunities.length === 0 && (
         <div className="text-center py-12">
           <Briefcase size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
           <p className="text-gray-500 dark:text-gray-400">No opportunities found matching your search</p>

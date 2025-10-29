@@ -1,14 +1,15 @@
-import { useState } from 'react';
-import { ArrowLeft, Bell, Check, Trash2, Settings, Filter, MessageCircle, Heart, AtSign, UserPlus, FileText, Award } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Bell, Check, Trash2, Settings, Filter, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Loader } from 'lucide-react';
 import { Notification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
+import notificationsService from '../services/api/notifications.service';
 
 interface NotificationsPageProps {
   onBack: () => void;
 }
 
-const mockNotifications: Notification[] = [
+const REMOVED_mockNotifications: Notification[] = [
   {
     id: '1',
     type: 'comment',
@@ -192,9 +193,30 @@ const formatTimestamp = (date: Date) => {
 };
 
 export function NotificationsPage({ onBack }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activeFilter, setActiveFilter] = useState<NotificationType | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch notifications on mount
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await notificationsService.getNotifications();
+        setNotifications(data);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load notifications');
+        console.error('Error fetching notifications:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
 
   const filteredNotifications = notifications.filter(n => {
     const matchesFilter = activeFilter === 'all' || n.type === activeFilter;
@@ -204,23 +226,46 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(notifications.map(n =>
-      n.id === id ? { ...n, isRead: true } : n
-    ));
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await notificationsService.markAsRead(id);
+      setNotifications(notifications.map(n =>
+        n.id === id ? { ...n, isRead: true } : n
+      ));
+    } catch (err: any) {
+      console.error('Error marking notification as read:', err);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationsService.markAllAsRead();
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    } catch (err: any) {
+      console.error('Error marking all as read:', err);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await notificationsService.deleteNotification(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+    } catch (err: any) {
+      console.error('Error deleting notification:', err);
+    }
   };
 
   const handleClearAll = () => {
     setNotifications([]);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

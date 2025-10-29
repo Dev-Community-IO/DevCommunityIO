@@ -1,17 +1,39 @@
-import { TrendingUp, Clock, MapPin, Calendar, Link as LinkIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, Clock, MapPin, Calendar, Link as LinkIcon, Loader } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
-import { User } from '../types';
-import { mockPosts } from '../data/mockData';
+import { User, Post } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import usersService from '../services/api/users.service';
 
 interface AuthorSidebarProps {
   author: User;
+  onLoginRequired?: () => void;
 }
 
-export function AuthorSidebar({ author }: AuthorSidebarProps) {
-  const authorPosts = mockPosts
-    .filter(post => post.author.id === author.id)
-    .slice(0, 5);
+export function AuthorSidebar({ author, onLoginRequired }: AuthorSidebarProps) {
+  const { isAuthenticated } = useAuth();
+  const [authorPosts, setAuthorPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAuthorPosts = async () => {
+      try {
+        setLoading(true);
+        const posts = await usersService.getUserPosts(author.username, 1, 5);
+        setAuthorPosts(posts.slice(0, 5));
+      } catch (err) {
+        console.error('Error fetching author posts:', err);
+        setAuthorPosts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (author.username) {
+      fetchAuthorPosts();
+    }
+  }, [author.username]);
 
   return (
     <aside className="hidden lg:block w-80 flex-shrink-0 space-y-3">
@@ -44,7 +66,16 @@ export function AuthorSidebar({ author }: AuthorSidebarProps) {
           </div>
         </div>
 
-        <button className="w-full mt-4 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium transition-all duration-300">
+        <button 
+          onClick={() => {
+            if (!isAuthenticated) {
+              onLoginRequired?.();
+              return;
+            }
+            // Handle follow logic here
+          }}
+          className="w-full mt-4 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/30"
+        >
           Follow
         </button>
       </GlassCard>
@@ -54,26 +85,34 @@ export function AuthorSidebar({ author }: AuthorSidebarProps) {
           <TrendingUp size={16} className="text-green-500 flex-shrink-0" />
           <h3 className="font-semibold text-sm">Recent Posts</h3>
         </div>
-        <div className="space-y-2">
-          {authorPosts.map(post => (
-            <div
-              key={post.id}
-              className="pb-2 border-b border-gray-200 dark:border-white/5 last:border-0 last:pb-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg p-2 -m-2 transition-all duration-300"
-            >
-              <h4 className="font-medium text-xs mb-1 line-clamp-2 hover:text-blue-500 transition-colors break-words">
-                {post.title}
-              </h4>
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-wrap">
-                <span className="flex items-center gap-1 whitespace-nowrap">
-                  <Clock size={10} />
-                  {new Date(post.timestamp).toLocaleDateString()}
-                </span>
-                <span>•</span>
-                <span className="whitespace-nowrap">{post.commentCount} replies</span>
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader className="w-4 h-4 animate-spin text-blue-500" />
+          </div>
+        ) : authorPosts.length > 0 ? (
+          <div className="space-y-2">
+            {authorPosts.map(post => (
+              <div
+                key={post.id}
+                className="pb-2 border-b border-gray-200 dark:border-white/5 last:border-0 last:pb-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg p-2 -m-2 transition-all duration-300"
+              >
+                <h4 className="font-medium text-xs mb-1 line-clamp-2 hover:text-blue-500 transition-colors break-words">
+                  {post.title}
+                </h4>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-wrap">
+                  <span className="flex items-center gap-1 whitespace-nowrap">
+                    <Clock size={10} />
+                    {new Date(post.createdAt || post.timestamp).toLocaleDateString()}
+                  </span>
+                  <span>•</span>
+                  <span className="whitespace-nowrap">{post.commentCount || 0} replies</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 text-center py-4">No posts yet</p>
+        )}
       </GlassCard>
     </aside>
   );

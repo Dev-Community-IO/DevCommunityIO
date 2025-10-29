@@ -1,8 +1,10 @@
-import { Calendar, MapPin, Users, Clock, ArrowLeft, Search, Filter, ExternalLink, Video, Ticket, Star } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, ArrowLeft, Search, Filter, ExternalLink, Video, Ticket, Star, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { eventsService, Event as APIEvent } from '../services/api/events.service';
+import { ContentGridSkeletonList } from './skeletons';
 
 interface EventsPageProps {
   onBack?: () => void;
@@ -29,152 +31,58 @@ interface Event {
 export function EventsPage({ onBack }: EventsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [events, setEvents] = useState<APIEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const events: Event[] = [
-    {
-      id: '1',
-      title: 'Web3 Summit 2025',
-      description: 'Join industry leaders discussing the future of decentralized technologies and blockchain innovation',
-      organizer: 'Web3 Foundation',
-      date: '2025-03-15',
-      time: '09:00 AM',
-      location: 'San Francisco, CA',
-      type: 'hybrid',
-      category: 'Conference',
-      attendees: 1500,
-      maxAttendees: 2000,
-      image: 'https://images.pexels.com/photos/2774556/pexels-photo-2774556.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Web3', 'Blockchain', 'Innovation'],
-      featured: true,
-      price: '$299'
-    },
-    {
-      id: '2',
-      title: 'NFT Art Exhibition',
-      description: 'Explore groundbreaking digital art and meet renowned NFT artists from around the world',
-      organizer: 'NFT Gallery',
-      date: '2025-02-20',
-      time: '06:00 PM',
-      location: 'New York, NY',
-      type: 'in-person',
-      category: 'Exhibition',
-      attendees: 450,
-      maxAttendees: 500,
-      image: 'https://images.pexels.com/photos/1839919/pexels-photo-1839919.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['NFT', 'Art', 'Digital'],
-      featured: true,
-      price: 'Free'
-    },
-    {
-      id: '3',
-      title: 'DeFi Workshop Series',
-      description: 'Hands-on workshop covering DeFi protocols, yield farming, and liquidity provision strategies',
-      organizer: 'DeFi Academy',
-      date: '2025-02-10',
-      time: '02:00 PM',
-      location: 'Virtual Event',
-      type: 'online',
-      category: 'Workshop',
-      attendees: 850,
-      image: 'https://images.pexels.com/photos/3183165/pexels-photo-3183165.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['DeFi', 'Finance', 'Education'],
-      featured: false,
-      price: '$49'
-    },
-    {
-      id: '4',
-      title: 'Blockchain Developer Meetup',
-      description: 'Network with fellow blockchain developers and share your latest projects',
-      organizer: 'Dev Community',
-      date: '2025-02-05',
-      time: '07:00 PM',
-      location: 'Austin, TX',
-      type: 'in-person',
-      category: 'Meetup',
-      attendees: 120,
-      maxAttendees: 150,
-      image: 'https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Development', 'Networking', 'Blockchain'],
-      featured: false,
-      price: 'Free'
-    },
-    {
-      id: '5',
-      title: 'Smart Contract Security Webinar',
-      description: 'Learn best practices for auditing and securing smart contracts from industry experts',
-      organizer: 'Security Alliance',
-      date: '2025-02-15',
-      time: '11:00 AM',
-      location: 'Virtual Event',
-      type: 'online',
-      category: 'Webinar',
-      attendees: 2100,
-      image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Security', 'Smart Contracts', 'Education'],
-      featured: true,
-      price: 'Free'
-    },
-    {
-      id: '6',
-      title: 'DAO Governance Forum',
-      description: 'Discuss decentralized governance models and participate in shaping the future of DAOs',
-      organizer: 'DAO Collective',
-      date: '2025-03-01',
-      time: '03:00 PM',
-      location: 'Virtual Event',
-      type: 'online',
-      category: 'Forum',
-      attendees: 680,
-      image: 'https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['DAO', 'Governance', 'Community'],
-      featured: false,
-      price: 'Free'
-    },
-    {
-      id: '7',
-      title: 'Metaverse Conference',
-      description: 'Explore the latest developments in virtual worlds, gaming, and immersive experiences',
-      organizer: 'Metaverse Network',
-      date: '2025-03-20',
-      time: '10:00 AM',
-      location: 'Los Angeles, CA',
-      type: 'hybrid',
-      category: 'Conference',
-      attendees: 1200,
-      maxAttendees: 1500,
-      image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Metaverse', 'Gaming', 'VR'],
-      featured: false,
-      price: '$199'
-    },
-    {
-      id: '8',
-      title: 'Crypto Trading Masterclass',
-      description: 'Advanced strategies for cryptocurrency trading and portfolio management',
-      organizer: 'Trading Academy',
-      date: '2025-02-12',
-      time: '01:00 PM',
-      location: 'Virtual Event',
-      type: 'online',
-      category: 'Masterclass',
-      attendees: 540,
-      maxAttendees: 1000,
-      image: 'https://images.pexels.com/photos/6771900/pexels-photo-6771900.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Trading', 'Crypto', 'Finance'],
-      featured: false,
-      price: '$99'
-    }
-  ];
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params: any = {};
+        if (searchQuery) params.search = searchQuery;
+        if (selectedFilter !== 'all' && !['Conference', 'Exhibition', 'Workshop', 'Meetup', 'Webinar', 'Forum', 'Masterclass'].includes(selectedFilter)) {
+          params.type = selectedFilter;
+        } else if (selectedFilter !== 'all') {
+          params.category = selectedFilter;
+        }
+        
+        const response = await eventsService.getEvents(params);
+        setEvents(response.data || response);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load events');
+        console.error('Error fetching events:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const categories = ['all', ...Array.from(new Set(events.map(e => e.category)))];
+    fetchEvents();
+  }, [searchQuery, selectedFilter]);
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = selectedFilter === 'all' || event.category === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const eventsData: Event[] = events.map(e => ({
+    id: e.id,
+    title: e.title,
+    description: e.description,
+    organizer: 'Organizer', // Would need to fetch organizer details
+    date: e.date,
+    time: e.time,
+    location: e.location,
+    type: e.type,
+    category: e.category,
+    attendees: e.attendeeCount,
+    maxAttendees: e.maxAttendees,
+    image: e.imageUrl || `https://images.pexels.com/photos/2774556/pexels-photo-2774556.jpeg?auto=compress&cs=tinysrgb&w=800`,
+    tags: [], // Would need to add tags support
+    featured: e.featured,
+    price: e.price
+  }));
+
+  const categories = ['all', ...Array.from(new Set(eventsData.map(e => e.category)))];
+
+  const filteredEvents = eventsData;
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -251,8 +159,29 @@ export function EventsPage({ onBack }: EventsPageProps) {
         </div>
       </GlassCard>
 
+      {/* Loading State */}
+      {loading && (
+        <ContentGridSkeletonList count={6} />
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <Calendar size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
+          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load events</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <Button 
+            variant="primary" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Featured Events */}
-      {filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+      {!loading && !error && filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star size={20} className="text-yellow-500" />
@@ -314,13 +243,19 @@ export function EventsPage({ onBack }: EventsPageProps) {
                       <span className="font-semibold">{event.price}</span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {event.tags.map(tag => (
-                      <span key={tag} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+                  {event.tags && event.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {event.tags.map(tag => {
+                        const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                        const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                        return (
+                          <span key={tagKey} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                            #{tagName}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   <Button variant="primary" className="w-full text-sm py-2">
                     <ExternalLink size={14} className="mr-2" />
                     Register Now
@@ -333,6 +268,7 @@ export function EventsPage({ onBack }: EventsPageProps) {
       )}
 
       {/* All Events Grid */}
+      {!loading && !error && (
       <div>
         {filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
           <h2 className="text-lg font-bold mb-3">Upcoming Events</h2>
@@ -387,13 +323,19 @@ export function EventsPage({ onBack }: EventsPageProps) {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {event.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+                {event.tags && event.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {event.tags.slice(0, 3).map(tag => {
+                      const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                      const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                      return (
+                        <span key={tagKey} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                          #{tagName}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
                 <Button variant="primary" className="w-full text-xs py-1.5">
                   Register
                 </Button>
@@ -402,8 +344,9 @@ export function EventsPage({ onBack }: EventsPageProps) {
           ))}
         </div>
       </div>
+      )}
 
-      {filteredEvents.length === 0 && (
+      {!loading && !error && filteredEvents.length === 0 && (
         <div className="text-center py-12">
           <Calendar size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
           <p className="text-gray-500 dark:text-gray-400">No events found matching your search</p>

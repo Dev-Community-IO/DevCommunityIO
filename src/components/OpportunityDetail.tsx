@@ -157,11 +157,17 @@ You'll work closely with our product, security, and research teams to implement 
                 <p key={index}>{paragraph}</p>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {opportunity.tags.map(tag => (
-                <Badge key={tag} variant="secondary">#{tag}</Badge>
-              ))}
-            </div>
+            {opportunity.tags && opportunity.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {opportunity.tags.map(tag => {
+                  const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                  const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                  return (
+                    <Badge key={tagKey} variant="secondary">#{tagName}</Badge>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
 
           {/* Responsibilities */}
@@ -295,11 +301,14 @@ You'll work closely with our product, security, and research teams to implement 
           <GlassCard className="p-6">
             <h3 className="font-bold mb-3">Required Skills</h3>
             <div className="flex flex-wrap gap-2">
-              {opportunity.tags.map((tag, index) => (
-                <Badge key={index} variant="primary" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
+              {opportunity.tags && opportunity.tags.map((tag, index) => {
+                const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                return (
+                  <Badge key={tag.id || tag.slug || index} variant="primary" className="text-xs">
+                    {tagName}
+                  </Badge>
+                );
+              })}
             </div>
           </GlassCard>
 

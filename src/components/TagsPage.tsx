@@ -1,16 +1,19 @@
-import { Hash, TrendingUp, Users, ArrowLeft, Search, Filter, UserPlus, UserCheck } from 'lucide-react';
+import { Hash, TrendingUp, Users, ArrowLeft, Search, Filter, UserPlus, UserCheck, Loader2, Eye } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { tagsService, Tag as APITag } from '../services/api/tags.service';
+import { useNavigate } from 'react-router-dom';
 
 interface TagsPageProps {
-  onTagClick: (tag: string) => void;
+  onTagClick?: (tag: string) => void;
   onBack?: () => void;
 }
 
 interface Tag {
   name: string;
+  slug: string;
   category: string;
   posts: number;
   followers: number;
@@ -19,78 +22,108 @@ interface Tag {
 }
 
 export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [followedTags, setFollowedTags] = useState<Set<string>>(new Set());
+  const [tags, setTags] = useState<APITag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const allTags: Tag[] = [
-    { name: 'DeFi', category: 'Finance', posts: 1234, followers: 5432, trending: true, color: 'from-blue-500 to-cyan-500' },
-    { name: 'NFT', category: 'Digital Art', posts: 2341, followers: 8765, trending: true, color: 'from-purple-500 to-pink-500' },
-    { name: 'DAO', category: 'Governance', posts: 876, followers: 3210, trending: false, color: 'from-green-500 to-teal-500' },
-    { name: 'Smart Contracts', category: 'Development', posts: 1567, followers: 6543, trending: true, color: 'from-orange-500 to-red-500' },
-    { name: 'Ethereum', category: 'Blockchain', posts: 3456, followers: 12345, trending: true, color: 'from-indigo-500 to-blue-500' },
-    { name: 'Solidity', category: 'Programming', posts: 987, followers: 4321, trending: false, color: 'from-pink-500 to-rose-500' },
-    { name: 'Web3', category: 'Technology', posts: 2890, followers: 9876, trending: true, color: 'from-cyan-500 to-blue-500' },
-    { name: 'Blockchain', category: 'Technology', posts: 4567, followers: 15678, trending: true, color: 'from-teal-500 to-green-500' },
-    { name: 'Staking', category: 'Finance', posts: 1123, followers: 4567, trending: false, color: 'from-yellow-500 to-orange-500' },
-    { name: 'Layer2', category: 'Scaling', posts: 765, followers: 2345, trending: false, color: 'from-lime-500 to-green-500' },
-    { name: 'Cardano', category: 'Blockchain', posts: 2134, followers: 7654, trending: true, color: 'from-blue-600 to-cyan-600' },
-    { name: 'Polkadot', category: 'Blockchain', posts: 1456, followers: 5432, trending: false, color: 'from-pink-600 to-purple-600' },
-    { name: 'Metaverse', category: 'Virtual Reality', posts: 1890, followers: 6789, trending: true, color: 'from-violet-500 to-purple-500' },
-    { name: 'GameFi', category: 'Gaming', posts: 1345, followers: 5678, trending: false, color: 'from-fuchsia-500 to-pink-500' },
-    { name: 'Cross-chain', category: 'Interoperability', posts: 567, followers: 2109, trending: false, color: 'from-emerald-500 to-teal-500' },
-    { name: 'dApps', category: 'Development', posts: 2456, followers: 8901, trending: true, color: 'from-sky-500 to-blue-500' },
-    { name: 'Consensus', category: 'Protocol', posts: 678, followers: 2345, trending: false, color: 'from-slate-500 to-gray-500' },
-    { name: 'Privacy', category: 'Security', posts: 890, followers: 3456, trending: false, color: 'from-stone-500 to-zinc-500' },
-    { name: 'Tokenomics', category: 'Economics', posts: 1234, followers: 4567, trending: false, color: 'from-amber-500 to-yellow-500' },
-    { name: 'Web Assembly', category: 'Programming', posts: 456, followers: 1789, trending: false, color: 'from-red-500 to-orange-500' },
-  ];
+  const handleTagClick = (tagSlug: string, tagName?: string) => {
+    if (onTagClick) {
+      onTagClick(tagName || tagSlug);
+    } else {
+      // Default: navigate to feed with tag filter (use slug for API)
+      navigate(`/?tags=${encodeURIComponent(tagSlug)}`);
+    }
+  };
+
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params: any = {};
+        if (searchQuery) params.search = searchQuery;
+        if (selectedFilter === 'trending') {
+          params.trending = true;
+        } else if (selectedFilter !== 'all') {
+          params.category = selectedFilter;
+        }
+        
+        const response = await tagsService.getTags(params);
+        // Ensure tags is always an array
+        const tagsArray = Array.isArray(response) 
+          ? response 
+          : (response?.tags || response?.data || []);
+        setTags(Array.isArray(tagsArray) ? tagsArray : []);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load tags');
+        console.error('Error fetching tags:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTags();
+  }, [searchQuery, selectedFilter]);
+
+  const allTags: Tag[] = (Array.isArray(tags) ? tags : []).map(t => ({
+    name: t.name,
+    slug: t.slug || t.name.toLowerCase().replace(/\s+/g, '-'), // Use slug or generate from name
+    category: t.category || 'General',
+    posts: t.usageCount || 0,
+    followers: t.followersCount || 0,
+    trending: t.trending,
+    color: t.color || 'from-blue-500 to-cyan-500'
+  }));
 
   const categories = ['all', 'trending', ...Array.from(new Set(allTags.map(tag => tag.category)))];
 
-  const filteredTags = allTags.filter(tag => {
-    const matchesSearch = tag.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         tag.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'all' ||
-                         (selectedFilter === 'trending' && tag.trending) ||
-                         tag.category === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredTags = allTags;
 
-  const handleFollow = (e: React.MouseEvent, tagName: string) => {
-    e.stopPropagation();
-    setFollowedTags(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(tagName)) {
-        newSet.delete(tagName);
-      } else {
-        newSet.add(tagName);
+  const handleFollow = async (tagSlug: string, tagName: string) => {
+    if (followedTags.has(tagName)) {
+      try {
+        await tagsService.unfollowTag(tagSlug);
+        setFollowedTags(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(tagName);
+          return newSet;
+        });
+      } catch (err) {
+        console.error('Failed to unfollow tag:', err);
       }
-      return newSet;
-    });
+    } else {
+      try {
+        await tagsService.followTag(tagSlug);
+        setFollowedTags(prev => new Set(prev).add(tagName));
+      } catch (err) {
+        console.error('Failed to follow tag:', err);
+      }
+    }
   };
 
   return (
     <div className="space-y-4">
-      {/* Header with Back Button */}
+      {/* Header */}
       <div className="flex items-center gap-4">
         {onBack && (
           <button
             onClick={onBack}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-all duration-200 group"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
-            <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft size={20} />
           </button>
         )}
         <div className="flex-1">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-md">
-              <Hash size={24} className="text-white" strokeWidth={2.5} />
-            </div>
-            All Tags
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
+            Explore Tags
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Explore topics and discover content that interests you
+            Discover and follow topics that interest you
           </p>
         </div>
       </div>
@@ -98,7 +131,6 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
       {/* Search and Filters */}
       <GlassCard className="p-4">
         <div className="flex flex-col lg:flex-row gap-3">
-          {/* Search */}
           <div className="flex-1 relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -109,8 +141,6 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
               className="w-full pl-10 pr-4 py-2 bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             />
           </div>
-
-          {/* Filter Dropdown */}
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-gray-400 flex-shrink-0" />
             <select
@@ -126,77 +156,142 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
         </div>
       </GlassCard>
 
-      {/* Tags Grid - Compact Design */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {filteredTags.map((tag) => {
-          const isFollowing = followedTags.has(tag.name);
-          return (
-            <GlassCard
-              key={tag.name}
-              className="p-0 overflow-hidden hover:shadow-lg transition-all duration-300 group"
-            >
-              <div className={`h-1 bg-gradient-to-r ${tag.color}`}></div>
-              <div className="p-3">
-                <div className="flex items-start gap-2 mb-2">
-                  <div
-                    onClick={() => onTagClick(tag.name.toLowerCase())}
-                    className="flex-1 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className={`p-1.5 rounded-lg bg-gradient-to-br ${tag.color} shadow-sm`}>
-                        <Hash size={14} className="text-white" strokeWidth={2.5} />
-                      </div>
-                      <h3 className="text-sm font-bold group-hover:text-blue-500 transition-colors truncate">
-                        {tag.name}
-                      </h3>
-                      {tag.trending && (
-                        <Badge variant="gradient" className="text-[9px] px-1.5 py-0.5 flex-shrink-0">
-                          <TrendingUp size={8} className="inline mr-0.5" />
-                          Hot
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-600 dark:text-gray-400 truncate">
-                      {tag.category}
-                    </p>
-                  </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="ml-3 text-gray-600 dark:text-gray-400">Loading tags...</span>
+        </div>
+      )}
 
-                  {/* Follow Button */}
-                  <button
-                    onClick={(e) => handleFollow(e, tag.name)}
-                    className={`p-1.5 rounded-lg transition-all duration-200 flex-shrink-0 ${
-                      isFollowing
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <Hash size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
+          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load tags</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <Button 
+            variant="primary" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Trending Tags */}
+      {!loading && !error && filteredTags.filter(t => t.trending).length > 0 && selectedFilter === 'all' && !searchQuery && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp size={20} className="text-orange-500" />
+            <h2 className="text-lg font-bold">Trending Now</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredTags.filter(t => t.trending).map(tag => (
+              <GlassCard key={tag.name} className="p-4 hover:shadow-lg transition-all duration-300 group">
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${tag.color} shadow-sm`}>
+                    <Hash size={20} className="text-white" />
+                  </div>
+                  <Badge className="text-xs px-2 py-1">Trending</Badge>
+                </div>
+                <h3 className={`font-bold text-xl mb-2 bg-gradient-to-r ${tag.color} bg-clip-text text-transparent`}>
+                  #{tag.name}
+                </h3>
+                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  <span className="flex items-center gap-1.5">
+                    <Users size={14} />
+                    <span className="font-medium">{tag.followers.toLocaleString()}</span>
+                  </span>
+                  <span className="font-medium">{tag.posts.toLocaleString()} posts</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    className="flex-1 text-xs py-2 h-auto"
+                    onClick={() => handleTagClick(tag.slug, tag.name)}
                   >
-                    {isFollowing ? (
+                    <Eye size={14} className="mr-1.5" />
+                    View Posts
+                  </Button>
+                  <Button
+                    variant={followedTags.has(tag.name) ? "secondary" : "ghost"}
+                    className="text-xs py-2 px-3 h-auto"
+                    onClick={() => {
+                      handleFollow(tag.slug, tag.name);
+                    }}
+                  >
+                    {followedTags.has(tag.name) ? (
                       <UserCheck size={14} />
                     ) : (
                       <UserPlus size={14} />
                     )}
-                  </button>
+                  </Button>
                 </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      )}
 
-                {/* Stats */}
-                <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center gap-1">
-                    <Hash size={10} />
-                    <span className="font-semibold">{tag.posts.toLocaleString()}</span>
-                    <span className="hidden sm:inline">posts</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Users size={10} />
-                    <span className="font-semibold">{tag.followers.toLocaleString()}</span>
-                  </div>
+      {/* All Tags */}
+      {!loading && !error && (
+      <div>
+        {filteredTags.filter(t => t.trending).length > 0 && selectedFilter === 'all' && !searchQuery && (
+          <h2 className="text-lg font-bold mb-3">All Tags</h2>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filteredTags.filter(t => selectedFilter !== 'all' || searchQuery || !t.trending).map(tag => (
+            <GlassCard key={tag.name} className="p-3.5 hover:shadow-lg transition-all duration-300 group">
+              <div className="flex items-start justify-between mb-2.5">
+                <div className={`p-2 rounded-lg bg-gradient-to-br ${tag.color} shadow-sm flex-shrink-0`}>
+                  <Hash size={16} className="text-white" />
                 </div>
+                {tag.trending && (
+                  <TrendingUp size={14} className="text-orange-500 flex-shrink-0" />
+                )}
+              </div>
+              <h3 className={`font-bold text-lg mb-2 bg-gradient-to-r ${tag.color} bg-clip-text text-transparent truncate`} title={tag.name}>
+                #{tag.name}
+              </h3>
+              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-2.5">
+                <span className="flex items-center gap-1">
+                  <Users size={12} />
+                  <span className="font-medium">{tag.followers.toLocaleString()}</span>
+                </span>
+                <span className="font-medium">{tag.posts.toLocaleString()} posts</span>
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="primary"
+                  className="flex-1 text-xs py-1.5 h-auto"
+                  onClick={() => handleTagClick(tag.slug, tag.name)}
+                >
+                  <Eye size={12} className="mr-1" />
+                  View
+                </Button>
+                <Button
+                  variant={followedTags.has(tag.name) ? "secondary" : "ghost"}
+                  className="text-xs py-1.5 px-2.5 h-auto"
+                  onClick={() => {
+                    handleFollow(tag.slug, tag.name);
+                  }}
+                >
+                  {followedTags.has(tag.name) ? (
+                    <UserCheck size={12} />
+                  ) : (
+                    <UserPlus size={12} />
+                  )}
+                </Button>
               </div>
             </GlassCard>
-          );
-        })}
+          ))}
+        </div>
       </div>
+      )}
 
-      {filteredTags.length === 0 && (
+      {!loading && !error && filteredTags.length === 0 && (
         <div className="text-center py-12">
           <Hash size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
           <p className="text-gray-500 dark:text-gray-400">No tags found matching your search</p>

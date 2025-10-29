@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { ArrowLeft, Users, TrendingUp, MessageSquare, Settings, UserPlus, Bell, BellOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Users, TrendingUp, MessageSquare, Settings, UserPlus, Bell, BellOff, Loader } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { PostFeed } from './PostFeed';
-import { mockPosts } from '../data/mockData';
 import { Post } from '../types';
+import pagesService from '../services/api/pages.service';
 
 interface PageViewProps {
   pageId: string;
@@ -18,37 +18,85 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [pageData, setPageData] = useState<any>(null);
+  const [pagePosts, setPagePosts] = useState<Post[]>([]);
+  const [pageMembers, setPageMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const pageData = {
-    id: pageId,
-    name: 'Web3 Developers Hub',
-    description: 'Community for Web3 developers to share knowledge and collaborate on cutting-edge blockchain projects. Join us to learn, share, and build the future of decentralized technology.',
-    logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=web3dev',
-    coverImage: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=1200',
-    category: 'Development',
-    members: 1250,
-    posts: 342,
-    created: 'January 2024',
-    rules: [
-      'Be respectful and professional',
-      'Stay on topic - Web3 development only',
-      'No spam or self-promotion without prior approval',
-      'Share knowledge and help others learn',
-      'Give credit where credit is due'
-    ],
-    admins: [
-      { id: '1', name: 'Alice Johnson', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice', role: 'Founder' },
-      { id: '2', name: 'Bob Smith', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob', role: 'Admin' },
-    ]
-  };
+  // Fetch page data
+  useEffect(() => {
+    const fetchPageData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch page details
+        const page = await pagesService.getPage(pageId);
+        setPageData(page);
+        setIsFollowing(page.isFollowing || false);
+        
+        // Fetch page posts
+        const posts = await pagesService.getPagePosts(pageId);
+        setPagePosts(posts);
+        
+        // Fetch page members
+        const members = await pagesService.getMembers(pageId);
+        setPageMembers(members);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load page data');
+        console.error('Error fetching page:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleFollowToggle = () => {
-    setIsFollowing(!isFollowing);
+    fetchPageData();
+  }, [pageId]);
+
+  const handleFollowToggle = async () => {
+    try {
+      if (isFollowing) {
+        await pagesService.leave(pageId);
+        setIsFollowing(false);
+      } else {
+        await pagesService.join(pageId);
+        setIsFollowing(true);
+      }
+    } catch (err: any) {
+      console.error('Error toggling follow:', err);
+      // Revert on error
+      setIsFollowing(!isFollowing);
+    }
   };
 
   const handleNotificationToggle = () => {
     setNotificationsEnabled(!notificationsEnabled);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  if (error || !pageData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error || 'Page not found'}</p>
+          <button
+            onClick={onBack}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Back to Pages
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: 'posts', label: 'Posts', icon: MessageSquare },
@@ -179,8 +227,10 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
 
         {activeTab === 'posts' && (
           <PostFeed
-            posts={mockPosts}
+            posts={pagePosts}
             onPostClick={onPostClick || (() => {})}
+            loading={false}
+            error={null}
           />
         )}
 
@@ -195,50 +245,56 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
             </div>
 
             {/* Page Rules */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-              <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Page Rules</h2>
-              <ul className="space-y-3">
-                {pageData.rules.map((rule, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-xs flex items-center justify-center font-bold">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{rule}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {pageData.rules && pageData.rules.length > 0 && (
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+                <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Page Rules</h2>
+                <ul className="space-y-3">
+                  {pageData.rules.map((rule: string, index: number) => (
+                    <li key={index} className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-xs flex items-center justify-center font-bold">
+                        {index + 1}
+                      </span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Admins & Moderators */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-              <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Admins & Moderators</h2>
-              <div className="space-y-3">
-                {pageData.admins.map(admin => (
-                  <div key={admin.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                    <img
-                      src={admin.avatar}
-                      alt={admin.name}
-                      className="w-12 h-12 rounded-full flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 dark:text-white truncate">{admin.name}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{admin.role}</p>
+            {pageMembers && pageMembers.length > 0 && (
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+                <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Admins & Moderators</h2>
+                <div className="space-y-3">
+                  {pageMembers.filter((m: any) => m.role !== 'member').map((admin: any) => (
+                    <div key={admin.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+                      <img
+                        src={admin.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${admin.username}`}
+                        alt={admin.username}
+                        className="w-12 h-12 rounded-full flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-900 dark:text-white truncate">{admin.username}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{admin.role}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Meta Info */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Created</p>
-                  <p className="font-bold text-gray-900 dark:text-white">{pageData.created}</p>
+                  <p className="font-bold text-gray-900 dark:text-white">
+                    {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</p>
-                  <p className="font-bold text-gray-900 dark:text-white">{pageData.category}</p>
+                  <p className="font-bold text-gray-900 dark:text-white">{pageData.category || 'General'}</p>
                 </div>
               </div>
             </div>
@@ -246,12 +302,34 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
         )}
 
         {activeTab === 'members' && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-8 text-center">
-            <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
-            <h2 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">
-              {pageData.members.toLocaleString()} Members
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Member list coming soon...</p>
+          <div>
+            {pageMembers.length > 0 ? (
+              <div className="space-y-3">
+                {pageMembers.map((member: any) => (
+                  <div key={member.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={member.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+                        alt={member.username}
+                        className="w-12 h-12 rounded-full flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{member.role}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-8 text-center">
+                <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
+                <h2 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">
+                  {pageData.memberCount || pageData.members || 0} Members
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Member list coming soon...</p>
+              </div>
+            )}
           </div>
         )}
       </div>

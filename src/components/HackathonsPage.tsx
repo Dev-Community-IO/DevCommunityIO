@@ -1,144 +1,71 @@
-import { Trophy, Calendar, Users, DollarSign, Clock, MapPin, ArrowLeft, Search, Filter, ExternalLink, Award, Star } from 'lucide-react';
+import { Trophy, Calendar, Users, DollarSign, Clock, MapPin, ArrowLeft, Search, Filter, ExternalLink, Award, Star, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { hackathonsService, Hackathon } from '../services/api/hackathons.service';
+import { ContentGridSkeletonList } from './skeletons';
 
 interface HackathonsPageProps {
   onBack?: () => void;
 }
 
-interface Hackathon {
-  id: string;
-  title: string;
-  description: string;
-  organizer: string;
-  startDate: string;
-  endDate: string;
-  prize: string;
-  participants: number;
-  category: string;
-  difficulty: string;
-  status: 'upcoming' | 'ongoing' | 'ended';
-  image: string;
-  tags: string[];
-  featured?: boolean;
-}
-
 export function HackathonsPage({ onBack }: HackathonsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [hackathons, setHackathons] = useState<Hackathon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const hackathons: Hackathon[] = [
-    {
-      id: '1',
-      title: 'Web3 Global Hackathon 2025',
-      description: 'Build the future of decentralized applications with cutting-edge blockchain technology',
-      organizer: 'Web3 Foundation',
-      startDate: '2025-02-15',
-      endDate: '2025-03-15',
-      prize: '$100,000',
-      participants: 2500,
-      category: 'Blockchain',
-      difficulty: 'Advanced',
-      status: 'upcoming',
-      image: 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Web3', 'DeFi', 'Smart Contracts'],
-      featured: true
-    },
-    {
-      id: '2',
-      title: 'NFT Art Challenge',
-      description: 'Create innovative NFT collections and revolutionize digital art',
-      organizer: 'NFT Alliance',
-      startDate: '2025-01-20',
-      endDate: '2025-02-20',
-      prize: '$50,000',
-      participants: 1800,
-      category: 'NFT',
-      difficulty: 'Intermediate',
-      status: 'ongoing',
-      image: 'https://images.pexels.com/photos/6954174/pexels-photo-6954174.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['NFT', 'Art', 'Metaverse'],
-      featured: true
-    },
-    {
-      id: '3',
-      title: 'DeFi Protocol Innovation',
-      description: 'Design next-generation DeFi protocols for financial inclusion',
-      organizer: 'DeFi Labs',
-      startDate: '2025-03-01',
-      endDate: '2025-04-01',
-      prize: '$75,000',
-      participants: 1200,
-      category: 'DeFi',
-      difficulty: 'Advanced',
-      status: 'upcoming',
-      image: 'https://images.pexels.com/photos/6771900/pexels-photo-6771900.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['DeFi', 'Finance', 'Protocol'],
-      featured: false
-    },
-    {
-      id: '4',
-      title: 'DAO Governance Challenge',
-      description: 'Build tools and systems for effective decentralized governance',
-      organizer: 'DAO Collective',
-      startDate: '2024-12-01',
-      endDate: '2025-01-10',
-      prize: '$40,000',
-      participants: 950,
-      category: 'DAO',
-      difficulty: 'Intermediate',
-      status: 'ended',
-      image: 'https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['DAO', 'Governance', 'Voting'],
-      featured: false
-    },
-    {
-      id: '5',
-      title: 'Smart Contract Security Sprint',
-      description: 'Develop security tools and audit frameworks for smart contracts',
-      organizer: 'Security Alliance',
-      startDate: '2025-02-01',
-      endDate: '2025-02-28',
-      prize: '$60,000',
-      participants: 1500,
-      category: 'Security',
-      difficulty: 'Advanced',
-      status: 'upcoming',
-      image: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Security', 'Audit', 'Solidity'],
-      featured: true
-    },
-    {
-      id: '6',
-      title: 'Blockchain Gaming Jam',
-      description: 'Create engaging blockchain-based games and GameFi experiences',
-      organizer: 'GameFi Studios',
-      startDate: '2025-01-25',
-      endDate: '2025-02-25',
-      prize: '$55,000',
-      participants: 2100,
-      category: 'Gaming',
-      difficulty: 'Intermediate',
-      status: 'ongoing',
-      image: 'https://images.pexels.com/photos/3183197/pexels-photo-3183197.jpeg?auto=compress&cs=tinysrgb&w=800',
-      tags: ['Gaming', 'NFT', 'Metaverse'],
-      featured: false
-    }
-  ];
+  useEffect(() => {
+    const fetchHackathons = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params: any = {};
+        if (searchQuery) params.search = searchQuery;
+        if (selectedFilter !== 'all') {
+          if (['upcoming', 'ongoing', 'ended'].includes(selectedFilter)) {
+            params.status = selectedFilter;
+          } else {
+            params.category = selectedFilter;
+          }
+        }
+        
+        const response = await hackathonsService.getHackathons(params);
+        setHackathons(response.data || response);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load hackathons');
+        console.error('Error fetching hackathons:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const categories = ['all', 'upcoming', 'ongoing', 'ended', ...Array.from(new Set(hackathons.map(h => h.category)))];
+    fetchHackathons();
+  }, [searchQuery, selectedFilter]);
 
-  const filteredHackathons = hackathons.filter(hackathon => {
-    const matchesSearch = hackathon.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         hackathon.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         hackathon.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = selectedFilter === 'all' ||
-                         hackathon.status === selectedFilter ||
-                         hackathon.category === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const hackathonsData: any[] = hackathons.map(h => ({
+    id: h.id,
+    title: h.title,
+    description: h.description,
+    organizer: h.organizerName,
+    startDate: h.startDate,
+    endDate: h.endDate,
+    prize: h.prize || 'TBA',
+    participants: h.participantCount,
+    category: h.category,
+    difficulty: h.difficulty,
+    status: h.status,
+    image: h.imageUrl || `https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800`,
+    tags: h.tracks || [],
+    featured: h.featured
+  }));
+
+  const categories = ['all', 'upcoming', 'ongoing', 'ended', ...Array.from(new Set(hackathonsData.map(h => h.category)))];
+
+  const filteredHackathons = hackathonsData;
 
   const getStatusBadge = (status: string) => {
     const styles = {
@@ -211,8 +138,29 @@ export function HackathonsPage({ onBack }: HackathonsPageProps) {
         </div>
       </GlassCard>
 
+      {/* Loading State */}
+      {loading && (
+        <ContentGridSkeletonList count={6} />
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <Trophy size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
+          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load hackathons</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+          <Button 
+            variant="primary" 
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Featured Hackathons */}
-      {filteredHackathons.filter(h => h.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+      {!loading && !error && filteredHackathons.filter(h => h.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star size={20} className="text-yellow-500" />
@@ -270,13 +218,19 @@ export function HackathonsPage({ onBack }: HackathonsPageProps) {
                       <span>{hackathon.difficulty}</span>
                     </div>
                   </div>
+                  {hackathon.tags && hackathon.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {hackathon.tags.map(tag => (
-                      <span key={tag} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                        #{tag}
+                      {hackathon.tags.map(tag => {
+                        const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                        const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                        return (
+                          <span key={tagKey} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                            #{tagName}
                       </span>
-                    ))}
+                        );
+                      })}
                   </div>
+                  )}
                   <Button variant="primary" className="w-full text-sm py-2">
                     <ExternalLink size={14} className="mr-2" />
                     View Details
@@ -289,6 +243,7 @@ export function HackathonsPage({ onBack }: HackathonsPageProps) {
       )}
 
       {/* All Hackathons Grid */}
+      {!loading && !error && (
       <div>
         {filteredHackathons.filter(h => h.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
           <h2 className="text-lg font-bold mb-3">All Hackathons</h2>
@@ -334,13 +289,19 @@ export function HackathonsPage({ onBack }: HackathonsPageProps) {
                     <span className="font-semibold">{hackathon.participants}</span>
                   </div>
                 </div>
+                {hackathon.tags && hackathon.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-2">
-                  {hackathon.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                      #{tag}
+                    {hackathon.tags.slice(0, 3).map(tag => {
+                      const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                      const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                      return (
+                        <span key={tagKey} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                          #{tagName}
                     </span>
-                  ))}
+                      );
+                    })}
                 </div>
+                )}
                 <Button variant="primary" className="w-full text-xs py-1.5">
                   View Details
                 </Button>
@@ -349,8 +310,9 @@ export function HackathonsPage({ onBack }: HackathonsPageProps) {
           ))}
         </div>
       </div>
+      )}
 
-      {filteredHackathons.length === 0 && (
+      {!loading && !error && filteredHackathons.length === 0 && (
         <div className="text-center py-12">
           <Trophy size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
           <p className="text-gray-500 dark:text-gray-400">No hackathons found matching your search</p>

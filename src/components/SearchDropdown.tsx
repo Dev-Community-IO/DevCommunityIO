@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Clock, TrendingUp } from 'lucide-react';
-import { mockPosts, mockUsers } from '../data/mockData';
 import { Avatar } from './Avatar';
 import { Post, User } from '../types';
+import searchService from '../services/api/search.service';
 
 interface SearchDropdownProps {
   onPostClick: (post: Post) => void;
@@ -12,6 +12,7 @@ export function SearchDropdown({ onPostClick }: SearchDropdownProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [results, setResults] = useState<{ posts: Post[]; users: User[] }>({ posts: [], users: [] });
+  const [isSearching, setIsSearching] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,20 +33,26 @@ export function SearchDropdown({ onPostClick }: SearchDropdownProps) {
       return;
     }
 
-    const searchQuery = query.toLowerCase();
+    const performSearch = async () => {
+      try {
+        setIsSearching(true);
+        const searchResults = await searchService.search(query, { limit: 8 });
+        setResults({
+          posts: (searchResults.posts || []).slice(0, 5),
+          users: (searchResults.users || []).slice(0, 3)
+        });
+        setIsOpen(true);
+      } catch (err) {
+        console.error('Search error:', err);
+        setResults({ posts: [], users: [] });
+      } finally {
+        setIsSearching(false);
+      }
+    };
 
-    const filteredPosts = mockPosts.filter(post =>
-      post.title.toLowerCase().includes(searchQuery) ||
-      post.content.toLowerCase().includes(searchQuery) ||
-      post.tags.some(tag => tag.toLowerCase().includes(searchQuery))
-    ).slice(0, 5);
-
-    const filteredUsers = mockUsers.filter(user =>
-      user.username.toLowerCase().includes(searchQuery)
-    ).slice(0, 3);
-
-    setResults({ posts: filteredPosts, users: filteredUsers });
-    setIsOpen(true);
+    // Debounce search
+    const timeoutId = setTimeout(performSearch, 300);
+    return () => clearTimeout(timeoutId);
   }, [query]);
 
   const handlePostClick = (post: Post) => {

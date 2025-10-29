@@ -1,68 +1,69 @@
-import { useState } from 'react';
-import { Plus, Users, Settings, BarChart3, Edit3, Trash2, UserPlus, Crown, Shield, ArrowLeft, Upload, Camera, Layout, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Users, Settings, BarChart3, Edit3, Trash2, UserPlus, Crown, Shield, ArrowLeft, Upload, Camera, Layout, FileText, Loader } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { PostFeed } from './PostFeed';
+import usersService from '../services/api/users.service';
+import pagesService from '../services/api/pages.service';
+import { PageCardSkeletonList } from './skeletons';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProfilePagesProps {
-  userId: string;
+  username: string;
 }
 
 type ViewMode = 'list' | 'manage' | 'create';
 
-export function ProfilePages({ userId }: ProfilePagesProps) {
+export function ProfilePages({ username }: ProfilePagesProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'posts' | 'overview' | 'members' | 'settings'>('dashboard');
+  const [userPages, setUserPages] = useState<any[]>([]);
+  const [pageMembers, setPageMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const mockPages = [
-    {
-      id: '1',
-      name: 'Web3 Developers Hub',
-      description: 'Community for Web3 developers to share knowledge and collaborate',
-      avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=web3dev',
-      coverImage: '',
-      members: 1250,
-      role: 'Owner',
-      posts: 342,
-      created: 'Jan 2024',
-      category: 'Development'
-    },
-    {
-      id: '2',
-      name: 'DeFi Research Group',
-      description: 'Deep dive into DeFi protocols and mechanisms',
-      avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=defi',
-      coverImage: '',
-      members: 856,
-      role: 'Admin',
-      posts: 189,
-      created: 'Mar 2024',
-      category: 'DeFi'
-    },
-    {
-      id: '3',
-      name: 'Smart Contract Auditors',
-      description: 'Professional network for smart contract security experts',
-      avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=audit',
-      coverImage: '',
-      members: 423,
-      role: 'Moderator',
-      posts: 267,
-      created: 'May 2024',
-      category: 'Development'
+  const { user: authUser } = useAuth();
+  const isOwnProfile = authUser?.username === username;
+
+  useEffect(() => {
+    const fetchUserPages = async () => {
+      try {
+        setLoading(true);
+        const pages = await usersService.getUserPages(username);
+        // Ensure pages is an array and include role information
+        const pagesWithRoles = Array.isArray(pages) ? pages : [];
+        setUserPages(pagesWithRoles);
+      } catch (err) {
+        console.error('Error fetching user pages:', err);
+        setUserPages([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (username) {
+      fetchUserPages();
     }
-  ];
+  }, [username]);
 
-  const mockMembers = [
-    { id: '1', name: 'Alice Johnson', role: 'Admin', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice', joined: '2 months ago' },
-    { id: '2', name: 'Bob Smith', role: 'Moderator', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob', joined: '1 month ago' },
-    { id: '3', name: 'Carol White', role: 'Member', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Carol', joined: '3 weeks ago' },
-    { id: '4', name: 'David Brown', role: 'Member', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David', joined: '1 week ago' },
-  ];
+  useEffect(() => {
+    const fetchPageMembers = async () => {
+      if (selectedPageId) {
+        try {
+          const members = await pagesService.getMembers(selectedPageId);
+          setPageMembers(members);
+        } catch (err) {
+          console.error('Error fetching page members:', err);
+          setPageMembers([]);
+        }
+      }
+    };
 
-  const selectedPage = mockPages.find(p => p.id === selectedPageId);
+    fetchPageMembers();
+  }, [selectedPageId]);
+
+  const selectedPage = userPages.find(p => p.id === selectedPageId);
 
   const handleManagePage = (pageId: string) => {
     setSelectedPageId(pageId);
@@ -95,8 +96,27 @@ export function ProfilePages({ userId }: ProfilePagesProps) {
         </div>
 
         {/* Pages Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {mockPages.map(page => (
+        {loading ? (
+          <PageCardSkeletonList count={4} />
+        ) : userPages.length === 0 ? (
+          <GlassCard className="p-12 text-center space-y-4">
+            <div className="text-6xl">📄</div>
+            <div>
+              <h3 className="text-xl font-bold mb-2">No Pages Yet</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                This user hasn't created or joined any community pages yet.
+              </p>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
+              >
+                Explore Pages
+              </button>
+            </div>
+          </GlassCard>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {userPages.map(page => (
             <GlassCard key={page.id} className="p-6 hover:scale-[1.02] transition-all duration-300">
               <div className="space-y-4">
                 {/* Page Header */}
@@ -130,28 +150,38 @@ export function ProfilePages({ userId }: ProfilePagesProps) {
                 <div className="flex items-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <Users size={16} className="text-gray-400" />
-                    <span className="font-semibold">{page.members}</span>
+                    <span className="font-semibold">{page.memberCount || page.members || 0}</span>
                     <span className="text-gray-500 dark:text-gray-400">members</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <BarChart3 size={16} className="text-gray-400" />
-                    <span className="font-semibold">{page.posts}</span>
+                    <span className="font-semibold">{page.postCount || page.posts || 0}</span>
                     <span className="text-gray-500 dark:text-gray-400">posts</span>
                   </div>
                   <div className="text-gray-500 dark:text-gray-400">
-                    Created {page.created}
+                    Created {page.created || new Date(page.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    onClick={() => handleManagePage(page.id)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 font-medium"
-                  >
-                    <Settings size={16} />
-                    Manage
-                  </button>
+                  {(page.role === 'Owner' || page.role === 'Admin') ? (
+                    <button
+                      onClick={() => handleManagePage(page.id)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 font-medium"
+                    >
+                      <Settings size={16} />
+                      Manage
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => window.location.href = `/pages/${page.slug}`}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 font-medium"
+                    >
+                      <Layout size={16} />
+                      View Page
+                    </button>
+                  )}
                   <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300">
                     <UserPlus size={16} />
                   </button>
@@ -161,8 +191,9 @@ export function ProfilePages({ userId }: ProfilePagesProps) {
                 </div>
               </div>
             </GlassCard>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -452,7 +483,7 @@ export function ProfilePages({ userId }: ProfilePagesProps) {
                   </button>
                 </div>
 
-                {mockMembers.map(member => (
+                {pageMembers.map(member => (
                   <div key={member.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
                     <div className="flex items-center gap-3 mb-3">
                       <Avatar src={member.avatar} alt={member.name} size="md" className="w-12 h-12" />

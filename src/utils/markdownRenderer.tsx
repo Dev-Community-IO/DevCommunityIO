@@ -1,11 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  compact?: boolean; // For feed cards - removes extra spacing
 }
 
-export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className = '', compact = false }: MarkdownRendererProps) {
+  const handleMentionClick = (username: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Navigate to profile page
+    window.location.href = `/profile/${username}`;
+  };
+
   const renderMarkdown = (text: string): JSX.Element[] => {
     const lines = text.split('\n');
     const elements: JSX.Element[] = [];
@@ -26,33 +35,11 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
       if (codeBlockContent.length > 0) {
         const code = codeBlockContent.join('\n');
         elements.push(
-          <pre key={`code-${currentIndex}`} className="bg-[#282a36] text-[#f8f8f2] rounded-lg p-4 overflow-x-auto my-4 border border-gray-700">
-            <code className={codeBlockLang ? `language-${codeBlockLang}` : ''}>
-              {syntaxHighlight(code, codeBlockLang)}
-            </code>
-          </pre>
+          <CodeBlock key={`code-${currentIndex}`} code={code} language={codeBlockLang} />
         );
         codeBlockContent = [];
         codeBlockLang = '';
       }
-    };
-
-    const syntaxHighlight = (code: string, lang: string): React.ReactNode[] => {
-      const lines = code.split('\n');
-      return lines.map((line, i) => {
-        let highlightedLine = line;
-
-        highlightedLine = highlightedLine.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, '<span class="text-[#6272a4]">$1</span>');
-        highlightedLine = highlightedLine.replace(/\b(const|let|var|function|class|if|else|return|import|export|from|async|await|try|catch|throw|new|this|super|extends|static|public|private|protected)\b/g, '<span class="text-[#ff79c6]">$1</span>');
-        highlightedLine = highlightedLine.replace(/\b(true|false|null|undefined)\b/g, '<span class="text-[#bd93f9]">$1</span>');
-        highlightedLine = highlightedLine.replace(/\b(\d+)\b/g, '<span class="text-[#bd93f9]">$1</span>');
-        highlightedLine = highlightedLine.replace(/(['"`])((?:\\\1|(?:(?!\1)).)*)(\1)/g, '<span class="text-[#f1fa8c]">$1$2$3</span>');
-        highlightedLine = highlightedLine.replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g, '<span class="text-[#50fa7b]">$1</span>(');
-
-        return (
-          <div key={i} dangerouslySetInnerHTML={{ __html: highlightedLine }} />
-        );
-      });
     };
 
     const flushTable = () => {
@@ -234,8 +221,9 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         const text = headerMatch[2];
         const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements;
         const sizes = ['text-3xl', 'text-2xl', 'text-xl', 'text-lg', 'text-base', 'text-sm'];
+        const spacing = compact ? 'my-0.5' : 'my-4';
         elements.push(
-          <HeaderTag key={`h${level}-${i}`} className={`${sizes[level - 1]} font-bold my-4`}>
+          <HeaderTag key={`h${level}-${i}`} className={`${sizes[level - 1]} font-bold ${spacing}`}>
             {parseInlineMarkdown(text)}
           </HeaderTag>
         );
@@ -245,7 +233,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
       // Empty lines
       if (line.trim() === '') {
         flushList();
-        if (elements.length > 0 && elements[elements.length - 1].type !== 'br') {
+        if (!compact && elements.length > 0 && elements[elements.length - 1].type !== 'br') {
           elements.push(<div key={`space-${i}`} className="h-2" />);
         }
         continue;
@@ -255,8 +243,9 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
       flushList();
       flushTable();
       flushBlockquote();
+      const paraSpacing = compact ? 'my-0 leading-snug' : 'my-3 leading-relaxed';
       elements.push(
-        <p key={`p-${i}`} className="my-3 leading-relaxed">
+        <p key={`p-${i}`} className={paraSpacing}>
           {parseInlineMarkdown(line)}
         </p>
       );
@@ -276,13 +265,18 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
     let currentText = text;
     let key = 0;
 
-    // @mentions for users and pages
+    // @mentions for users and pages (clickable)
     currentText = currentText.replace(/@([a-zA-Z0-9_]+)/g, (_, username) => {
       const placeholder = `__MENTION_${key}__`;
       parts.push(
-        <span key={`mention-${key++}`} className="text-blue-500 hover:text-blue-600 font-semibold cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1 rounded">
+        <a 
+          key={`mention-${key++}`} 
+          href={`/profile/${username}`}
+          onClick={(e) => handleMentionClick(username, e)}
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded hover:underline transition-colors"
+        >
           @{username}
-        </span>
+        </a>
       );
       return placeholder;
     });
@@ -355,6 +349,78 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
       {renderMarkdown(content)}
+    </div>
+  );
+}
+
+// Code block component with copy button
+function CodeBlock({ code, language }: { code: string; language: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+    }
+  };
+
+  const syntaxHighlight = (codeText: string): React.ReactNode => {
+    const lines = codeText.split('\n');
+    const highlightedLines = lines.map((line) => {
+      let highlightedLine = line;
+
+      // Comments
+      highlightedLine = highlightedLine.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, '<span class="text-[#6272a4]">$1</span>');
+      // Keywords
+      highlightedLine = highlightedLine.replace(/\b(const|let|var|function|class|if|else|return|import|export|from|async|await|try|catch|throw|new|this|super|extends|static|public|private|protected)\b/g, '<span class="text-[#ff79c6]">$1</span>');
+      // Booleans and null
+      highlightedLine = highlightedLine.replace(/\b(true|false|null|undefined)\b/g, '<span class="text-[#bd93f9]">$1</span>');
+      // Numbers
+      highlightedLine = highlightedLine.replace(/\b(\d+)\b/g, '<span class="text-[#bd93f9]">$1</span>');
+      // Strings
+      highlightedLine = highlightedLine.replace(/(['"`])((?:\\\1|(?:(?!\1)).)*)(\1)/g, '<span class="text-[#f1fa8c]">$1$2$3</span>');
+      // Function names
+      highlightedLine = highlightedLine.replace(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g, '<span class="text-[#50fa7b]">$1</span>(');
+
+      return highlightedLine;
+    });
+
+    const htmlContent = highlightedLines.join('\n');
+    return <div dangerouslySetInnerHTML={{ __html: htmlContent }} style={{ whiteSpace: 'pre', lineHeight: '1.5' }} />;
+  };
+
+  return (
+    <div className="relative group my-4">
+      <pre 
+        className="bg-[#282a36] text-[#f8f8f2] rounded-lg p-4 overflow-x-auto border border-gray-700 leading-6"
+        style={{ lineHeight: '1.5' }}
+      >
+        {language && (
+          <div className="text-xs text-gray-400 mb-2 pb-2 border-b border-gray-700">
+            {language}
+          </div>
+        )}
+        <code 
+          className={language ? `language-${language}` : ''} 
+          style={{ lineHeight: '1.5', display: 'block' }}
+        >
+          {syntaxHighlight(code)}
+        </code>
+      </pre>
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 p-2 rounded-lg bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100 z-10"
+        title={copied ? 'Copied!' : 'Copy code'}
+      >
+        {copied ? (
+          <Check size={16} className="text-green-400" />
+        ) : (
+          <Copy size={16} />
+        )}
+      </button>
     </div>
   );
 }

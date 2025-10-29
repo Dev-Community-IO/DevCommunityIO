@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, Clock, TrendingUp, X } from 'lucide-react';
-import { mockPosts, mockUsers } from '../data/mockData';
 import { Avatar } from './Avatar';
 import { Post, User } from '../types';
+import searchService from '../services/api/search.service';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface SearchModalProps {
 export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ posts: Post[]; users: User[] }>({ posts: [], users: [] });
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -20,19 +21,25 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
       return;
     }
 
-    const searchQuery = query.toLowerCase();
+    const performSearch = async () => {
+      try {
+        setIsSearching(true);
+        const searchResults = await searchService.search(query, { limit: 15 });
+        setResults({
+          posts: searchResults.posts || [],
+          users: searchResults.users || []
+        });
+      } catch (err) {
+        console.error('Search error:', err);
+        setResults({ posts: [], users: [] });
+      } finally {
+        setIsSearching(false);
+      }
+    };
 
-    const filteredPosts = mockPosts.filter(post =>
-      post.title.toLowerCase().includes(searchQuery) ||
-      post.content.toLowerCase().includes(searchQuery) ||
-      post.tags.some(tag => tag.toLowerCase().includes(searchQuery))
-    ).slice(0, 10);
-
-    const filteredUsers = mockUsers.filter(user =>
-      user.username.toLowerCase().includes(searchQuery)
-    ).slice(0, 5);
-
-    setResults({ posts: filteredPosts, users: filteredUsers });
+    // Debounce search
+    const timeoutId = setTimeout(performSearch, 300);
+    return () => clearTimeout(timeoutId);
   }, [query]);
 
   const handlePostClick = (post: Post) => {

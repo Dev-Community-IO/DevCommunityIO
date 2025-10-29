@@ -171,11 +171,17 @@ export function EventDetail({ id, onBack }: EventDetailProps) {
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
               {event.description}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {event.tags.map(tag => (
-                <Badge key={tag} variant="secondary">#{tag}</Badge>
-              ))}
-            </div>
+            {event.tags && event.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {event.tags.map(tag => {
+                  const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                  const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                  return (
+                    <Badge key={tagKey} variant="secondary">#{tagName}</Badge>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
 
           {/* Agenda */}

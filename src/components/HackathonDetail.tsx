@@ -132,11 +132,17 @@ export function HackathonDetail({ id, onBack }: HackathonDetailProps) {
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
               {hackathon.description}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {hackathon.tags.map(tag => (
-                <Badge key={tag} variant="secondary">#{tag}</Badge>
-              ))}
-            </div>
+            {hackathon.tags && hackathon.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {hackathon.tags.map(tag => {
+                  const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
+                  const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
+                  return (
+                    <Badge key={tagKey} variant="secondary">#{tagName}</Badge>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
 
           {/* Tracks */}

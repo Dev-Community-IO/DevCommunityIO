@@ -1,9 +1,11 @@
-import { useState, useRef } from 'react';
-import { ArrowLeft, Check, FileText, Trophy, Calendar, Briefcase, Upload, X } from 'lucide-react';
-import { GlassCard } from './GlassCard';
-import { Button } from './Button';
+import { useState, useRef, useEffect } from 'react';
+import { Check, FileText, Trophy, Calendar, Briefcase, Upload, X } from 'lucide-react';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Avatar } from './Avatar';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import postsService from '../services/api/posts.service';
+import pagesService from '../services/api/pages.service';
 
 interface CreatePostProps {
   onBack: () => void;
@@ -18,29 +20,71 @@ const TITLE_MAX_LENGTH = 200;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_TAGS = 5;
 
-const availableTags = [
+const defaultTags = [
   'staking', 'defi', 'ethereum', 'security', 'solidity', 'best-practices',
   'nft', 'royalties', 'marketplaces', 'dao', 'treasury', 'governance',
   'hack', 'bridge', 'optimization', 'gas', 'web3', 'smart-contracts',
   'blockchain', 'layer2', 'zk-rollups', 'consensus', 'evm', 'protocol'
 ];
 
-export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostProps) {
+// Generate a random color for custom tags
+const getRandomTagColor = () => {
+  const colors = [
+    'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+    'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
+    'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
+export function CreatePost({ onBack, pageId }: CreatePostProps) {
   const [contentType, setContentType] = useState<ContentType>('post');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [tagsList, setTagsList] = useState<string[]>([]);
+  const [tagsList, setTagsList] = useState<{ tag: string; color: string }[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [availableTags, setAvailableTags] = useState(defaultTags);
+  const [newTagsWithColors, setNewTagsWithColors] = useState<Record<string, string>>({});
   const [selectedPageId, setSelectedPageId] = useState<string | null>(pageId || null);
+  const [postOrigin, setPostOrigin] = useState('');
+  const [originSource, setOriginSource] = useState('');
+  const [originUrl, setOriginUrl] = useState('');
+  const [userPagesData, setUserPagesData] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch user's pages on mount
+  useEffect(() => {
+    const fetchUserPages = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await pagesService.getMyPostablePages();
+        setUserPagesData(response.pages || []);
+      } catch (error) {
+        console.error('Failed to fetch user pages:', error);
+        setUserPagesData([]);
+      }
+    };
+    
+    fetchUserPages();
+  }, [user]);
 
   const filteredTags = tagInput.trim()
     ? availableTags.filter(tag =>
         tag.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !tagsList.includes(tag)
+        !tagsList.some(t => t.tag === tag)
       )
     : [];
 
@@ -62,18 +106,10 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
   const [experience, setExperience] = useState('');
   const [remote, setRemote] = useState(true);
 
-  const userPages = [
-    {
-      id: '1',
-      name: 'Web3 Developers Hub',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=web3dev'
-    },
-    {
-      id: '2',
-      name: 'DeFi Research Group',
-      logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=defi'
-    }
-  ];
+  // Filter pages where user can post (owner, moderator, or admin only)
+  const canPostPages = userPagesData.filter(page => 
+    page.role === 'owner' || page.role === 'moderator' || page.role === 'admin'
+  );
 
   const contentTypes = [
     { id: 'post' as ContentType, name: 'Post', icon: FileText, color: 'from-blue-500 to-cyan-500' },
@@ -116,15 +152,31 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
     if (tagsList.length >= MAX_TAGS) {
       return;
     }
-    if (!tagsList.includes(tag)) {
-      setTagsList([...tagsList, tag]);
+    
+    // Check if tag is already in the list
+    if (tagsList.some(t => t.tag === tag)) {
+      return;
     }
+
+    // Get color for the tag (from saved colors or generate new)
+    let tagColor = newTagsWithColors[tag];
+    if (!tagColor) {
+      tagColor = getRandomTagColor();
+      setNewTagsWithColors({ ...newTagsWithColors, [tag]: tagColor });
+    }
+
+    // Add to available tags if it's a new tag
+    if (!availableTags.includes(tag)) {
+      setAvailableTags([...availableTags, tag]);
+    }
+
+    setTagsList([...tagsList, { tag, color: tagColor }]);
     setTagInput('');
     setShowTagSuggestions(false);
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTagsList(tagsList.filter(tag => tag !== tagToRemove));
+    setTagsList(tagsList.filter(t => t.tag !== tagToRemove));
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
@@ -132,130 +184,148 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
       e.preventDefault();
       if (tagsList.length >= MAX_TAGS) return;
 
+      const normalizedInput = tagInput.toLowerCase().trim();
+      
+      // Check if exact match exists in available tags
       const matchedTag = availableTags.find(tag =>
-        tag.toLowerCase() === tagInput.toLowerCase().trim()
+        tag.toLowerCase() === normalizedInput
       );
 
       if (matchedTag) {
         handleAddTag(matchedTag);
       } else if (filteredTags.length > 0) {
+        // Use first filtered suggestion if available
         handleAddTag(filteredTags[0]);
+      } else {
+        // Create new tag from input
+        handleAddTag(normalizedInput);
       }
     }
   };
 
-  const handleSubmit = () => {
-    const baseData = { title, content, tags: tagsList, coverImage, selectedPageId };
-
-    let data = baseData;
-    if (contentType === 'hackathon') {
-      data = { ...baseData, prize, startDate, endDate, difficulty };
-    } else if (contentType === 'event') {
-      data = { ...baseData, eventDate, eventTime, location, eventType, maxAttendees, ticketPrice };
-    } else if (contentType === 'opportunity') {
-      data = { ...baseData, company, salary, jobType, experience, remote };
+  const handleSubmit = async () => {
+    if (!title.trim()) {
+      setSubmitError('Title is required');
+      return;
     }
 
-    console.log({ contentType, ...data });
-    onBack();
+    if (!content.trim()) {
+      setSubmitError('Content is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const baseData: any = { 
+        title, 
+        content, 
+        category: contentType,
+        tags: tagsList.map(t => t.tag), // Extract just tag names for submission
+        coverImageUrl: coverImage || null,
+        pageId: selectedPageId || null,
+        status: 'published',
+        postOrigin: postOrigin || null,
+        originSource: postOrigin ? originSource : null,
+        originUrl: postOrigin ? originUrl : null
+      };
+
+      // Add contentType-specific fields
+      if (contentType === 'hackathon') {
+        baseData.prize = prize;
+        baseData.startDate = startDate;
+        baseData.endDate = endDate;
+        baseData.difficulty = difficulty;
+      } else if (contentType === 'event') {
+        baseData.eventDate = eventDate;
+        baseData.eventTime = eventTime;
+        baseData.location = location;
+        baseData.eventType = eventType;
+        baseData.maxAttendees = maxAttendees;
+        baseData.ticketPrice = ticketPrice;
+      } else if (contentType === 'opportunity') {
+        baseData.company = company;
+        baseData.salary = salary;
+        baseData.jobType = jobType;
+        baseData.experience = experience;
+        baseData.remote = remote;
+      }
+
+      const createdPost = await postsService.createPost(baseData);
+      
+      // Navigate to the created post (replace to remove create-post from history)
+      // Pass post data via state for instant loading
+      navigate(`/post/${createdPost.slug}`, { 
+        replace: true,
+        state: { post: createdPost }
+      });
+      
+      // Scroll to top for better UX
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error: any) {
+      console.error('Failed to create post:', error);
+      setSubmitError(error.response?.data?.message || 'Failed to create post. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 animate-fade-in">
-      <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold flex-1">Create New Content</h1>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 animate-fade-in pt-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="relative">
+          {/* Main Content Area - Responsive Width */}
+            <div className="lg:mr-80 space-y-6">
 
-      <div className="max-w-2xl mx-auto pb-24">
-        <div className="p-4 space-y-5">
-
-          <div className="space-y-5">
-            {/* Content Type Selection */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-              <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Content Type</label>
-              <div className="grid grid-cols-2 gap-2.5">
-                {contentTypes.map(type => {
-                  const Icon = type.icon;
-                  const isActive = contentType === type.id;
-                  return (
+              {/* Post As Selection - Mobile Only */}
+              {!pageId && canPostPages.length > 0 && (
+                <div className="lg:hidden bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
+                  <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Post As</label>
+                  <div className="space-y-2">
                     <button
-                      key={type.id}
-                      onClick={() => setContentType(type.id)}
-                      className={`relative flex flex-col items-center gap-2 p-3.5 rounded-xl transition-all duration-300 ${
-                        isActive
-                          ? 'text-white shadow-lg'
-                          : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {isActive && (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${type.color} rounded-xl`} />
-                      )}
-                      <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="relative z-10" />
-                      <span className="font-semibold text-xs relative z-10">{type.name}</span>
-                      {isActive && <Check size={14} className="absolute top-2 right-2 z-10" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Post As Selection */}
-            {!pageId && userPages.length > 0 && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Post As</label>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setSelectedPageId(null)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                      !selectedPageId
-                        ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
-                        : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    <Avatar
-                      src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
-                      alt="Your Profile"
-                      size="sm"
-                      className="w-8 h-8 ring-2 ring-white/30"
-                    />
-                    <span className="font-semibold flex-1 text-left">Your Profile</span>
-                    {!selectedPageId && <Check size={18} strokeWidth={2.5} />}
-                  </button>
-
-                  {userPages.map(page => (
-                    <button
-                      key={page.id}
-                      onClick={() => setSelectedPageId(page.id)}
+                      onClick={() => setSelectedPageId(null)}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                        selectedPageId === page.id
+                        !selectedPageId
                           ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
                           : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg overflow-hidden ring-2 ring-white/30">
-                        <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="font-semibold flex-1 text-left">{page.name}</span>
-                      {selectedPageId === page.id && <Check size={18} strokeWidth={2.5} />}
+                      <Avatar
+                        src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
+                        alt="Your Profile"
+                        size="sm"
+                        className="w-8 h-8 ring-2 ring-white/30"
+                      />
+                      <span className="font-semibold flex-1 text-left">Your Profile</span>
+                      {!selectedPageId && <Check size={18} strokeWidth={2.5} />}
                     </button>
-                  ))}
+
+                    {canPostPages.map((page: any) => (
+                      <button
+                        key={page.id}
+                        onClick={() => setSelectedPageId(page.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+                          selectedPageId === page.id
+                            ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
+                            : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg overflow-hidden ring-2 ring-white/30">
+                          <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+                        </div>
+                        <span className="font-semibold flex-1 text-left">{page.name}</span>
+                        {selectedPageId === page.id && <Check size={18} strokeWidth={2.5} />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Common Fields */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
-                Title
-                <span className="text-xs text-gray-400 ml-2 font-normal">
-                  ({title.length}/{TITLE_MAX_LENGTH})
-                </span>
+            <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-white">
+                Title <span className="text-xs text-gray-400">({title.length}/{TITLE_MAX_LENGTH})</span>
               </label>
               <input
                 type="text"
@@ -272,7 +342,7 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
 
             {/* Hackathon Specific Fields */}
             {contentType === 'hackathon' && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Prize Amount</label>
@@ -322,7 +392,7 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
 
             {/* Event Specific Fields */}
             {contentType === 'event' && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Date</label>
@@ -392,7 +462,7 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
 
             {/* Opportunity Specific Fields */}
             {contentType === 'opportunity' && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name</label>
@@ -464,8 +534,8 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
               </div>
             )}
 
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-base font-bold mb-3 text-gray-900 dark:text-white">
                 Cover Image
                 <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 5MB)</span>
               </label>
@@ -509,8 +579,8 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
               )}
             </div>
 
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Description</label>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
+              <label className="block text-base font-bold mb-3 text-gray-900 dark:text-white">Description</label>
               <MarkdownEditor
                 value={content}
                 onChange={setContent}
@@ -519,8 +589,8 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
               />
             </div>
 
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800 relative">
-              <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 relative">
+              <label className="block text-base font-bold mb-3 text-gray-900 dark:text-white">
                 Tags
                 <span className="text-xs text-gray-400 ml-2 font-normal">
                   ({tagsList.length}/{MAX_TAGS})
@@ -555,15 +625,15 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
               )}
               {tagsList.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {tagsList.map(tag => (
+                  {tagsList.map(({ tag, color }) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-sm"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${color}`}
                     >
                       #{tag}
                       <button
                         onClick={() => handleRemoveTag(tag)}
-                        className="hover:bg-white/20 rounded-full p-0.5 transition-all"
+                        className="hover:opacity-70 rounded-full p-0.5 transition-all"
                       >
                         <X size={14} strokeWidth={2.5} />
                       </button>
@@ -572,25 +642,163 @@ export function CreatePost({ onBack, pageId, pageName, pageLogo }: CreatePostPro
                 </div>
               )}
             </div>
+            
+            {/* Sticky Right Sidebar - Desktop Only */}
+            <div className="hidden lg:block lg:absolute lg:right-0 lg:top-0 lg:w-72">
+              <div className="sticky top-24 space-y-4">
+                {/* Content Type Selection - Right Sidebar */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                  <label className="block text-xs font-medium mb-2 text-gray-600 dark:text-gray-400 uppercase tracking-wide">Content Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {contentTypes.map(type => {
+                      const Icon = type.icon;
+                      const isActive = contentType === type.id;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => setContentType(type.id)}
+                          className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg text-xs transition-all ${
+                            isActive
+                              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                              : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                        >
+                          <Icon size={18} strokeWidth={2} />
+                          <span className="font-medium">{type.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
+                {/* Post Origin - Right Sidebar */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                  <label className="block text-xs font-medium mb-2 text-gray-600 dark:text-gray-400 uppercase tracking-wide">Post Origin</label>
+                  <select
+                    value={postOrigin}
+                    onChange={(e) => setPostOrigin(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option value="">Select (if any)</option>
+                    <option value="original">Original</option>
+                    <option value="translated">Translated</option>
+                    <option value="reposted">Reposted</option>
+                  </select>
+                  
+                  {(postOrigin === 'translated' || postOrigin === 'reposted') && (
+                    <div className="space-y-2 mt-2">
+                      <input
+                        type="text"
+                        value={originSource}
+                        onChange={(e) => setOriginSource(e.target.value)}
+                        placeholder="Source/author"
+                        className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      />
+                      <input
+                        type="url"
+                        value={originUrl}
+                        onChange={(e) => setOriginUrl(e.target.value)}
+                        placeholder="Source URL"
+                        className="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Post As Selection - Right Sidebar */}
+                {!pageId && canPostPages.length > 0 && (
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <label className="block text-xs font-medium mb-2 text-gray-600 dark:text-gray-400 uppercase tracking-wide">Post As</label>
+                    <div className="space-y-1.5">
+                      <button
+                        onClick={() => setSelectedPageId(null)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all ${
+                          !selectedPageId
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                            : 'border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <Avatar
+                          src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
+                          alt="Your Profile"
+                          size="sm"
+                          className="w-6 h-6"
+                        />
+                        <span className="flex-1 text-left">Your Profile</span>
+                      </button>
+
+                      {canPostPages.map(page => (
+                        <button
+                          key={page.id}
+                          onClick={() => setSelectedPageId(page.id)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all ${
+                            selectedPageId === page.id
+                              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                              : 'border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded overflow-hidden">
+                            <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+                          </div>
+                          <span className="flex-1 text-left">{page.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tips Section */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/30">
+                  <h3 className="text-xs font-medium mb-2 text-gray-600 dark:text-gray-400 uppercase tracking-wide">Tips</h3>
+                  <ul className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                    <li className="flex items-start gap-1.5">
+                      <span className="mt-0.5">•</span>
+                      <span>Use clear, descriptive titles</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="mt-0.5">•</span>
+                      <span>Add relevant tags</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="mt-0.5">•</span>
+                      <span>Include a cover image</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="mt-0.5">•</span>
+                      <span>Use markdown formatting</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 shadow-2xl">
-        <div className="max-w-2xl mx-auto flex gap-3">
-          <button
-            onClick={onBack}
-            className="flex-1 py-3.5 px-6 rounded-xl font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="flex-1 py-3.5 px-6 rounded-xl font-bold text-white bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-lg shadow-blue-500/30 transition-all duration-300"
-          >
-            Publish {contentType.charAt(0).toUpperCase() + contentType.slice(1)}
-          </button>
+      {/* Footer Actions */}
+      <div className="border-t border-gray-200 dark:border-gray-800 py-6 mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {submitError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+              {submitError}
+            </div>
+          )}
+          <div className="flex gap-3 max-w-2xl">
+            <button
+              onClick={onBack}
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-6 rounded-xl font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !title.trim() || !content.trim()}
+              className="flex-1 py-3 px-6 rounded-xl font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Publishing...' : 'Publish'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

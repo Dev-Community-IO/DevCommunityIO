@@ -1,5 +1,8 @@
-import { Home, FileText, Mic, Hash, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase } from 'lucide-react';
+import { Home, FileText, Mic, Hash, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark } from 'lucide-react';
 import { GlassCard } from './GlassCard';
+import { useAuth } from '../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import bookmarksService from '../services/api/bookmarks.service';
 
 interface SidebarProps {
   activeCategory: string;
@@ -14,7 +17,11 @@ const mainMenuItems = [
   { id: 'hackathons', icon: Trophy, name: 'Hackathons' },
   { id: 'events', icon: Calendar, name: 'Events' },
   { id: 'opportunities', icon: Briefcase, name: 'Opportunities' },
-  { id: 'podcast', icon: Mic, name: 'Podcast' }
+  // { id: 'podcast', icon: Mic, name: 'Podcast' }
+];
+
+const authenticatedMenuItems = [
+  { id: 'bookmarks', icon: Bookmark, name: 'Bookmarks', requiresAuth: true }
 ];
 
 const highlightTags = [
@@ -46,12 +53,35 @@ const otherMenuItems = [
 
 export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = false, isMobileSidebar = false }: SidebarProps) {
   const showText = !forceIconOnly;
+  const { isAuthenticated } = useAuth();
+  const [bookmarkCount, setBookmarkCount] = useState<number | null>(null);
+  
+  // Fetch bookmark count when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const fetchBookmarkCount = async () => {
+        try {
+          const { meta } = await bookmarksService.getBookmarks(1);
+          setBookmarkCount(meta.total);
+        } catch (error) {
+          console.error('Failed to fetch bookmark count:', error);
+        }
+      };
+      fetchBookmarkCount();
+    } else {
+      setBookmarkCount(null);
+    }
+  }, [isAuthenticated]);
+
+  // Combine menu items based on authentication
+  const allMenuItems = isAuthenticated ? [...mainMenuItems, ...authenticatedMenuItems] : mainMenuItems;
 
   return (
-    <>
+    <aside className={`${isMobileSidebar ? '' : `hidden lg:block left-4 sm:left-6 lg:left-12 xl:left-24 2xl:left-48 ${forceIconOnly ? 'w-16' : 'w-16 xl:w-64 2xl:w-72'} z-40`}`}>
+      <div className="sticky top-24 self-start space-y-3">
       <GlassCard className="p-2 lg:p-3 overflow-hidden">
-        <div className="space-y-1">
-          {mainMenuItems.map((item) => {
+        <div className="space-y-2">
+          {allMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeCategory === item.id;
 
@@ -60,7 +90,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                 key={item.id}
                 onClick={() => onCategoryChange(item.id)}
                 className={`
-                  w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center lg:justify-start'} gap-3 px-2 ${showText ? 'lg:px-4' : ''} ${isMobileSidebar ? 'px-4' : ''} py-3.5 rounded-xl
+                  w-full flex items-center ${isMobileSidebar ? 'justify-start' : forceIconOnly ? 'justify-center' : 'justify-center xl:justify-start'} gap-3 px-2 ${showText && !forceIconOnly ? 'xl:px-4' : ''} ${isMobileSidebar ? 'px-4' : ''} py-3.5 rounded-xl
                   transition-all duration-300 group relative overflow-hidden
                   ${isActive
                     ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
@@ -75,15 +105,20 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                     strokeWidth={isActive ? 2.5 : 2}
                   />
                 </div>
-                {showText && (
-                  <span className={`font-semibold text-sm ${isMobileSidebar ? 'block' : 'hidden lg:block'} relative z-10 ${isActive ? 'tracking-wide' : ''}`}>
+                {showText && !forceIconOnly && (
+                  <span className={`font-semibold text-sm ${isMobileSidebar ? 'block' : 'hidden xl:block'} relative z-10 ${isActive ? 'tracking-wide' : ''}`}>
                     {item.name}
+                    {item.id === 'bookmarks' && bookmarkCount !== null && (
+                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${isActive ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+                        {bookmarkCount}
+                      </span>
+                    )}
                   </span>
                 )}
                 {isActive && (
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
                 )}
-                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'lg:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
+                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'xl:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
                   {item.name}
                   <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-gray-800"></div>
                 </span>
@@ -93,16 +128,16 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
         </div>
       </GlassCard>
 
-      <GlassCard className="p-2 lg:p-3">
+      <GlassCard className="p-2 xl:p-3">
         {showText && (
-          <div className={`flex items-center gap-2 mb-2 px-2 ${isMobileSidebar ? 'flex' : 'hidden lg:flex'}`}>
+          <div className={`flex items-center gap-2 mb-2 px-2 ${isMobileSidebar ? 'flex' : 'hidden xl:flex'}`}>
             <div className="w-1 h-4 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full"></div>
             <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
               Featured
             </h3>
           </div>
         )}
-        <div className="space-y-0.5">
+        <div className="space-y-2">
           {highlightTags.map((tag, index) => {
             const colors = [
               'from-blue-500 to-cyan-500',
@@ -114,7 +149,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
               <button
                 key={tag.name}
                 onClick={() => onCategoryChange(tag.name.toLowerCase())}
-                className={`w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center lg:justify-start'} gap-2.5 px-2 ${showText ? 'lg:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg transition-all duration-300 group relative hover:scale-[1.02] active:scale-95`}
+                className={`w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center xl:justify-start'} gap-2.5 px-2 ${showText ? 'xl:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg transition-all duration-300 group relative hover:scale-[1.02] active:scale-95`}
               >
                 {tag.logo ? (
                   <div className="w-7 h-7 flex items-center justify-center">
@@ -130,11 +165,11 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                   </div>
                 )}
                 {showText && (
-                  <span className={`${isMobileSidebar ? 'block' : 'hidden lg:block'} font-medium text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors`}>
+                  <span className={`${isMobileSidebar ? 'block' : 'hidden xl:block'} font-medium text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors`}>
                     {tag.name}
                   </span>
                 )}
-                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'lg:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
+                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'xl:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
                   {tag.name}
                   <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-gray-800"></div>
                 </span>
@@ -145,7 +180,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
       </GlassCard>
 
       {showText && (
-        <GlassCard className={`p-3 lg:p-4 ${isMobileSidebar ? 'block' : 'hidden lg:block'}`}>
+        <GlassCard className={`p-3 xl:p-4 ${isMobileSidebar ? 'block' : 'hidden xl:block'}`}>
           <div className="flex items-center gap-2 mb-3 px-2">
             <div className="w-1 h-4 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
             <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
@@ -175,16 +210,16 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
         </GlassCard>
       )}
 
-      <GlassCard className="p-2 lg:p-3">
+      <GlassCard className="p-2 xl:p-3">
         {showText && (
-          <div className={`flex items-center gap-2 mb-2 px-2 ${isMobileSidebar ? 'flex' : 'hidden lg:flex'}`}>
+          <div className={`flex items-center gap-2 mb-2 px-2 ${isMobileSidebar ? 'flex' : 'hidden xl:flex'}`}>
             <div className="w-1 h-4 bg-gradient-to-b from-gray-400 to-gray-500 rounded-full"></div>
             <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
               Resources
             </h3>
           </div>
         )}
-        <div className="space-y-0.5">
+        <div className="space-y-2">
           {otherMenuItems.map((item) => {
             const Icon = item.icon;
 
@@ -192,7 +227,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
               <button
                 key={item.id}
                 onClick={() => onCategoryChange(item.id)}
-                className={`w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center lg:justify-start'} gap-2.5 px-2 ${showText ? 'lg:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-50 dark:hover:from-white/10 dark:hover:to-white/5 transition-all duration-300 group relative active:scale-95`}
+                className={`w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center xl:justify-start'} gap-2.5 px-2 ${showText ? 'xl:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-50 dark:hover:from-white/10 dark:hover:to-white/5 transition-all duration-300 group relative active:scale-95`}
               >
                 <Icon
                   size={16}
@@ -200,11 +235,11 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                   strokeWidth={2}
                 />
                 {showText && (
-                  <span className={`${isMobileSidebar ? 'block' : 'hidden lg:block'} text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors`}>
+                  <span className={`${isMobileSidebar ? 'block' : 'hidden xl:block'} text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors`}>
                     {item.name}
                   </span>
                 )}
-                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'lg:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
+                <span className={`absolute left-full ml-3 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 ${showText ? 'xl:hidden' : ''} transition-all duration-200 whitespace-nowrap pointer-events-none z-[9999] shadow-xl`}>
                   {item.name}
                   <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-gray-800"></div>
                 </span>
@@ -216,7 +251,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
 
       {/* Copyright and Version */}
       {showText && (
-        <GlassCard className={`p-3 lg:p-4 ${isMobileSidebar ? 'block' : 'hidden lg:block'}`}>
+        <GlassCard className={`p-3 xl:p-4 ${isMobileSidebar ? 'block' : 'hidden xl:block'}`}>
           <div className="space-y-2 text-center">
             <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
               <p className="font-semibold">DevCommunity Platform</p>
@@ -235,6 +270,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
           </div>
         </GlassCard>
       )}
-    </>
+      </div>
+    </aside>
   );
 }

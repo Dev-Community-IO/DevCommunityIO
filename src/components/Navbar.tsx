@@ -1,4 +1,4 @@
-import { Moon, Sun, Bell, User, Menu, Search } from 'lucide-react';
+import { Moon, Sun, Bell, User, Menu, Search, LogIn } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
@@ -6,6 +6,7 @@ import { SearchDropdown } from './SearchDropdown';
 import { SearchModal } from './SearchModal';
 import { NotificationDropdown } from './NotificationDropdown';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Post } from '../types';
 
 interface NavbarProps {
@@ -15,10 +16,12 @@ interface NavbarProps {
   onLogoClick?: () => void;
   onNotificationsClick?: () => void;
   onMenuClick?: () => void;
+  onOpenLoginModal?: () => void;
 }
 
-export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick, onNotificationsClick, onMenuClick }: NavbarProps) {
+export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick, onNotificationsClick, onMenuClick, onOpenLoginModal }: NavbarProps) {
   const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated, user } = useAuth();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   return (
@@ -59,55 +62,86 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onCreatePost}
-              className="hidden sm:flex"
-            >
-              Create Post
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={onCreatePost}
+                  className="hidden sm:flex"
+                >
+                  Create Post
+                </Button>
 
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
 
-            <div className="hidden sm:block">
-              <NotificationDropdown onViewAll={() => onNotificationsClick?.()} />
-            </div>
+                <div className="hidden sm:block">
+                  <NotificationDropdown onViewAll={() => onNotificationsClick?.()} />
+                </div>
 
-            <button
-              onClick={() => onNotificationsClick?.()}
-              className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 relative flex-shrink-0"
-              aria-label="Notifications"
-            >
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+                <button
+                  onClick={() => onNotificationsClick?.()}
+                  className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 relative flex-shrink-0"
+                  aria-label="Notifications"
+                >
+                  <Bell size={20} />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
 
-            <button
-              onClick={onProfileClick}
-              className="hidden sm:block hover:scale-105 transition-transform duration-300 flex-shrink-0"
-              aria-label="Profile"
-            >
-              <Avatar
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
-                alt="User"
-                size="sm"
-              />
-            </button>
+                <button
+                  onClick={onProfileClick}
+                  className="hidden sm:block hover:scale-105 transition-transform duration-300 flex-shrink-0"
+                  aria-label="Profile"
+                >
+                  <Avatar
+                    src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                    alt={user?.username || 'User'}
+                    size="sm"
+                  />
+                </button>
 
-            <button
-              onClick={onProfileClick}
-              className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
-              aria-label="Profile"
-            >
-              <User size={20} />
-            </button>
+                <button
+                  onClick={onProfileClick}
+                  className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
+                  aria-label="Profile"
+                >
+                  <User size={20} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    if (onOpenLoginModal) {
+                      onOpenLoginModal();
+                    } else {
+                      // Fallback: dispatch a global event to open the login modal
+                      window.dispatchEvent(new CustomEvent('open-login'));
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                  icon={LogIn}
+                >
+                  <span className="hidden sm:inline">Connect</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

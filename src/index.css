@@ -22,11 +22,11 @@
   }
 
   .animate-fade-in {
-    animation: fadeIn 0.5s ease-in;
+    animation: fadeIn 0.15s ease-out;
   }
 
   .animate-slide-up {
-    animation: slideUp 0.5s ease-out;
+    animation: slideUp 0.2s ease-out;
   }
 
   .animate-scale-in {
@@ -50,10 +50,19 @@
     animation: float 3s ease-in-out infinite;
   }
 
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -61,9 +70,10 @@
 
   @keyframes slideUp {
     from {
-      transform: translateY(20px);
+      transform: translateY(10px);
       opacity: 0;
     }
+
     to {
       transform: translateY(0);
       opacity: 1;
@@ -75,6 +85,7 @@
       transform: scale(0.95);
       opacity: 0;
     }
+
     to {
       transform: scale(1);
       opacity: 1;
@@ -85,16 +96,20 @@
     0% {
       transform: translateX(-100%);
     }
+
     100% {
       transform: translateX(100%);
     }
   }
 
   @keyframes pulseSubtle {
-    0%, 100% {
+
+    0%,
+    100% {
       opacity: 1;
       transform: scale(1);
     }
+
     50% {
       opacity: 0.9;
       transform: scale(1.05);
@@ -105,20 +120,60 @@
     0% {
       background-position: 0% 50%;
     }
+
     50% {
       background-position: 100% 50%;
     }
+
     100% {
       background-position: 0% 50%;
     }
   }
 
   @keyframes float {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0px);
     }
+
     50% {
       transform: translateY(-10px);
+    }
+  }
+
+  @keyframes shake {
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+      transform: translateX(-10px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+      transform: translateX(10px);
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(-10px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
     }
   }
 

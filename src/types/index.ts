@@ -1,10 +1,37 @@
 export interface User {
   id: string;
   username: string;
-  avatar: string;
-  walletAddress: string;
+  email?: string;
+  avatar?: string;
+  avatarUrl?: string;
+  coverImage?: string;
+  coverImageUrl?: string;
+  walletAddress?: string;
   reputation: number;
-  isVerified?: boolean;
+  isVerified: boolean;
+  role?: 'user' | 'moderator' | 'admin' | 'super_admin';
+  status?: 'active' | 'suspended' | 'banned' | 'pending';
+  bio?: string;
+  location?: string;
+  website?: string;
+  pseudo?: string;
+  socialLinks?: {
+    twitter?: string;
+    linkedin?: string;
+    telegram?: string;
+    github?: string;
+  };
+  skills?: string[];
+  joinedDate?: string;
+  stats?: {
+    posts: number;
+    replies: number;
+    upvotes: number;
+    followers: number;
+    following: number;
+  };
+  permissions?: string[];
+  onboardingCompleted?: boolean;
 }
 
 export interface Page {
@@ -15,6 +42,7 @@ export interface Page {
 
 export interface Post {
   id: string;
+  slug: string;
   author: User;
   title: string;
   content: string;
@@ -23,20 +51,29 @@ export interface Post {
   upvotes: number;
   downvotes: number;
   commentCount: number;
-  timestamp: Date;
+  timestamp?: Date | string;
+  createdAt?: string;
+  publishedAt?: string;
+  updatedAt?: string;
   hasUpvoted?: boolean;
   hasDownvoted?: boolean;
   coverImage?: string;
+  coverImageUrl?: string;
+  ogImageUrl?: string;
   page?: Page;
 }
 
 export interface Comment {
   id: string;
+  postId?: string;
+  parentId?: string;
   author: User;
   content: string;
   upvotes: number;
   downvotes: number;
-  timestamp: Date;
+  timestamp?: Date | string;
+  createdAt?: string;
+  updatedAt?: string;
   replies?: Comment[];
   hasUpvoted?: boolean;
   hasDownvoted?: boolean;
