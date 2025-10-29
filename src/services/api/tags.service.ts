@@ -47,6 +47,13 @@ export const tagsService = {
         const response = await apiClient.delete(`/tags/${slug}/follow`);
         return response.data;
     },
+
+    getTrendingTags: async (period: '7d' | '30d' = '7d', limit = 10) => {
+        const response = await apiClient.get('/tags/trending', {
+            params: { period, limit },
+        });
+        return response.data;
+    },
 };
 
 export default tagsService;

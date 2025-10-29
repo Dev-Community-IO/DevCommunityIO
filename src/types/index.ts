@@ -94,7 +94,12 @@ export type NotificationType =
   | 'follow'
   | 'post'
   | 'achievement'
-  | 'system';
+  | 'system'
+  | 'bookmark'
+  | 'reaction'
+  | 'share'
+  | 'page_invite'
+  | 'verification';
 
 export interface Notification {
   id: string;

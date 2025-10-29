@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Bell, Check, Trash2, Settings, Filter, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Loader } from 'lucide-react';
-import { Notification, NotificationType } from '../types';
+import { ArrowLeft, Bell, Check, Trash2, Settings, Filter, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Loader, Bookmark, Smile, Share2, Users, ShieldCheck } from 'lucide-react';
+import { Notification as AppNotification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
-import notificationsService from '../services/api/notifications.service';
+import notificationsService, { Notification } from '../services/api/notifications.service';
 
 interface NotificationsPageProps {
   onBack: () => void;
@@ -132,13 +132,18 @@ const REMOVED_mockNotifications: Notification[] = [
 const filterOptions: { id: string; label: string; type: NotificationType | 'all' }[] = [
   { id: 'all', label: 'All', type: 'all' },
   { id: 'comment', label: 'Comments', type: 'comment' },
+  { id: 'reply', label: 'Replies', type: 'reply' },
   { id: 'upvote', label: 'Upvotes', type: 'upvote' },
   { id: 'mention', label: 'Mentions', type: 'mention' },
   { id: 'follow', label: 'Follows', type: 'follow' },
+  { id: 'post', label: 'Posts', type: 'post' },
   { id: 'achievement', label: 'Achievements', type: 'achievement' },
+  { id: 'bookmark', label: 'Bookmarks', type: 'bookmark' as NotificationType },
+  { id: 'reaction', label: 'Reactions', type: 'reaction' as NotificationType },
+  { id: 'verification', label: 'Verification', type: 'verification' as NotificationType },
 ];
 
-const getNotificationIcon = (type: NotificationType) => {
+const getNotificationIcon = (type: NotificationType | string) => {
   switch (type) {
     case 'comment':
     case 'reply':
@@ -153,12 +158,24 @@ const getNotificationIcon = (type: NotificationType) => {
       return FileText;
     case 'achievement':
       return Award;
+    case 'bookmark':
+      return Bookmark;
+    case 'reaction':
+      return Smile;
+    case 'share':
+      return Share2;
+    case 'page_invite':
+      return Users;
+    case 'verification':
+      return ShieldCheck;
+    case 'system':
+      return Settings;
     default:
       return Bell;
   }
 };
 
-const getNotificationColor = (type: NotificationType) => {
+const getNotificationColor = (type: NotificationType | string) => {
   switch (type) {
     case 'comment':
     case 'reply':
@@ -173,6 +190,18 @@ const getNotificationColor = (type: NotificationType) => {
       return 'from-cyan-500 to-blue-600';
     case 'achievement':
       return 'from-yellow-500 to-orange-600';
+    case 'bookmark':
+      return 'from-amber-500 to-yellow-600';
+    case 'reaction':
+      return 'from-pink-500 to-rose-600';
+    case 'share':
+      return 'from-indigo-500 to-blue-600';
+    case 'page_invite':
+      return 'from-teal-500 to-cyan-600';
+    case 'verification':
+      return 'from-emerald-500 to-green-600';
+    case 'system':
+      return 'from-gray-500 to-gray-600';
     default:
       return 'from-gray-500 to-gray-600';
   }
@@ -192,12 +221,38 @@ const formatTimestamp = (date: Date) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// Map API notification to app notification format
+const mapApiNotification = (apiNotif: Notification): AppNotification => {
+  return {
+    id: apiNotif.id,
+    type: apiNotif.type as NotificationType,
+    title: apiNotif.title,
+    message: apiNotif.message,
+    timestamp: new Date(apiNotif.createdAt),
+    isRead: apiNotif.isRead,
+    user: apiNotif.relatedUser ? {
+      id: apiNotif.relatedUser.id,
+      username: apiNotif.relatedUser.username,
+      avatar: apiNotif.relatedUser.avatar_url || undefined,
+      walletAddress: '',
+      reputation: 0,
+    } : undefined,
+    post: apiNotif.relatedPost ? {
+      id: apiNotif.relatedPost.id,
+      title: apiNotif.relatedPost.title,
+    } : undefined,
+    actionUrl: apiNotif.actionUrl,
+  };
+};
+
 export function NotificationsPage({ onBack }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeFilter, setActiveFilter] = useState<NotificationType | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   // Fetch notifications on mount
   useEffect(() => {
@@ -205,8 +260,25 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
       try {
         setLoading(true);
         setError(null);
-        const data = await notificationsService.getNotifications();
-        setNotifications(data);
+        const response = await notificationsService.getNotifications({ 
+          page, 
+          limit: 20,
+          unreadOnly: showUnreadOnly 
+        });
+        
+        // Handle paginated response
+        const notificationsList = response.data || response.notifications || response || [];
+        const mapped = notificationsList.map(mapApiNotification);
+        
+        if (page === 1) {
+          setNotifications(mapped);
+        } else {
+          setNotifications(prev => [...prev, ...mapped]);
+        }
+        
+        // Check if there are more pages
+        const meta = response.meta || {};
+        setHasMore(meta.currentPage < meta.lastPage);
       } catch (err: any) {
         setError(err?.message || 'Failed to load notifications');
         console.error('Error fetching notifications:', err);
@@ -216,7 +288,13 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
     };
 
     fetchNotifications();
-  }, []);
+  }, [page, showUnreadOnly]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setPage(1);
+    setNotifications([]);
+  }, [activeFilter, showUnreadOnly]);
 
   const filteredNotifications = notifications.filter(n => {
     const matchesFilter = activeFilter === 'all' || n.type === activeFilter;
@@ -375,16 +453,26 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                 const colorClass = getNotificationColor(notification.type);
 
                 return (
-                  <div
+                  <a
                     key={notification.id}
-                    className={`group p-5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all ${
+                    href={notification.actionUrl || '#'}
+                    onClick={(e) => {
+                      if (notification.actionUrl?.startsWith('/')) {
+                        e.preventDefault();
+                        window.location.href = notification.actionUrl;
+                      }
+                      if (!notification.isRead) {
+                        handleMarkAsRead(notification.id);
+                      }
+                    }}
+                    className={`group p-5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all block ${
                       !notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                     }`}
                   >
                     <div className="flex gap-4">
                       {notification.user ? (
                         <Avatar
-                          src={notification.user.avatar}
+                          src={notification.user.avatar || notification.user.avatarUrl}
                           alt={notification.user.username}
                           size="md"
                           className="flex-shrink-0"
@@ -438,15 +526,27 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </a>
                 );
               })
             )}
           </div>
         </div>
 
-        {filteredNotifications.length > 0 && (
+        {filteredNotifications.length > 0 && hasMore && (
           <div className="mt-6 text-center">
+            <Button
+              variant="secondary"
+              onClick={() => setPage(prev => prev + 1)}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Load More'}
+            </Button>
+          </div>
+        )}
+
+        {filteredNotifications.length > 0 && (
+          <div className="mt-4 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-500">
               Showing {filteredNotifications.length} of {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
             </p>

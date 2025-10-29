@@ -220,6 +220,18 @@ class UsersService {
             }
         }
     }
+
+    // Get email preferences
+    async getEmailPreferences(userId: string): Promise<any> {
+        const response = await apiClient.get(`/users/${userId}/email-preferences`);
+        return response.data.preferences;
+    }
+
+    // Update email preferences
+    async updateEmailPreferences(userId: string, preferences: any): Promise<any> {
+        const response = await apiClient.patch(`/users/${userId}/email-preferences`, preferences);
+        return response.data.preferences;
+    }
 }
 
 export default new UsersService();

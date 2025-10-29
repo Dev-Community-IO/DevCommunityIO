@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { User, Mail, MapPin, Briefcase, Link as LinkIcon, Twitter, Github, Globe, Save, Shield, Bell, Eye, Lock } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
+import { NotificationSettings } from './NotificationSettings';
+import { EmailPreferences } from './EmailPreferences';
 
 interface ProfileSettingsProps {
   user: {
@@ -15,7 +17,7 @@ interface ProfileSettingsProps {
 }
 
 export function ProfileSettings({ user }: ProfileSettingsProps) {
-  const [activeSection, setActiveSection] = useState<'profile' | 'account' | 'privacy' | 'notifications'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'account' | 'privacy' | 'notifications' | 'email'>('profile');
   const [formData, setFormData] = useState({
     username: user.username,
     email: 'emma.smith@example.com',
@@ -31,7 +33,8 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
     { id: 'profile', label: 'Profile Info', icon: User },
     { id: 'account', label: 'Account', icon: Shield },
     { id: 'privacy', label: 'Privacy', icon: Eye },
-    { id: 'notifications', label: 'Notifications', icon: Bell }
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'email', label: 'Email Preferences', icon: Mail }
   ];
 
   return (
@@ -336,67 +339,11 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         )}
 
         {activeSection === 'notifications' && (
-          <GlassCard className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Notification Preferences</h2>
+          <NotificationSettings />
+        )}
 
-            <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Email Notifications</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Receive email updates about your activity
-                  </p>
-                </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Push Notifications</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Get push notifications on your devices
-                  </p>
-                </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Comments on Posts</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Notify when someone comments on your posts
-                  </p>
-                </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Mentions</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Notify when someone mentions you
-                  </p>
-                </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
-              </div>
-            </div>
-          </GlassCard>
+        {activeSection === 'email' && (
+          <EmailPreferences />
         )}
       </div>
     </div>

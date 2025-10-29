@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Mail, Bell, CheckCircle, Save } from 'lucide-react';
+import { Mail, Bell, CheckCircle, Save, Loader, AlertCircle } from 'lucide-react';
 import { GlassCard } from './GlassCard';
+import usersService from '../services/api/users.service';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EmailPreferences {
   welcome_email: boolean;
@@ -21,6 +23,7 @@ interface EmailPreferences {
 }
 
 export function EmailPreferences() {
+  const { user } = useAuth();
   const [preferences, setPreferences] = useState<EmailPreferences>({
     welcome_email: true,
     post_like: true,
@@ -41,18 +44,46 @@ export function EmailPreferences() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadPreferences();
-  }, []);
+    if (user?.id) {
+      loadPreferences();
+    }
+  }, [user?.id]);
 
   const loadPreferences = async () => {
+    if (!user?.id) return;
+
     try {
-      // TODO: Replace with real API call
-      // const data = await apiService.getEmailPreferences();
-      // setPreferences(data);
-    } catch (error) {
-      console.error('Failed to load email preferences:', error);
+      setLoading(true);
+      setError(null);
+      const data = await usersService.getEmailPreferences(user.id);
+      if (data) {
+        setPreferences({
+          welcome_email: data.welcome_email ?? true,
+          post_like: data.post_like ?? true,
+          post_comment: data.post_comment ?? true,
+          comment_like: data.comment_like ?? true,
+          comment_reply: data.comment_reply ?? true,
+          mention: data.mention ?? true,
+          new_follower: data.new_follower ?? true,
+          follow_post: data.follow_post ?? true,
+          tag_activity: data.tag_activity ?? true,
+          page_activity: data.page_activity ?? true,
+          weekly_digest: data.weekly_digest ?? true,
+          monthly_recap: data.monthly_recap ?? true,
+          achievement_unlocked: data.achievement_unlocked ?? true,
+          marketing_emails: data.marketing_emails ?? false,
+          digest_frequency: data.digest_frequency || 'weekly',
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to load email preferences:', err);
+      setError(err?.message || 'Failed to load preferences');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,21 +102,31 @@ export function EmailPreferences() {
   };
 
   const handleSave = async () => {
+    if (!user?.id) return;
+
     setIsSaving(true);
     setSaveSuccess(false);
+    setError(null);
 
     try {
-      // TODO: Replace with real API call
-      // await apiService.updateEmailPreferences(preferences);
-      
+      await usersService.updateEmailPreferences(user.id, preferences);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (error) {
-      console.error('Failed to save email preferences:', error);
+    } catch (err: any) {
+      console.error('Failed to save email preferences:', err);
+      setError(err?.message || 'Failed to save preferences');
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   const categories = [
     {
@@ -212,6 +253,17 @@ export function EmailPreferences() {
         );
       })}
 
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+          <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-900 dark:text-red-100">Error</p>
+            <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Save Button */}
       <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
         {saveSuccess ? (
@@ -226,11 +278,20 @@ export function EmailPreferences() {
         )}
         <button
           onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+          disabled={isSaving || !user?.id}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Save size={18} />
-          {isSaving ? 'Saving...' : 'Save Preferences'}
+          {isSaving ? (
+            <>
+              <Loader size={18} className="animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={18} />
+              Save Preferences
+            </>
+          )}
         </button>
       </div>
 

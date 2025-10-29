@@ -13,13 +13,29 @@ class SearchService {
      * Search across the platform
      */
     async search(query: string, filters?: {
-        type?: 'posts' | 'users' | 'pages' | 'tags' | 'all';
+        type?: 'posts' | 'users' | 'pages' | 'hackathons' | 'events' | 'opportunities' | 'all';
         limit?: number;
+        page?: number;
+        category?: string;
+        tags?: string[];
+        sortBy?: 'relevance' | 'date' | 'engagement';
+        location?: string;
+        dateStart?: string;
+        dateEnd?: string;
     }): Promise<SearchResults> {
         const response = await apiClient.get('/search', {
             params: {
                 q: query,
-                ...filters
+                query: query,
+                type: filters?.type || 'all',
+                limit: filters?.limit || 20,
+                page: filters?.page || 1,
+                category: filters?.category,
+                tags: filters?.tags?.join(','),
+                sortBy: filters?.sortBy || 'relevance',
+                location: filters?.location,
+                dateStart: filters?.dateStart,
+                dateEnd: filters?.dateEnd,
             }
         });
         return response.data;

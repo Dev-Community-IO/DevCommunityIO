@@ -61,15 +61,24 @@ export function SearchDropdown({ onPostClick }: SearchDropdownProps) {
     onPostClick(post);
   };
 
-  const timeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+  const timeAgo = (date?: Date | string) => {
+    if (!date) return 'recently';
+    
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      if (isNaN(dateObj.getTime())) return 'recently';
+      
+      const seconds = Math.floor((new Date().getTime() - dateObj.getTime()) / 1000);
+      if (seconds < 60) return `${seconds}s ago`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    } catch (error) {
+      return 'recently';
+    }
   };
 
   return (
@@ -109,13 +118,17 @@ export function SearchDropdown({ onPostClick }: SearchDropdownProps) {
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <span>{post.author.username}</span>
+                        {(post.timestamp || post.createdAt || post.publishedAt) && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={10} />
+                              {timeAgo(post.timestamp || post.createdAt || post.publishedAt)}
+                            </span>
+                          </>
+                        )}
                         <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock size={10} />
-                          {timeAgo(post.timestamp)}
-                        </span>
-                        <span>•</span>
-                        <span>{post.commentCount} comments</span>
+                        <span>{post.commentCount || 0} comments</span>
                       </div>
                     </div>
                   </div>

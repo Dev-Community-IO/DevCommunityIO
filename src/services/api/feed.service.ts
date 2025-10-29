@@ -4,19 +4,42 @@ interface FeedParams {
     page?: number;
     limit?: number;
     tags?: string[];
+    category?: string;
+    feedType?: 'personalized' | 'following' | 'trending' | 'guest';
+    userId?: string;
 }
 
 class FeedService {
+    // Unified feed endpoint
+    async getFeed(params: FeedParams = {}): Promise<any> {
+        const { feedType = 'personalized', ...restParams } = params;
+        const response = await apiClient.get('/feed', {
+            params: {
+                feedType,
+                ...restParams,
+            },
+        });
+        return response.data;
+    }
+
     // Get personalized feed
     async getPersonalizedFeed(params: FeedParams = {}): Promise<any> {
-        const response = await apiClient.get('/feed/personalized', { params });
-        return response.data;
+        return this.getFeed({ ...params, feedType: 'personalized' });
     }
 
     // Get following feed
     async getFollowingFeed(params: FeedParams = {}): Promise<any> {
-        const response = await apiClient.get('/feed/following', { params });
-        return response.data;
+        return this.getFeed({ ...params, feedType: 'following' });
+    }
+
+    // Get trending feed
+    async getTrendingFeed(params: FeedParams = {}): Promise<any> {
+        return this.getFeed({ ...params, feedType: 'trending' });
+    }
+
+    // Get guest feed (no auth required)
+    async getGuestFeed(params: FeedParams = {}): Promise<any> {
+        return this.getFeed({ ...params, feedType: 'guest' });
     }
 
     // Get tag-based feed

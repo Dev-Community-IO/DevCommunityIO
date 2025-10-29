@@ -1,88 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Settings, X } from 'lucide-react';
-import { Notification, NotificationType } from '../types';
+import { Bell, Check, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Settings, Bookmark, Smile, Share2, Users, ShieldCheck, Loader } from 'lucide-react';
+import { Notification as AppNotification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
+import notificationsService, { Notification } from '../services/api/notifications.service';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NotificationDropdownProps {
   onViewAll: () => void;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'comment',
-    title: 'New Comment',
-    message: 'John Doe commented on your post "Building Modern Web Apps"',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    isRead: false,
-    user: {
-      id: '1',
-      username: 'johndoe',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
-      walletAddress: '0x1234',
-      reputation: 150,
-    },
-    post: {
-      id: '1',
-      title: 'Building Modern Web Apps',
-    },
-  },
-  {
-    id: '2',
-    type: 'upvote',
-    title: 'Post Upvoted',
-    message: 'Sarah liked your post',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000),
-    isRead: false,
-    user: {
-      id: '2',
-      username: 'sarahsmith',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-      walletAddress: '0x5678',
-      reputation: 200,
-    },
-  },
-  {
-    id: '3',
-    type: 'mention',
-    title: 'You were mentioned',
-    message: 'Alex mentioned you in a comment',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '3',
-      username: 'alexchen',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-      walletAddress: '0x9012',
-      reputation: 180,
-    },
-  },
-  {
-    id: '4',
-    type: 'follow',
-    title: 'New Follower',
-    message: 'Mike Johnson started following you',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '4',
-      username: 'mikej',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mike',
-      walletAddress: '0x3456',
-      reputation: 120,
-    },
-  },
-  {
-    id: '5',
-    type: 'achievement',
-    title: 'Achievement Unlocked!',
-    message: 'You earned the "Community Contributor" badge',
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    isRead: true,
-  },
-];
+// Map API notification to app notification format
+const mapApiNotification = (apiNotif: Notification): AppNotification => {
+  return {
+    id: apiNotif.id,
+    type: apiNotif.type as NotificationType,
+    title: apiNotif.title,
+    message: apiNotif.message,
+    timestamp: new Date(apiNotif.createdAt),
+    isRead: apiNotif.isRead,
+    user: apiNotif.relatedUser ? {
+      id: apiNotif.relatedUser.id,
+      username: apiNotif.relatedUser.username,
+      avatar: apiNotif.relatedUser.avatar_url || undefined,
+      walletAddress: '',
+      reputation: 0,
+    } : undefined,
+    post: apiNotif.relatedPost ? {
+      id: apiNotif.relatedPost.id,
+      title: apiNotif.relatedPost.title,
+    } : undefined,
+    actionUrl: apiNotif.actionUrl,
+  };
+};
 
-const getNotificationIcon = (type: NotificationType) => {
+const getNotificationIcon = (type: NotificationType | string) => {
   switch (type) {
     case 'comment':
     case 'reply':
@@ -97,6 +48,16 @@ const getNotificationIcon = (type: NotificationType) => {
       return FileText;
     case 'achievement':
       return Award;
+    case 'bookmark':
+      return Bookmark;
+    case 'reaction':
+      return Smile;
+    case 'share':
+      return Share2;
+    case 'page_invite':
+      return Users;
+    case 'verification':
+      return ShieldCheck;
     case 'system':
       return Settings;
     default:
@@ -104,7 +65,7 @@ const getNotificationIcon = (type: NotificationType) => {
   }
 };
 
-const getNotificationColor = (type: NotificationType) => {
+const getNotificationColor = (type: NotificationType | string) => {
   switch (type) {
     case 'comment':
     case 'reply':
@@ -119,6 +80,16 @@ const getNotificationColor = (type: NotificationType) => {
       return 'from-cyan-500 to-blue-600';
     case 'achievement':
       return 'from-yellow-500 to-orange-600';
+    case 'bookmark':
+      return 'from-amber-500 to-yellow-600';
+    case 'reaction':
+      return 'from-pink-500 to-rose-600';
+    case 'share':
+      return 'from-indigo-500 to-blue-600';
+    case 'page_invite':
+      return 'from-teal-500 to-cyan-600';
+    case 'verification':
+      return 'from-emerald-500 to-green-600';
     case 'system':
       return 'from-gray-500 to-gray-600';
     default:
@@ -141,11 +112,55 @@ const formatTimestamp = (date: Date) => {
 };
 
 export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
+  const { isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      fetchNotifications();
+      fetchUnreadCount();
+    }
+  }, [isOpen, isAuthenticated]);
+
+  // Poll for unread count every 30 seconds when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      if (isOpen) {
+        fetchNotifications();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, isOpen]);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const recent = await notificationsService.getRecent(6);
+      setNotifications(recent.map(mapApiNotification));
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const count = await notificationsService.getUnreadCount();
+      setUnreadCount(count);
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -163,16 +178,30 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
     };
   }, [isOpen]);
 
-  const handleMarkAsRead = (id: string, event: React.MouseEvent) => {
+  const handleMarkAsRead = async (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    setNotifications(notifications.map(n =>
-      n.id === id ? { ...n, isRead: true } : n
-    ));
+    try {
+      await notificationsService.markAsRead(id);
+      setNotifications(notifications.map(n =>
+        n.id === id ? { ...n, isRead: true } : n
+      ));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationsService.markAllAsRead();
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
   };
+
+  if (!isAuthenticated) return null;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -211,7 +240,11 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
           </div>
 
           <div className="max-h-[500px] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader className="w-6 h-6 animate-spin text-blue-500" />
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
                   <Bell size={32} className="text-gray-400" />
@@ -227,9 +260,19 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
                 const colorClass = getNotificationColor(notification.type);
 
                 return (
-                  <div
+                  <a
                     key={notification.id}
-                    className={`relative p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-800 ${
+                    href={notification.actionUrl || '#'}
+                    onClick={(e) => {
+                      if (notification.actionUrl?.startsWith('/')) {
+                        e.preventDefault();
+                        window.location.href = notification.actionUrl;
+                      }
+                      if (!notification.isRead) {
+                        handleMarkAsRead(notification.id, e);
+                      }
+                    }}
+                    className={`relative p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-800 block ${
                       !notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                     }`}
                   >
@@ -276,7 +319,7 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </a>
                 );
               })
             )}

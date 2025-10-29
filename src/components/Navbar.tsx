@@ -1,5 +1,5 @@
 import { Moon, Sun, Bell, User, Menu, Search, LogIn } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
 import { SearchDropdown } from './SearchDropdown';
@@ -8,6 +8,7 @@ import { NotificationDropdown } from './NotificationDropdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Post } from '../types';
+import notificationsService from '../services/api/notifications.service';
 
 interface NavbarProps {
   onCreatePost: () => void;
@@ -23,6 +24,32 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated, user } = useAuth();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll for unread count
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const fetchUnreadCount = async () => {
+      try {
+        const count = await notificationsService.getUnreadCount();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchUnreadCount();
+
+    // Poll every 60 seconds
+    const interval = setInterval(fetchUnreadCount, 60000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 shadow-sm">
@@ -91,7 +118,11 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
                   aria-label="Notifications"
                 >
                   <Bell size={20} />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold rounded-full animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
 
                 <button
