@@ -22,8 +22,20 @@ interface EmailPreferences {
   digest_frequency: 'daily' | 'weekly' | 'monthly' | 'never';
 }
 
-export function EmailPreferences() {
-  const { user } = useAuth();
+interface EmailPreferencesProps {
+  user?: {
+    username: string;
+    avatar: string;
+    role: string;
+    location: string;
+    bio: string;
+    walletAddress: string;
+  };
+}
+
+export function EmailPreferences({ user: propUser }: EmailPreferencesProps) {
+  const { user: authUser } = useAuth();
+  const user = propUser || authUser;
   const [preferences, setPreferences] = useState<EmailPreferences>({
     welcome_email: true,
     post_like: true,

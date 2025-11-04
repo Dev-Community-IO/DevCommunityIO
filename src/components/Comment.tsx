@@ -8,6 +8,7 @@ import { Tooltip } from './Tooltip';
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 
@@ -20,7 +21,8 @@ interface CommentProps {
 }
 
 export function Comment({ comment, postId, isReply = false, onReplySuccess, onDelete }: CommentProps) {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -56,36 +58,22 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
   }, [comment.id, user]);
 
   const handleEmojiReaction = async (emoji: string) => {
-    if (!user) {
-      alert('Please login to react');
+    if (!isAuthenticated || !user) {
+      // Redirect to login or show login modal
+      navigate('/');
       return;
     }
 
     try {
-      const response = await reactionsService.addEmoji({ commentId: comment.id, emoji });
+      await reactionsService.addEmoji({ commentId: comment.id, emoji });
       
-      // Update emojis list
-      const emojiIndex = emojis.findIndex(e => e.emoji === emoji);
+      // Reload reactions to get accurate counts
+      const { reactions } = await reactionsService.getEmojis({ commentId: comment.id });
+      setEmojis(reactions || []);
       
-      if (response.reacted) {
-        // Add emoji
-        if (emojiIndex >= 0) {
-          setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: e.count + 1 } : e));
-        } else {
-          setEmojis([...emojis, { emoji, count: 1 }]);
-        }
-        setUserEmojis([...userEmojis, emoji]);
-      } else {
-        // Remove emoji
-        if (emojiIndex >= 0) {
-          const newCount = emojis[emojiIndex].count - 1;
-          if (newCount > 0) {
-            setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: newCount } : e));
-          } else {
-            setEmojis(emojis.filter(e => e.emoji !== emoji));
-          }
-        }
-        setUserEmojis(userEmojis.filter(e => e !== emoji));
+      if (user) {
+        const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ commentId: comment.id });
+        setUserEmojis(userEmojisList || []);
       }
     } catch (error) {
       console.error('Failed to add emoji:', error);
@@ -163,6 +151,11 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
   };
 
   const handleReplySubmit = async () => {
+    if (!isAuthenticated) {
+      navigate('/');
+      return;
+    }
+    
     if (!replyText.trim() || !postId) return;
 
     setIsSubmitting(true);
@@ -189,7 +182,14 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
         <div className="flex gap-3 sm:gap-4">
           <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
             <Tooltip content={`@${comment.author.username}`}>
-              <Avatar src={(comment.author.avatar || comment.author.avatarUrl) || ''} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/profile/${comment.author.username}`);
+                }}
+              >
+                <Avatar src={(comment.author.avatar || comment.author.avatarUrl) || ''} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
+              </div>
             </Tooltip>
           </div>
 
@@ -197,7 +197,13 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm sm:text-base">
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/profile/${comment.author.username}`);
+                    }}
+                    className="font-bold text-sm sm:text-base cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
                     {comment.author.username}
                   </span>
                   {comment.author.isVerified && (
@@ -268,7 +274,8 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                 </div>
               )}
               
-              {/* Add Emoji Button */}
+              {/* Add Emoji Button - Only show for authenticated users */}
+              {isAuthenticated && (
               <div className="relative" ref={emojiPickerRef}>
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -305,8 +312,10 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                   </div>
                 )}
               </div>
+              )}
               
-              {/* Reply Button */}
+              {/* Reply Button - Only show for authenticated users */}
+              {isAuthenticated && (
               <button
                 onClick={() => setShowReply(!showReply)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
@@ -314,6 +323,7 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                 <MessageCircle size={14} />
                 <span>Reply</span>
               </button>
+              )}
             </div>
 
             {showReply && (

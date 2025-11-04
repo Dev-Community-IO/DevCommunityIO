@@ -108,6 +108,12 @@ class AuthService {
     async setPrimaryWallet(walletId: string): Promise<void> {
         await apiClient.patch(`/auth/wallets/${walletId}/primary`);
     }
+
+    // Check username availability
+    async checkUsername(username: string): Promise<{ available: boolean; message: string }> {
+        const response = await apiClient.get(`/auth/check-username/${encodeURIComponent(username)}`);
+        return response.data;
+    }
 }
 
 export default new AuthService();

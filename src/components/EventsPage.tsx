@@ -2,16 +2,21 @@ import { Calendar, MapPin, Users, Clock, ArrowLeft, Search, Filter, ExternalLink
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { eventsService, Event as APIEvent } from '../services/api/events.service';
 import { ContentGridSkeletonList } from './skeletons';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 
 interface EventsPageProps {
   onBack?: () => void;
+  onViewEventDetail?: (id: string) => void;
 }
 
 interface Event {
   id: string;
+  slug?: string;
   title: string;
   description: string;
   organizer: string;
@@ -28,12 +33,27 @@ interface Event {
   price: string;
 }
 
-export function EventsPage({ onBack }: EventsPageProps) {
+export function EventsPage({ onBack, onViewEventDetail }: EventsPageProps) {
+  const navigate = useNavigate();
+  const { user, isAdmin, canModerate } = useAuth();
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [events, setEvents] = useState<APIEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [togglingFeatured, setTogglingFeatured] = useState<string | null>(null);
+  const canManageFeatured = isAdmin() || canModerate();
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -42,11 +62,15 @@ export function EventsPage({ onBack }: EventsPageProps) {
         setError(null);
         
         const params: any = {};
-        if (searchQuery) params.search = searchQuery;
-        if (selectedFilter !== 'all' && !['Conference', 'Exhibition', 'Workshop', 'Meetup', 'Webinar', 'Forum', 'Masterclass'].includes(selectedFilter)) {
-          params.type = selectedFilter;
-        } else if (selectedFilter !== 'all') {
-          params.category = selectedFilter;
+        if (debouncedSearchQuery.trim()) params.search = debouncedSearchQuery.trim();
+        if (selectedFilter !== 'all') {
+          // Check if it's a type filter
+          if (['online', 'in-person', 'hybrid'].includes(selectedFilter)) {
+            params.type = selectedFilter;
+          } else {
+            // Otherwise it's a category filter
+            params.category = selectedFilter;
+          }
         }
         
         const response = await eventsService.getEvents(params);
@@ -60,10 +84,11 @@ export function EventsPage({ onBack }: EventsPageProps) {
     };
 
     fetchEvents();
-  }, [searchQuery, selectedFilter]);
+  }, [debouncedSearchQuery, selectedFilter]);
 
   const eventsData: Event[] = events.map(e => ({
     id: e.id,
+    slug: e.slug,
     title: e.title,
     description: e.description,
     organizer: 'Organizer', // Would need to fetch organizer details
@@ -80,7 +105,45 @@ export function EventsPage({ onBack }: EventsPageProps) {
     price: e.price
   }));
 
-  const categories = ['all', ...Array.from(new Set(eventsData.map(e => e.category)))];
+  const handleEventClick = (event: Event) => {
+    if (event.slug) {
+      navigate(`/events/${event.slug}`);
+    } else if (onViewEventDetail) {
+      onViewEventDetail(event.id);
+    } else {
+      navigate(`/events/${event.id}`);
+    }
+  };
+
+  const handleToggleFeatured = async (e: React.MouseEvent, event: Event) => {
+    e.stopPropagation();
+    if (!canManageFeatured) return;
+
+    try {
+      setTogglingFeatured(event.id);
+      const newFeaturedStatus = !event.featured;
+      await eventsService.updateEvent(event.id, { featured: newFeaturedStatus });
+      
+      // Update local state
+      setEvents(prev => prev.map(e => 
+        e.id === event.id ? { ...e, featured: newFeaturedStatus } : e
+      ));
+      
+      toast.success(newFeaturedStatus ? 'Event featured successfully' : 'Event removed from featured');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update featured status');
+      console.error('Error toggling featured:', err);
+    } finally {
+      setTogglingFeatured(null);
+    }
+  };
+
+  // Separate type filters and category filters
+  const typeFilters = ['all', 'online', 'in-person', 'hybrid'];
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(new Set(eventsData.map(e => e.category).filter(Boolean)));
+    return uniqueCategories.sort();
+  }, [eventsData]);
 
   const filteredEvents = eventsData;
 
@@ -151,9 +214,18 @@ export function EventsPage({ onBack }: EventsPageProps) {
               onChange={(e) => setSelectedFilter(e.target.value)}
               className="px-4 py-2 bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all capitalize"
             >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
+              <optgroup label="Type">
+                {typeFilters.map(filter => (
+                  <option key={filter} value={filter}>{filter === 'in-person' ? 'In-Person' : filter}</option>
+                ))}
+              </optgroup>
+              {categories.length > 0 && (
+                <optgroup label="Category">
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
@@ -181,7 +253,7 @@ export function EventsPage({ onBack }: EventsPageProps) {
       )}
 
       {/* Featured Events */}
-      {!loading && !error && filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+      {!loading && !error && filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star size={20} className="text-yellow-500" />
@@ -189,7 +261,11 @@ export function EventsPage({ onBack }: EventsPageProps) {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredEvents.filter(e => e.featured).map(event => (
-              <GlassCard key={event.id} className="p-0 overflow-hidden hover:shadow-xl transition-all duration-300 group">
+              <GlassCard 
+                key={event.id} 
+                className="p-0 overflow-hidden hover:shadow-xl transition-all duration-300 group cursor-pointer"
+                onClick={() => handleEventClick(event)}
+              >
                 <div className="relative h-40 overflow-hidden">
                   <img
                     src={event.image}
@@ -202,6 +278,20 @@ export function EventsPage({ onBack }: EventsPageProps) {
                       <Star size={10} className="inline mr-1" />
                       Featured
                     </Badge>
+                    {canManageFeatured && (
+                      <button
+                        onClick={(e) => handleToggleFeatured(e, event)}
+                        disabled={togglingFeatured === event.id}
+                        className="p-1.5 rounded-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 transition-all shadow-md"
+                        title="Remove from featured"
+                      >
+                        {togglingFeatured === event.id ? (
+                          <Loader2 size={12} className="animate-spin text-red-500" />
+                        ) : (
+                          <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                        )}
+                      </button>
+                    )}
                   </div>
                   <div className="absolute bottom-3 left-3">
                     <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${getTypeBadge(event.type)} capitalize`}>
@@ -256,7 +346,14 @@ export function EventsPage({ onBack }: EventsPageProps) {
                       })}
                     </div>
                   )}
-                  <Button variant="primary" className="w-full text-sm py-2">
+                  <Button 
+                    variant="primary" 
+                    className="w-full text-sm py-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEventClick(event);
+                    }}
+                  >
                     <ExternalLink size={14} className="mr-2" />
                     Register Now
                   </Button>
@@ -270,12 +367,16 @@ export function EventsPage({ onBack }: EventsPageProps) {
       {/* All Events Grid */}
       {!loading && !error && (
       <div>
-        {filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+        {filteredEvents.filter(e => e.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
           <h2 className="text-lg font-bold mb-3">Upcoming Events</h2>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredEvents.filter(e => selectedFilter !== 'all' || searchQuery || !e.featured).map(event => (
-            <GlassCard key={event.id} className="p-0 overflow-hidden hover:shadow-lg transition-all duration-300 group">
+          {filteredEvents.filter(e => selectedFilter !== 'all' || debouncedSearchQuery || !e.featured).map(event => (
+            <GlassCard 
+              key={event.id} 
+              className="p-0 overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer"
+              onClick={() => handleEventClick(event)}
+            >
               <div className="relative h-32 overflow-hidden">
                 <img
                   src={event.image}
@@ -289,7 +390,21 @@ export function EventsPage({ onBack }: EventsPageProps) {
                     {event.type}
                   </div>
                 </div>
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-2 right-2 flex gap-2">
+                  {canManageFeatured && (
+                    <button
+                      onClick={(e) => handleToggleFeatured(e, event)}
+                      disabled={togglingFeatured === event.id}
+                      className="p-1.5 rounded-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 transition-all shadow-md"
+                      title={event.featured ? "Remove from featured" : "Add to featured"}
+                    >
+                      {togglingFeatured === event.id ? (
+                        <Loader2 size={12} className="animate-spin text-blue-500" />
+                      ) : (
+                        <Star size={12} className={event.featured ? "text-yellow-500 fill-yellow-500" : "text-gray-400 hover:text-yellow-500"} />
+                      )}
+                    </button>
+                  )}
                   <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
                     {event.category}
                   </Badge>
@@ -336,7 +451,14 @@ export function EventsPage({ onBack }: EventsPageProps) {
                     })}
                   </div>
                 )}
-                <Button variant="primary" className="w-full text-xs py-1.5">
+                <Button 
+                  variant="primary" 
+                  className="w-full text-xs py-1.5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEventClick(event);
+                  }}
+                >
                   Register
                 </Button>
               </div>

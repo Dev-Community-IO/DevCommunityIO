@@ -11,7 +11,7 @@ interface Achievement {
   icon: string;
   category: string;
   difficulty: 'easy' | 'medium' | 'hard' | 'expert' | 'legendary';
-  points: number;
+  reputation_required: number;
   isUnlocked: boolean;
   unlockedAt?: string;
   isShowcased?: boolean;
@@ -103,9 +103,9 @@ export function AchievementsPanel({ userId }: AchievementsPanelProps) {
   const stats = {
     total: achievements.length,
     unlocked: achievements.filter((a) => a.isUnlocked).length,
-    totalPoints: achievements
+    totalReputationRequired: achievements
       .filter((a) => a.isUnlocked)
-      .reduce((sum, a) => sum + a.points, 0),
+      .reduce((sum, a) => sum + (a.reputation_required || 0), 0),
   };
 
   const categories = [
@@ -127,9 +127,9 @@ export function AchievementsPanel({ userId }: AchievementsPanelProps) {
         </GlassCard>
         <GlassCard className="p-4 text-center">
           <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-            {stats.totalPoints}
+            {stats.totalReputationRequired}
           </p>
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Points</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Rep Required</p>
         </GlassCard>
         <GlassCard className="p-4 text-center">
           <p className="text-3xl font-bold text-green-600 dark:text-green-400">

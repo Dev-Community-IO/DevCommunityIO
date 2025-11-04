@@ -1,16 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
+import { Badge } from './Badge';
 import { Users, FileText } from 'lucide-react';
 
 interface PageHoverCardDropdownProps {
   page: {
     id: string;
     name: string;
-    logo: string;
+    logo?: string;
+    logoUrl?: string;
+    coverImage?: string;
+    coverImageUrl?: string;
     description?: string;
     memberCount?: number;
     postCount?: number;
+    category?: string;
   };
   trigger: React.ReactNode;
   onJoin?: () => void;
@@ -117,14 +122,43 @@ export function PageHoverCardDropdown({ page, trigger, onJoin, onViewPage }: Pag
         transition: 'opacity 0.2s ease-out'
       }}
     >
-          {/* Compact Header with Logo Overlay */}
-          <div className="relative h-16 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent animate-shimmer"></div>
+          {/* Header with Cover Image and Logo Overlay */}
+          <div className="relative h-24 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 overflow-visible">
+            {/* Page Cover Image */}
+            {(page.coverImage || page.coverImageUrl) ? (
+              <>
+                <div className="absolute inset-0 overflow-hidden">
+                  <img 
+                    src={page.coverImage || page.coverImageUrl} 
+                    alt={`${page.name} cover`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent"></div>
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-500"></div>
+            )}
             
-            {/* Logo positioned at bottom of header */}
-            <div className="absolute -bottom-8 left-4">
-              <div className="w-16 h-16 rounded-xl overflow-hidden border-3 border-white dark:border-gray-900 shadow-lg bg-white dark:bg-gray-800">
-                <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+            {/* Shimmer effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent animate-shimmer pointer-events-none"></div>
+            
+            {/* Logo positioned at bottom of header - similar to user dropdown */}
+            <div className="absolute -bottom-8 left-4 z-20">
+              <div className="w-16 h-16 rounded-xl overflow-hidden border-3 border-white dark:border-gray-900 shadow-xl bg-white dark:bg-gray-800">
+                <img 
+                  src={page.logo || page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
+                  alt={page.name} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -133,9 +167,16 @@ export function PageHoverCardDropdown({ page, trigger, onJoin, onViewPage }: Pag
           <div className="pt-10 px-4 pb-4">
             {/* Page Name - Compact */}
             <div className="mb-2">
-              <h3 className="font-bold text-base text-gray-900 dark:text-white truncate">
-                {page.name}
-              </h3>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-base text-gray-900 dark:text-white truncate">
+                  {page.name}
+                </h3>
+                {page.category && (
+                  <Badge className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    {page.category}
+                  </Badge>
+                )}
+              </div>
               {page.description && (
                 <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
                   {page.description}

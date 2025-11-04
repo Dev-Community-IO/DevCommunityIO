@@ -3,6 +3,7 @@ import { apiClient } from './config';
 export interface GetTagsParams {
     category?: string;
     trending?: boolean;
+    featured?: boolean;
     search?: string;
     page?: number;
     limit?: number;
@@ -17,14 +18,30 @@ export interface Tag {
     usageCount: number;
     followersCount?: number;
     trending?: boolean;
+    featured?: boolean;
+    logoUrl?: string;
+    restrictedToRoles?: string[];
     color?: string;
     createdAt: string;
     updatedAt: string;
 }
 
+export interface UpdateTagParams {
+    name?: string;
+    category?: string;
+    logoUrl?: string;
+    featured?: boolean;
+    restrictedToRoles?: string[];
+}
+
 export const tagsService = {
     getTags: async (params?: GetTagsParams) => {
         const response = await apiClient.get('/tags', { params });
+        return response.data;
+    },
+
+    getFeaturedTags: async (limit?: number) => {
+        const response = await apiClient.get('/tags/featured', { params: { limit } });
         return response.data;
     },
 
@@ -35,6 +52,11 @@ export const tagsService = {
 
     getTagPosts: async (slug: string, params?: { page?: number; limit?: number }) => {
         const response = await apiClient.get(`/tags/${slug}/posts`, { params });
+        return response.data;
+    },
+
+    updateTag: async (slug: string, data: UpdateTagParams) => {
+        const response = await apiClient.put(`/tags/${slug}`, data);
         return response.data;
     },
 

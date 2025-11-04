@@ -1,146 +1,30 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Bell, Check, Trash2, Settings, Filter, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Loader, Bookmark, Smile, Share2, Users, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Bell, Check, Trash2, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Loader2, Bookmark, Smile, Share2, Users, ShieldCheck, Clock, CheckCircle2 } from 'lucide-react';
 import { Notification as AppNotification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
-import { Button } from './Button';
-import notificationsService, { Notification } from '../services/api/notifications.service';
+import { GlassCard } from './GlassCard';
+import { Badge } from './Badge';
+import notificationsService, { type Notification } from '../services/api/notifications.service';
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
+import { useNavigate } from 'react-router-dom';
+import { isNetworkError } from '../services/api/config';
 
 interface NotificationsPageProps {
   onBack: () => void;
 }
 
-const REMOVED_mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'comment',
-    title: 'New Comment',
-    message: 'John Doe commented on your post "Building Modern Web Apps with React and TypeScript"',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    isRead: false,
-    user: {
-      id: '1',
-      username: 'johndoe',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
-      walletAddress: '0x1234',
-      reputation: 150,
-    },
-    post: {
-      id: '1',
-      title: 'Building Modern Web Apps',
-    },
-  },
-  {
-    id: '2',
-    type: 'upvote',
-    title: 'Post Upvoted',
-    message: 'Sarah Smith and 12 others upvoted your post',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000),
-    isRead: false,
-    user: {
-      id: '2',
-      username: 'sarahsmith',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-      walletAddress: '0x5678',
-      reputation: 200,
-    },
-  },
-  {
-    id: '3',
-    type: 'mention',
-    title: 'You were mentioned',
-    message: 'Alex Chen mentioned you in a comment: "@emma what do you think about this approach?"',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    isRead: false,
-    user: {
-      id: '3',
-      username: 'alexchen',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-      walletAddress: '0x9012',
-      reputation: 180,
-    },
-  },
-  {
-    id: '4',
-    type: 'follow',
-    title: 'New Follower',
-    message: 'Mike Johnson started following you',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '4',
-      username: 'mikej',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mike',
-      walletAddress: '0x3456',
-      reputation: 120,
-    },
-  },
-  {
-    id: '5',
-    type: 'reply',
-    title: 'New Reply',
-    message: 'Emma Wilson replied to your comment',
-    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '5',
-      username: 'emmawilson',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=EmmaW',
-      walletAddress: '0x7890',
-      reputation: 160,
-    },
-  },
-  {
-    id: '6',
-    type: 'achievement',
-    title: 'Achievement Unlocked!',
-    message: 'You earned the "Community Contributor" badge for posting 10+ helpful comments',
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    isRead: true,
-  },
-  {
-    id: '7',
-    type: 'post',
-    title: 'New Post from Following',
-    message: 'David Lee published a new post: "Advanced TypeScript Patterns"',
-    timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '6',
-      username: 'davidlee',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
-      walletAddress: '0x1111',
-      reputation: 250,
-    },
-  },
-  {
-    id: '8',
-    type: 'upvote',
-    title: 'Comment Upvoted',
-    message: 'Lisa Brown upvoted your comment',
-    timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    isRead: true,
-    user: {
-      id: '7',
-      username: 'lisabrown',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
-      walletAddress: '0x2222',
-      reputation: 190,
-    },
-  },
-];
-
-const filterOptions: { id: string; label: string; type: NotificationType | 'all' }[] = [
-  { id: 'all', label: 'All', type: 'all' },
-  { id: 'comment', label: 'Comments', type: 'comment' },
-  { id: 'reply', label: 'Replies', type: 'reply' },
-  { id: 'upvote', label: 'Upvotes', type: 'upvote' },
-  { id: 'mention', label: 'Mentions', type: 'mention' },
-  { id: 'follow', label: 'Follows', type: 'follow' },
-  { id: 'post', label: 'Posts', type: 'post' },
-  { id: 'achievement', label: 'Achievements', type: 'achievement' },
-  { id: 'bookmark', label: 'Bookmarks', type: 'bookmark' as NotificationType },
-  { id: 'reaction', label: 'Reactions', type: 'reaction' as NotificationType },
-  { id: 'verification', label: 'Verification', type: 'verification' as NotificationType },
+const filterOptions: { id: string; label: string; type: NotificationType | 'all'; icon: any }[] = [
+  { id: 'all', label: 'All', type: 'all', icon: Bell },
+  { id: 'comment', label: 'Comments', type: 'comment', icon: MessageCircle },
+  { id: 'reply', label: 'Replies', type: 'reply', icon: MessageCircle },
+  { id: 'upvote', label: 'Upvotes', type: 'upvote', icon: Heart },
+  { id: 'mention', label: 'Mentions', type: 'mention', icon: AtSign },
+  { id: 'follow', label: 'Follows', type: 'follow', icon: UserPlus },
+  { id: 'post', label: 'Posts', type: 'post', icon: FileText },
+  { id: 'achievement', label: 'Achievements', type: 'achievement', icon: Award },
+  { id: 'bookmark', label: 'Bookmarks', type: 'bookmark' as NotificationType, icon: Bookmark },
+  { id: 'reaction', label: 'Reactions', type: 'reaction' as NotificationType, icon: Smile },
+  { id: 'verification', label: 'Verification', type: 'verification' as NotificationType, icon: ShieldCheck },
 ];
 
 const getNotificationIcon = (type: NotificationType | string) => {
@@ -169,7 +53,7 @@ const getNotificationIcon = (type: NotificationType | string) => {
     case 'verification':
       return ShieldCheck;
     case 'system':
-      return Settings;
+      return Bell;
     default:
       return Bell;
   }
@@ -179,31 +63,31 @@ const getNotificationColor = (type: NotificationType | string) => {
   switch (type) {
     case 'comment':
     case 'reply':
-      return 'from-blue-500 to-blue-600';
+      return 'text-blue-500 bg-blue-50 dark:bg-blue-950/20';
     case 'upvote':
-      return 'from-red-500 to-pink-600';
+      return 'text-red-500 bg-red-50 dark:bg-red-950/20';
     case 'mention':
-      return 'from-purple-500 to-purple-600';
+      return 'text-purple-500 bg-purple-50 dark:bg-purple-950/20';
     case 'follow':
-      return 'from-green-500 to-emerald-600';
+      return 'text-green-500 bg-green-50 dark:bg-green-950/20';
     case 'post':
-      return 'from-cyan-500 to-blue-600';
+      return 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/20';
     case 'achievement':
-      return 'from-yellow-500 to-orange-600';
+      return 'text-yellow-500 bg-yellow-50 dark:bg-yellow-950/20';
     case 'bookmark':
-      return 'from-amber-500 to-yellow-600';
+      return 'text-amber-500 bg-amber-50 dark:bg-amber-950/20';
     case 'reaction':
-      return 'from-pink-500 to-rose-600';
+      return 'text-pink-500 bg-pink-50 dark:bg-pink-950/20';
     case 'share':
-      return 'from-indigo-500 to-blue-600';
+      return 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/20';
     case 'page_invite':
-      return 'from-teal-500 to-cyan-600';
+      return 'text-teal-500 bg-teal-50 dark:bg-teal-950/20';
     case 'verification':
-      return 'from-emerald-500 to-green-600';
+      return 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20';
     case 'system':
-      return 'from-gray-500 to-gray-600';
+      return 'text-gray-500 bg-gray-50 dark:bg-gray-950/20';
     default:
-      return 'from-gray-500 to-gray-600';
+      return 'text-gray-500 bg-gray-50 dark:bg-gray-950/20';
   }
 };
 
@@ -214,11 +98,35 @@ const formatTimestamp = (date: Date) => {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  if (hours < 24) return `${hours}h`;
+  if (days < 7) return `${days}d`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Helper function to parse notification message and extract username
+const parseNotificationMessage = (message: string, username?: string): { username?: string; rest: string } => {
+  if (!username) return { rest: message };
+  
+  // Check if username appears at the start of the message
+  if (message.startsWith(username)) {
+    return {
+      username,
+      rest: message.substring(username.length).trim()
+    };
+  }
+  
+  // Check if username appears elsewhere in the message
+  const index = message.indexOf(username);
+  if (index !== -1) {
+    return {
+      username,
+      rest: message.substring(0, index).trim() + ' ' + message.substring(index + username.length).trim()
+    };
+  }
+  
+  return { rest: message };
 };
 
 // Map API notification to app notification format
@@ -232,68 +140,90 @@ const mapApiNotification = (apiNotif: Notification): AppNotification => {
     isRead: apiNotif.isRead,
     user: apiNotif.relatedUser ? {
       id: apiNotif.relatedUser.id,
-      username: apiNotif.relatedUser.username,
-      avatar: apiNotif.relatedUser.avatar_url || undefined,
+      username: apiNotif.relatedUser.username || apiNotif.relatedUser.pseudo || '',
+      avatar: apiNotif.relatedUser.avatar_url || apiNotif.relatedUser.avatarUrl || undefined,
+      avatarUrl: apiNotif.relatedUser.avatar_url || apiNotif.relatedUser.avatarUrl || undefined,
       walletAddress: '',
       reputation: 0,
+      isVerified: apiNotif.relatedUser.isVerified || false,
     } : undefined,
     post: apiNotif.relatedPost ? {
       id: apiNotif.relatedPost.id,
       title: apiNotif.relatedPost.title,
+      slug: apiNotif.relatedPost.slug,
     } : undefined,
     actionUrl: apiNotif.actionUrl,
   };
 };
 
 export function NotificationsPage({ onBack }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<NotificationType | 'all'>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [allNotifications, setAllNotifications] = useState<AppNotification[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Fetch notifications on mount
+  // Use real-time notifications hook for recent notifications
+  const {
+    notifications: apiNotifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useRealtimeNotifications({
+    pollInterval: 20000,
+    autoFetch: true,
+    limit: 20,
+  });
+
+  // Load more notifications for pagination
   useEffect(() => {
-    const fetchNotifications = async () => {
+    const loadMoreNotifications = async () => {
+      if (page === 1) return;
+      
       try {
-        setLoading(true);
-        setError(null);
+        setLoadingMore(true);
         const response = await notificationsService.getNotifications({ 
           page, 
           limit: 20,
           unreadOnly: showUnreadOnly 
         });
         
-        // Handle paginated response
         const notificationsList = response.data || response.notifications || response || [];
         const mapped = notificationsList.map(mapApiNotification);
         
-        if (page === 1) {
-          setNotifications(mapped);
-        } else {
-          setNotifications(prev => [...prev, ...mapped]);
-        }
+        setAllNotifications(prev => [...prev, ...mapped]);
         
-        // Check if there are more pages
         const meta = response.meta || {};
         setHasMore(meta.currentPage < meta.lastPage);
       } catch (err: any) {
-        setError(err?.message || 'Failed to load notifications');
-        console.error('Error fetching notifications:', err);
+        // Suppress network errors - they're handled gracefully
+        if (!isNetworkError(err)) {
+          console.error('Error loading more notifications:', err);
+        }
       } finally {
-        setLoading(false);
+        setLoadingMore(false);
       }
     };
 
-    fetchNotifications();
+    if (page > 1) {
+      loadMoreNotifications();
+    }
   }, [page, showUnreadOnly]);
+
+  // Combine real-time notifications with paginated ones
+  const notifications = page === 1 
+    ? apiNotifications.map(mapApiNotification)
+    : [...apiNotifications.map(mapApiNotification), ...allNotifications];
 
   // Reset to page 1 when filter changes
   useEffect(() => {
     setPage(1);
-    setNotifications([]);
+    setAllNotifications([]);
   }, [activeFilter, showUnreadOnly]);
 
   const filteredNotifications = notifications.filter(n => {
@@ -302,14 +232,128 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
     return matchesFilter && matchesUnread;
   });
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const handleNotificationClick = (notification: AppNotification, event?: React.MouseEvent) => {
+    // Don't navigate if clicking on a username link
+    if (event && (event.target as HTMLElement).closest('span[class*="cursor-pointer"]')) {
+      return;
+    }
 
-  const handleMarkAsRead = async (id: string) => {
+    // Handle content-specific routes based on actionUrl patterns
+    if (notification.actionUrl) {
+      const url = notification.actionUrl;
+      
+      // Extract slug/ID from URL - handle both absolute and relative URLs
+      const extractSlugFromUrl = (url: string, pattern: string): string | null => {
+        // Handle relative URLs
+        if (url.startsWith('/')) {
+          const match = url.match(new RegExp(`${pattern}([^/#?]+)`));
+          return match ? match[1] : null;
+        }
+        // Handle absolute URLs
+        try {
+          const urlObj = new URL(url);
+          const pathname = urlObj.pathname;
+          const match = pathname.match(new RegExp(`${pattern}([^/#?]+)`));
+          return match ? match[1] : null;
+        } catch {
+          // Fallback to regex on full URL
+          const match = url.match(new RegExp(`${pattern}([^/#?]+)`));
+          return match ? match[1] : null;
+        }
+      };
+
+      // Hackathons - check actionUrl for hackathon routes
+      if (url.includes('/hackathons/') || url.includes('/hackathon/')) {
+        const slug = extractSlugFromUrl(url, '/hackathons?/');
+        if (slug) {
+          navigate(`/hackathons/${slug}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Events - check actionUrl for event routes
+      if (url.includes('/events/') || url.includes('/event/')) {
+        const slug = extractSlugFromUrl(url, '/events?/');
+        if (slug) {
+          navigate(`/events/${slug}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Opportunities - check actionUrl for opportunity routes
+      if (url.includes('/opportunities/') || url.includes('/opportunity/')) {
+        const slug = extractSlugFromUrl(url, '/opportunities?/');
+        if (slug) {
+          navigate(`/opportunities/${slug}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Posts - use /post/ route (singular)
+      if (url.includes('/post/') || url.includes('/posts/')) {
+        const slug = extractSlugFromUrl(url, '/posts?/');
+        if (slug) {
+          const hash = url.includes('#') ? '#' + url.split('#')[1].split('?')[0] : '';
+          navigate(`/post/${slug}${hash}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Pages
+      if (url.includes('/pages/') || url.includes('/page/')) {
+        const slug = extractSlugFromUrl(url, '/pages?/');
+        if (slug) {
+          navigate(`/pages/${slug}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Users/Profiles
+      if (url.includes('/users/') || url.includes('/profile/') || url.includes('/user/')) {
+        const username = extractSlugFromUrl(url, '/(users?|profile)/');
+        if (username) {
+          navigate(`/profile/${username}`);
+          if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+          return;
+        }
+      }
+      
+      // Default: navigate to actionUrl as-is if it's a relative URL
+      if (url.startsWith('/')) {
+        navigate(url);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+
+    // Fallback: try to navigate to post if available
+    if (notification.post) {
+      const postSlug = notification.post.slug || notification.post.id;
+      navigate(`/post/${postSlug}`);
+      if (!notification.isRead) {
+        markAsRead(notification.id).catch(console.error);
+      }
+      return;
+    }
+
+    // Final fallback: navigate to user profile
+    if (notification.user) {
+      navigate(`/profile/${notification.user.username}`);
+      if (!notification.isRead) {
+        markAsRead(notification.id).catch(console.error);
+      }
+    }
+  };
+
+  const handleMarkAsRead = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     try {
-      await notificationsService.markAsRead(id);
-      setNotifications(notifications.map(n =>
-        n.id === id ? { ...n, isRead: true } : n
-      ));
+      await markAsRead(id);
     } catch (err: any) {
       console.error('Error marking notification as read:', err);
     }
@@ -317,239 +361,279 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationsService.markAllAsRead();
-      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      await markAllAsRead();
     } catch (err: any) {
       console.error('Error marking all as read:', err);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     try {
-      await notificationsService.deleteNotification(id);
-      setNotifications(notifications.filter(n => n.id !== id));
+      await deleteNotification(id);
     } catch (err: any) {
       console.error('Error deleting notification:', err);
     }
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+          <p className="text-sm text-gray-600 dark:text-gray-400">Loading notifications...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Compact Header */}
         <div className="mb-6">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-4"
-          >
-            <ArrowLeft size={20} />
-            <span className="font-medium">Back</span>
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors group"
+            >
+              <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+              <span className="text-sm font-medium">Back</span>
+            </button>
+            
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-colors flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={14} />
+                Mark all read
+              </button>
+            )}
+          </div>
 
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                 Notifications
               </h1>
               {unreadCount > 0 && (
-                <p className="text-gray-600 dark:text-gray-400">
-                  You have <span className="font-semibold text-blue-600 dark:text-blue-400">{unreadCount}</span> unread notification{unreadCount > 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleMarkAllAsRead}
-                  className="flex items-center gap-2"
-                >
-                  <Check size={16} />
-                  Mark all read
-                </Button>
-              )}
-              {notifications.length > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleClearAll}
-                  className="flex items-center gap-2 text-red-600 hover:text-red-700 dark:text-red-400"
-                >
-                  <Trash2 size={16} />
-                  Clear all
-                </Button>
+                <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs px-2 py-0.5">
+                  {unreadCount}
+                </Badge>
               )}
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-800 dark:to-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Filter size={18} className="text-gray-600 dark:text-gray-400" />
-                <span className="font-semibold text-gray-900 dark:text-white">Filter by type</span>
-              </div>
+        {/* Compact Filters */}
+        <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+          <button
+            onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              showUnreadOnly
+                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            {showUnreadOnly && <CheckCircle2 size={12} className="inline mr-1" />}
+            Unread
+          </button>
+          
+          {filterOptions.map(option => {
+            const Icon = option.icon;
+            const isActive = activeFilter === option.type;
+            return (
               <button
-                onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  showUnreadOnly
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                key={option.id}
+                onClick={() => setActiveFilter(option.type)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
-                Unread only
+                <Icon size={12} />
+                {option.label}
               </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {filterOptions.map(option => (
-                <button
-                  key={option.id}
-                  onClick={() => setActiveFilter(option.type)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeFilter === option.type
-                      ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="divide-y divide-gray-200 dark:divide-gray-800">
-            {filteredNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                  <Bell size={40} className="text-gray-400" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                  No notifications
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {showUnreadOnly
-                    ? "You're all caught up! No unread notifications."
-                    : "We'll notify you when something arrives"}
-                </p>
-              </div>
-            ) : (
-              filteredNotifications.map((notification) => {
-                const Icon = getNotificationIcon(notification.type);
-                const colorClass = getNotificationColor(notification.type);
-
-                return (
-                  <a
-                    key={notification.id}
-                    href={notification.actionUrl || '#'}
-                    onClick={(e) => {
-                      if (notification.actionUrl?.startsWith('/')) {
-                        e.preventDefault();
-                        window.location.href = notification.actionUrl;
-                      }
-                      if (!notification.isRead) {
-                        handleMarkAsRead(notification.id);
-                      }
-                    }}
-                    className={`group p-5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all block ${
-                      !notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                    }`}
-                  >
-                    <div className="flex gap-4">
-                      {notification.user ? (
-                        <Avatar
-                          src={notification.user.avatar || notification.user.avatarUrl}
-                          alt={notification.user.username}
-                          size="md"
-                          className="flex-shrink-0"
-                        />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center flex-shrink-0`}>
-                          <Icon size={22} className="text-white" />
-                        </div>
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                              {notification.message}
-                            </p>
-                            <div className="flex items-center gap-3 mt-3">
-                              <p className="text-xs text-gray-500 dark:text-gray-500">
-                                {formatTimestamp(notification.timestamp)}
-                              </p>
-                              {!notification.isRead && (
-                                <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                                  Unread
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!notification.isRead && (
-                              <button
-                                onClick={() => handleMarkAsRead(notification.id)}
-                                className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                                title="Mark as read"
-                              >
-                                <Check size={18} className="text-blue-600 dark:text-blue-400" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(notification.id)}
-                              className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} className="text-red-600 dark:text-red-400" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })
-            )}
-          </div>
+            );
+          })}
         </div>
 
-        {filteredNotifications.length > 0 && hasMore && (
-          <div className="mt-6 text-center">
-            <Button
-              variant="secondary"
-              onClick={() => setPage(prev => prev + 1)}
-              disabled={loading}
-            >
-              {loading ? 'Loading...' : 'Load More'}
-            </Button>
-          </div>
-        )}
+        {/* Compact Notifications List */}
+        <div className="space-y-2">
+          {filteredNotifications.length === 0 ? (
+            <GlassCard className="p-12">
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-full flex items-center justify-center mb-4">
+                  <Bell size={32} className="text-gray-400 dark:text-gray-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                  All caught up!
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {showUnreadOnly
+                    ? "No unread notifications"
+                    : "We'll notify you when something new arrives"}
+                </p>
+              </div>
+            </GlassCard>
+          ) : (
+            filteredNotifications.map((notification) => {
+              const Icon = getNotificationIcon(notification.type);
+              const colorClass = getNotificationColor(notification.type);
+              const isHovered = hoveredId === notification.id;
+              const isUnread = !notification.isRead;
 
-        {filteredNotifications.length > 0 && (
+              return (
+                <div
+                  key={notification.id}
+                  onClick={(e) => handleNotificationClick(notification, e)}
+                  onMouseEnter={() => setHoveredId(notification.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  className={`group relative p-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border rounded-xl transition-all duration-200 cursor-pointer ${
+                    isUnread 
+                      ? `${colorClass} border-purple-200 dark:border-purple-800/50 shadow-sm` 
+                      : 'border-gray-200/50 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-700'
+                  } ${isHovered ? 'shadow-md scale-[1.01]' : ''}`}
+                >
+                  <div className="flex gap-3">
+                    {/* Compact Avatar/Icon */}
+                    {notification.user ? (
+                      <div className="relative flex-shrink-0">
+                        <div
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            navigate(`/profile/${notification.user?.username}`);
+                          }}
+                          className="cursor-pointer group/avatar"
+                        >
+                          <Avatar
+                            src={notification.user.avatar || notification.user.avatarUrl || ''}
+                            alt={notification.user.username}
+                            size="md"
+                            className="w-11 h-11 border-2 border-white dark:border-gray-800 group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 group-hover/avatar:ring-offset-2 dark:group-hover/avatar:ring-offset-gray-900 transition-all shadow-md hover:shadow-lg"
+                          />
+                        </div>
+                        {isUnread && (
+                          <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm animate-pulse"></div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={`w-11 h-11 rounded-full ${colorClass} flex items-center justify-center flex-shrink-0 shadow-md`}>
+                        <Icon size={18} />
+                      </div>
+                    )}
+
+                    {/* Compact Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className={`text-sm font-medium truncate ${
+                              isUnread 
+                                ? 'text-gray-900 dark:text-white' 
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {notification.title}
+                            </p>
+                            {isUnread && (
+                              <span className="w-1.5 h-1.5 bg-purple-500 rounded-full flex-shrink-0"></span>
+                            )}
+                          </div>
+                          <div className={`text-xs leading-relaxed ${
+                            isUnread
+                              ? 'text-gray-700 dark:text-gray-200'
+                              : 'text-gray-600 dark:text-gray-400'
+                          }`}>
+                            {notification.user ? (() => {
+                              const parsed = parseNotificationMessage(notification.message, notification.user.username);
+                              return (
+                                <span>
+                                  {parsed.username && (
+                                    <>
+                                      <span
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/profile/${notification.user?.username}`);
+                                        }}
+                                        className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer transition-colors hover:underline"
+                                      >
+                                        {parsed.username}
+                                      </span>
+                                      {' '}
+                                    </>
+                                  )}
+                                  <span>{parsed.rest}</span>
+                                </span>
+                              );
+                            })() : (
+                              <span>{notification.message}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Compact Actions */}
+                        <div className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${
+                          isHovered ? 'opacity-100' : 'opacity-0'
+                        }`}>
+                          {isUnread && (
+                            <button
+                              onClick={(e) => handleMarkAsRead(e, notification.id)}
+                              className="p-1.5 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+                              title="Mark as read"
+                            >
+                              <Check size={14} className="text-purple-600 dark:text-purple-400" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => handleDelete(e, notification.id)}
+                            className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} className="text-red-600 dark:text-red-400" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Compact Footer */}
+                      <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-gray-200/50 dark:border-gray-800/50">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-500">
+                          <Clock size={10} />
+                          {formatTimestamp(notification.timestamp)}
+                        </div>
+                        {notification.post && (
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-500">
+                            <FileText size={10} />
+                            <span className="truncate max-w-[120px]">{notification.post.title}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Compact Load More */}
+        {filteredNotifications.length > 0 && hasMore && (
           <div className="mt-4 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-500">
-              Showing {filteredNotifications.length} of {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
-            </p>
+            <button
+              onClick={() => setPage(prev => prev + 1)}
+              disabled={loadingMore}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Load More'
+              )}
+            </button>
           </div>
         )}
       </div>

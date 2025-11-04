@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Edit3, Briefcase, Star, MapPin, Calendar, TrendingUp, MessageSquare, FileText, Settings as SettingsIcon, Award, Twitter, Linkedin, Send, Github, LogIn } from 'lucide-react';
+import { Edit3, Briefcase, MapPin, Calendar, TrendingUp, MessageSquare, FileText, Settings as SettingsIcon, Award, Twitter, Linkedin, Github, LogIn, UserPlus, Share2, MoreVertical, Mail } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
+import { VerifiedBadge } from './VerifiedBadge';
 import { ProfileDashboard } from './ProfileDashboard';
 import { ProfilePosts } from './ProfilePosts';
 import { ProfileReplies } from './ProfileReplies';
@@ -10,14 +11,14 @@ import { ProfilePages } from './ProfilePages';
 import { ProfileAchievements } from './ProfileAchievements';
 import { ProfileSettings } from './ProfileSettings';
 import { EditProfileModal } from './EditProfileModal';
-import { ProfileHeaderSkeleton, ProfileTabsSkeleton } from './skeletons';
+import { ProfileHeaderSkeleton } from './skeletons';
 import { FollowersFollowingDropdown } from './FollowersFollowingDropdown';
 import { useAuth } from '../contexts/AuthContext';
 import usersService from '../services/api/users.service';
 
 interface UserProfileProps {
   username?: string;
-  onBack?: () => void; // eslint-disable-line @typescript-eslint/no-unused-vars
+  onBack?: () => void;
   onOpenLoginModal?: () => void;
   activeTab?: string;
   onTabChange?: (tab: TabType) => void;
@@ -26,7 +27,7 @@ interface UserProfileProps {
 type TabType = 'dashboard' | 'posts' | 'replies' | 'pages' | 'achievements' | 'settings';
 
 export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: propActiveTab, onTabChange }: UserProfileProps) {
-  const { isAuthenticated, user: authUser } = useAuth();
+  const { isAuthenticated, user: authUser, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>((propActiveTab || 'posts') as TabType);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -35,10 +36,10 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
   const [userNotFound, setUserNotFound] = useState(false);
   const [showFollowersDropdown, setShowFollowersDropdown] = useState(false);
   const [showFollowingDropdown, setShowFollowingDropdown] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const followersRef = useRef<HTMLDivElement>(null);
   const followingRef = useRef<HTMLDivElement>(null);
   
-  // Determine if viewing own profile
   const viewingUsername = username || authUser?.username;
   const isOwnProfile = isAuthenticated && authUser && viewingUsername === authUser.username;
 
@@ -54,6 +55,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     role: string;
     occupation?: string | null;
     location: string;
+    email?: string | null;
     joinedDate: string;
     bio: string;
     skills: string[];
@@ -70,12 +72,31 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
   const handleSaveProfile = (updatedUser: any) => {
     if (!mockUser) return;
     
+    // Update auth context with new username and user data
+    updateUser({
+      username: updatedUser.username || mockUser.username,
+      pseudo: updatedUser.pseudo,
+      avatar: updatedUser.avatarUrl || updatedUser.avatar,
+      avatarUrl: updatedUser.avatarUrl || updatedUser.avatar,
+      coverImage: updatedUser.coverImageUrl || updatedUser.coverImage,
+      coverImageUrl: updatedUser.coverImageUrl || updatedUser.coverImage,
+      bio: updatedUser.bio,
+      location: updatedUser.location,
+      skills: updatedUser.skills,
+      socialLinks: updatedUser.socialLinks,
+    });
+    
+    // Update mockUser with new data
+    const newUsername = updatedUser.username || mockUser.username;
     setMockUser({ ...mockUser, ...updatedUser });
-    // Refresh profile data after save
-    if (viewingUsername) {
-      usersService.getUserByUsername(viewingUsername).then(userData => {
+    
+    // Use the new username if it changed, otherwise use viewingUsername
+    const usernameToFetch = newUsername !== mockUser.username ? newUsername : viewingUsername;
+    
+    if (usernameToFetch) {
+      usersService.getUserByUsername(usernameToFetch).then(userData => {
         setProfileUser(userData);
-        usersService.getUserStats(viewingUsername).then(stats => {
+        usersService.getUserStats(usernameToFetch).then(stats => {
           const normalizedStats = {
             posts: typeof stats.posts === 'object' ? (stats.posts as any).total || 0 : Number(stats.posts || 0),
             replies: typeof stats.replies === 'object' ? (stats.replies as any).total || 0 : Number(stats.replies || 0),
@@ -95,9 +116,9 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
               walletAddress: prev.walletAddress,
               reputation: userData.reputation,
               isVerified: userData.isVerified,
-            role: userData.role,
-            occupation: userData.occupation || prev.occupation || null,
-            location: userData.location ?? prev.location,
+              role: userData.role,
+              occupation: userData.occupation || prev.occupation || null,
+              location: userData.location ?? prev.location,
               joinedDate: prev.joinedDate,
               bio: userData.bio || prev.bio,
               skills: userData.skills || prev.skills,
@@ -105,12 +126,32 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
               stats: normalizedStats,
             };
           });
+          
+          // Update auth context again with complete user data
+          updateUser({
+            username: userData.username,
+            pseudo: userData.pseudo || undefined,
+            avatar: userData.avatarUrl || undefined,
+            avatarUrl: userData.avatarUrl || undefined,
+            coverImage: userData.coverImageUrl || undefined,
+            coverImageUrl: userData.coverImageUrl || undefined,
+            bio: userData.bio || undefined,
+            location: userData.location || undefined,
+            skills: userData.skills || undefined,
+            socialLinks: userData.socialLinks || undefined,
+            reputation: userData.reputation,
+            isVerified: userData.isVerified,
+            role: userData.role as 'user' | 'moderator' | 'admin' | 'super_admin',
+          });
+        }).catch(error => {
+          console.error('Failed to fetch user stats:', error);
         });
+      }).catch(error => {
+        console.error('Failed to fetch user data:', error);
       });
     }
   };
 
-  // Fetch profile data
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!viewingUsername) {
@@ -118,17 +159,17 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
         return;
       }
 
+      // Reset edit modal when username changes
+      setIsEditModalOpen(false);
+
       try {
         setLoading(true);
         
-        // Fetch user profile
         const userData = await usersService.getUserByUsername(viewingUsername);
         setProfileUser(userData);
         
-        // Fetch user stats
         const stats = await usersService.getUserStats(viewingUsername);
         
-        // Ensure stats are numbers (convert any count objects to numbers)
         const normalizedStats = {
           posts: typeof stats.posts === 'object' ? (stats.posts as any).total || 0 : Number(stats.posts || 0),
           replies: typeof stats.replies === 'object' ? (stats.replies as any).total || 0 : Number(stats.replies || 0),
@@ -137,7 +178,6 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           following: typeof stats.following === 'object' ? (stats.following as any).total || 0 : Number(stats.following || 0),
         };
         
-        // Update mockUser with real data
         setMockUser({
           id: userData.id,
           username: userData.username,
@@ -150,6 +190,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           role: userData.role,
           occupation: userData.occupation || null,
           location: userData.location ?? '',
+          email: userData.email || null, // Include email if privacy allows
           joinedDate: new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
           bio: userData.bio || 'No bio yet.',
           skills: (userData.skills || []) as string[],
@@ -157,7 +198,6 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           stats: normalizedStats
         });
 
-        // Check if following (only if viewing someone else's profile)
         if (!isOwnProfile && isAuthenticated) {
           const following = await usersService.isFollowing(userData.id);
           setIsFollowing(following);
@@ -176,35 +216,52 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     fetchProfileData();
   }, [viewingUsername, isOwnProfile, isAuthenticated]);
 
-  // Handle follow/unfollow
   const handleFollowToggle = async () => {
     if (!profileUser) return;
+    
+    if (!isAuthenticated) {
+      onOpenLoginModal?.();
+      return;
+    }
     
     try {
       if (isFollowing) {
         await usersService.unfollowUser(profileUser.id);
+        setIsFollowing(false);
+        
+        setMockUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              followers: Math.max(0, prev.stats.followers - 1)
+            }
+          };
+        });
       } else {
         await usersService.followUser(profileUser.id);
+        setIsFollowing(true);
+        
+        setMockUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              followers: prev.stats.followers + 1
+            }
+          };
+        });
       }
-      setIsFollowing(!isFollowing);
-      
-      // Update follower count
-      setMockUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          stats: {
-            ...prev.stats,
-            followers: isFollowing ? prev.stats.followers - 1 : prev.stats.followers + 1
-          }
-        };
-      });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle follow:', error);
+      // Revert optimistic update on error
+      setIsFollowing(!isFollowing);
+      alert(error?.message || 'Failed to update follow status');
     }
   };
 
-  // Filter tabs based on authentication and ownership
   const allTabs = [
     { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, requiresAuth: true, requiresOwn: true },
     { id: 'posts', label: 'Posts', icon: FileText, requiresAuth: false, requiresOwn: false },
@@ -220,257 +277,305 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     return true;
   });
 
-  // Show skeleton loader while loading or if user data is not yet loaded
   if (loading || !mockUser) {
     return (
-      <div className="space-y-4 sm:space-y-6 animate-fade-in">
-        <GlassCard className="overflow-hidden p-0">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <ProfileHeaderSkeleton />
-        </GlassCard>
-        <GlassCard>
-          <ProfileTabsSkeleton />
-        </GlassCard>
+        </div>
       </div>
     );
   }
 
-  // Show user not found message
   if (userNotFound) {
     return (
-      <div className="space-y-4 sm:space-y-6 animate-fade-in flex items-center justify-center min-h-[400px]">
-        <GlassCard className="p-8 text-center max-w-md">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">User Not Found</h2>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="text-center">
+          <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
+            <UserPlus size={40} className="text-red-500" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">User Not Found</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             The user <span className="font-semibold">@{viewingUsername}</span> does not exist.
           </p>
           {onBack && (
             <button
               onClick={onBack}
-              className="px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg shadow-blue-500/25"
             >
               Go Back
             </button>
           )}
-        </GlassCard>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      <GlassCard className="overflow-hidden p-0">
-        {/* Gradient Header */}
-        <div className="relative h-32 sm:h-48 bg-gradient-to-br from-orange-400 via-pink-400 to-cyan-400 animate-gradient">
-          {mockUser.coverImage && (
-            <img src={mockUser.coverImage} alt="Cover" className="w-full h-full object-cover" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 pb-20 sm:pb-24">
+      {/* Hero Section - Mobile Optimized */}
+      <div className="relative">
+        {/* Cover Image - Responsive Height */}
+        <div className="relative h-48 sm:h-64 md:h-80 overflow-hidden">
+          {mockUser.coverImage ? (
+            <>
+              <img 
+                src={mockUser.coverImage} 
+                alt="Cover" 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
           )}
+          
+          {/* Edit Cover Button - Mobile Optimized */}
           {isOwnProfile && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 sm:p-2.5 rounded-full bg-white dark:bg-gray-800 hover:scale-110 transition-transform duration-300 shadow-lg"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all shadow-lg touch-manipulation"
             >
-              <Edit3 size={18} className="text-gray-700 dark:text-gray-300 sm:w-5 sm:h-5" />
+              <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
+              <span className="text-xs sm:text-sm hidden xs:inline">Edit Profile</span>
             </button>
           )}
         </div>
 
-        {/* Profile Info - Overlapping Card */}
-        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-          <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 -mt-16 sm:-mt-24 relative z-10">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 sm:gap-4">
-              {/* Avatar and Basic Info */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center sm:items-end">
-                <Avatar
-                  src={mockUser.avatar}
-                  alt={mockUser.username}
-                  size="xl"
-                  className="ring-4 ring-white dark:ring-gray-900 w-24 h-24 sm:w-32 sm:h-32"
-                />
+        {/* Profile Card - Mobile Optimized */}
+        <div className="relative px-3 sm:px-4 md:px-6 lg:px-8 -mt-16 sm:-mt-20 z-10">
+          <div className="max-w-7xl mx-auto">
+            <GlassCard className="p-4 sm:p-6 md:p-8 shadow-2xl border-2 border-gray-200/50 dark:border-gray-700/50">
+              <div className="flex flex-col lg:flex-row lg:items-start gap-4 sm:gap-6">
+                {/* Left Section - Avatar & Basic Info - Mobile Optimized */}
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start w-full sm:w-auto">
+                  {/* Avatar - Responsive Size */}
+                  <div className="relative flex-shrink-0">
+                    <Avatar
+                      src={mockUser.avatar}
+                      alt={mockUser.username}
+                      size="xl"
+                      className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 ring-4 ring-white dark:ring-gray-900 shadow-2xl"
+                    />
+                  </div>
 
-                <div className="space-y-1 sm:space-y-2 mb-2 text-center sm:text-left">
-                  <div>
-                    {mockUser.pseudo ? (
-                      <>
-                        <h1 className="text-2xl sm:text-3xl font-bold">{mockUser.pseudo}</h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">@{mockUser.username}</p>
-                      </>
-                    ) : (
-                      <h1 className="text-2xl sm:text-3xl font-bold">{mockUser.username}</h1>
-                    )}
-                    {mockUser.occupation && (
-                      <p className="text-gray-600 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-sm sm:text-base mt-1">
-                        <Briefcase size={14} className="sm:w-4 sm:h-4" />
-                        {mockUser.occupation}
+                  {/* Name & Basic Info - Mobile Optimized */}
+                  <div className="flex-1 text-center sm:text-left w-full sm:w-auto min-w-0">
+                    <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3 mb-2 flex-wrap">
+                      {mockUser.pseudo ? (
+                        <>
+                          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white truncate">
+                            {mockUser.pseudo}
+                          </h1>
+                          <p className="text-sm sm:text-lg text-gray-500 dark:text-gray-400 truncate">@{mockUser.username}</p>
+                        </>
+                      ) : (
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white truncate">
+                          {mockUser.username}
+                        </h1>
+                      )}
+                      {mockUser.isVerified && (
+                        <VerifiedBadge size={18} className="sm:w-5 sm:h-5 flex-shrink-0" />
+                      )}
+                    </div>
+
+                    {/* Role & Location - Mobile Optimized */}
+                    <div className="flex items-center justify-center sm:justify-start gap-3 sm:gap-4 mb-3 flex-wrap text-xs sm:text-sm">
+                      {mockUser.occupation && (
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 dark:text-gray-400">
+                          <Briefcase size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="font-medium truncate">{mockUser.occupation}</span>
+                        </div>
+                      )}
+                      {mockUser.location && (
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 dark:text-gray-400">
+                          <MapPin size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">{mockUser.location}</span>
+                        </div>
+                      )}
+                      {mockUser.email && (
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 dark:text-gray-400">
+                          <Mail size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                          <a 
+                            href={`mailto:${mockUser.email}`}
+                            className="truncate hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {mockUser.email}
+                          </a>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 dark:text-gray-400">
+                        <Calendar size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="truncate">Joined {mockUser.joinedDate}</span>
+                      </div>
+                    </div>
+
+                    {/* Bio - Mobile Optimized */}
+                    {mockUser.bio && (
+                      <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-3 sm:mb-4 max-w-2xl mx-auto sm:mx-0">
+                        {mockUser.bio}
                       </p>
                     )}
-                    <p className="text-gray-500 dark:text-gray-500 flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-xs sm:text-sm">
-                      <MapPin size={12} className="sm:w-3.5 sm:h-3.5" />
-                      {mockUser.location}
-                    </p>
+
+                    {/* Skills - Mobile Optimized */}
+                    {mockUser.skills && mockUser.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4 justify-center sm:justify-start">
+                        {mockUser.skills.slice(0, 5).map((skill) => (
+                          <Badge key={skill} variant="default" className="text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1">
+                            {skill}
+                          </Badge>
+                        ))}
+                        {mockUser.skills.length > 5 && (
+                          <Badge variant="default" className="text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1">
+                            +{mockUser.skills.length - 5}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Social Links - Mobile Optimized */}
+                    {mockUser.socialLinks && Object.keys(mockUser.socialLinks).length > 0 && (
+                      <div className="flex items-center gap-2 sm:gap-3 justify-center sm:justify-start flex-wrap">
+                        {mockUser.socialLinks.twitter && (
+                          <a
+                            href={`https://twitter.com/${mockUser.socialLinks.twitter}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 touch-manipulation"
+                            aria-label="Twitter"
+                          >
+                            <Twitter size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </a>
+                        )}
+                        {mockUser.socialLinks.linkedin && (
+                          <a
+                            href={mockUser.socialLinks.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 touch-manipulation"
+                            aria-label="LinkedIn"
+                          >
+                            <Linkedin size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </a>
+                        )}
+                        {mockUser.socialLinks.github && (
+                          <a
+                            href={`https://github.com/${mockUser.socialLinks.github}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 sm:p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation"
+                            aria-label="GitHub"
+                          >
+                            <Github size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Section - Stats & Actions - Mobile Optimized */}
+                <div className="flex-shrink-0 lg:ml-auto w-full lg:w-auto">
+                  {/* Stats Grid - Mobile Optimized */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
+                    <div className="flex flex-col items-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 active:scale-95 transition-transform touch-manipulation cursor-pointer">
+                      <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{mockUser.stats.posts}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1">Posts</p>
+                    </div>
+                    <div className="flex flex-col items-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 active:scale-95 transition-transform touch-manipulation cursor-pointer">
+                      <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">{mockUser.stats.replies}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1">Replies</p>
+                    </div>
+                    <div className="flex flex-col items-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 active:scale-95 transition-transform touch-manipulation cursor-pointer">
+                      <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">{mockUser.reputation}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1">Rep</p>
+                    </div>
+                    <div 
+                      ref={followersRef}
+                      onClick={() => setShowFollowersDropdown(true)}
+                      className="flex flex-col items-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-lg active:scale-95 transition-all touch-manipulation"
+                    >
+                      <p className="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{mockUser.stats.followers}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1">Followers</p>
+                    </div>
+                    <div 
+                      ref={followingRef}
+                      onClick={() => setShowFollowingDropdown(true)}
+                      className="flex flex-col items-center p-3 sm:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 border border-pink-200 dark:border-pink-800 cursor-pointer hover:shadow-lg active:scale-95 transition-all touch-manipulation"
+                    >
+                      <p className="text-xl sm:text-2xl font-bold text-pink-600 dark:text-pink-400">{mockUser.stats.following}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1">Following</p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons - Mobile Optimized */}
+                  <div className="flex items-center gap-2 flex-wrap justify-center lg:justify-end">
+                    {!isAuthenticated ? (
+                      <button
+                        onClick={() => onOpenLoginModal?.()}
+                        className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 hover:shadow-xl hover:shadow-blue-500/30 active:scale-95 w-full sm:w-auto touch-manipulation"
+                      >
+                        <LogIn size={16} className="sm:w-[18px] sm:h-[18px]" />
+                        <span className="truncate">Connect to Follow</span>
+                      </button>
+                    ) : !isOwnProfile && (
+                      <>
+                        <button
+                          onClick={handleFollowToggle}
+                          className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-all shadow-lg active:scale-95 touch-manipulation flex-1 sm:flex-none min-w-[120px] ${
+                            isFollowing
+                              ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-600'
+                              : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 hover:shadow-xl hover:shadow-blue-500/30'
+                          }`}
+                        >
+                          <UserPlus size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          <span>{isFollowing ? 'Following' : 'Follow'}</span>
+                        </button>
+                        <button className="p-2.5 sm:p-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation">
+                          <Share2 size={16} className="sm:w-[18px] sm:h-[18px] text-gray-700 dark:text-gray-300" />
+                        </button>
+                        <div className="relative">
+                          <button 
+                            onClick={() => setShowMoreMenu(!showMoreMenu)}
+                            className="p-2.5 sm:p-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation"
+                          >
+                            <MoreVertical size={16} className="sm:w-[18px] sm:h-[18px] text-gray-700 dark:text-gray-300" />
+                          </button>
+                          {showMoreMenu && (
+                            <>
+                              <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+                                <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 text-gray-900 dark:text-white transition-colors touch-manipulation">
+                                  Report User
+                                </button>
+                                <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 text-gray-900 dark:text-white transition-colors touch-manipulation">
+                                  Block User
+                                </button>
+                              </div>
+                              <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={() => setShowMoreMenu(false)}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              {!isAuthenticated ? (
-                <div className="flex gap-3 items-center">
-                  <button
-                    onClick={() => onOpenLoginModal?.()}
-                    className="px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 flex items-center gap-2"
-                  >
-                    <LogIn size={18} />
-                    Connect to Follow
-                  </button>
-                </div>
-              ) : !isOwnProfile && (
-                <div className="flex gap-3 items-center">
-                  <button
-                    onClick={handleFollowToggle}
-                    className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl ${
-                      isFollowing
-                        ? 'border-2 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
-                    }`}
-                  >
-                    {isFollowing ? 'Unfollow' : 'Follow'}
-                  </button>
-                </div>
-              )}
-            </div>
+            </GlassCard>
           </div>
+        </div>
+      </div>
 
-          {/* Current Role & Skills Section */}
-          <div className="mt-4 sm:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            <div className="lg:col-span-2 space-y-3 sm:space-y-4">
-              {/* Bio */}
-              <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300">{mockUser.bio}</p>
-
-              {/* Social Links */}
-              {mockUser.socialLinks && Object.keys(mockUser.socialLinks).length > 0 && (
-                <div className="flex gap-3 items-center flex-wrap">
-                  {mockUser.socialLinks.twitter && (
-                    <a
-                      href={`https://twitter.com/${mockUser.socialLinks.twitter}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-blue-500/10 text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                      aria-label="Twitter"
-                    >
-                      <Twitter size={18} />
-                    </a>
-                  )}
-                  {mockUser.socialLinks.linkedin && (
-                    <a
-                      href={mockUser.socialLinks.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-blue-600/10 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 transition-colors"
-                      aria-label="LinkedIn"
-                    >
-                      <Linkedin size={18} />
-                    </a>
-                  )}
-                  {mockUser.socialLinks.telegram && (
-                    <a
-                      href={`https://t.me/${mockUser.socialLinks.telegram}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-blue-400/10 text-gray-600 dark:text-gray-400 hover:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                      aria-label="Telegram"
-                    >
-                      <Send size={18} />
-                    </a>
-                  )}
-                  {mockUser.socialLinks.github && (
-                    <a
-                      href={`https://github.com/${mockUser.socialLinks.github}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-lg hover:bg-gray-600/10 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                      aria-label="GitHub"
-                    >
-                      <Github size={18} />
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-3 sm:gap-4">
-                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-0.5 sm:gap-2">
-                  <span className="font-bold text-lg sm:text-xl">{mockUser.stats.posts}</span>
-                  <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Posts</span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-0.5 sm:gap-2">
-                  <span className="font-bold text-lg sm:text-xl">{mockUser.stats.replies}</span>
-                  <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Replies</span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-0.5 sm:gap-2">
-                  <span className="font-bold text-lg sm:text-xl">{mockUser.reputation}</span>
-                  <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Reputation</span>
-                </div>
-                <div 
-                  ref={followersRef}
-                  onClick={() => setShowFollowersDropdown(true)}
-                  className="flex flex-col sm:flex-row items-center sm:items-center gap-0.5 sm:gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <span className="font-bold text-lg sm:text-xl">{mockUser.stats.followers}</span>
-                  <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Followers</span>
-                </div>
-                <div 
-                  ref={followingRef}
-                  onClick={() => setShowFollowingDropdown(true)}
-                  className="flex flex-col sm:flex-row items-center sm:items-center gap-0.5 sm:gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <span className="font-bold text-lg sm:text-xl">{mockUser.stats.following}</span>
-                  <span className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Following</span>
-                </div>
-              </div>
-
-              {/* Join Date */}
-              <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                <Calendar size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span>Joined {mockUser.joinedDate}</span>
-              </div>
-            </div>
-
-            {/* Skills & Role */}
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <h3 className="font-bold text-xs sm:text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
-                    <Briefcase size={14} className="sm:w-4 sm:h-4" />
-                    Current Role
-                  </h3>
-                </div>
-                <div className="p-2.5 sm:p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
-                  <p className="font-semibold text-sm sm:text-base">{mockUser.occupation || 'Not specified'}</p>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <h3 className="font-bold text-xs sm:text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
-                    <Star size={14} className="sm:w-4 sm:h-4" />
-                    Skills
-                  </h3>
-                </div>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {mockUser.skills.map((skill) => (
-                    <Badge key={skill} className="px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs Navigation */}
-          <div className="mt-6 sm:mt-8 border-b border-gray-200 dark:border-gray-700 -mx-4 sm:mx-0">
-            <div className="flex gap-0 overflow-x-auto scrollbar-thin px-4 sm:px-0">
-              {tabs.map((tab) => {
+      {/* Tabs Navigation - Mobile Optimized */}
+      <div className="sticky top-16 sm:top-20 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 overflow-x-auto hide-scrollbar scrollbar-hide">
+            <div className="flex gap-0.5 sm:gap-1 min-w-0 flex-1">
+              {tabs.map(tab => {
                 const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
@@ -478,30 +583,35 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                       setActiveTab(tab.id as TabType);
                       onTabChange?.(tab.id as TabType);
                     }}
-                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 font-semibold text-xs sm:text-sm whitespace-nowrap transition-all duration-300 border-b-2 ${
-                      activeTab === tab.id
-                        ? 'border-blue-500 text-blue-500'
-                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 sm:py-4 font-semibold text-xs sm:text-sm whitespace-nowrap transition-all relative group active:scale-95 touch-manipulation min-w-fit ${
+                      isActive
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 active:text-gray-900 dark:active:text-gray-200'
                     }`}
                   >
-                    <Icon size={16} className="sm:w-[18px] sm:h-[18px]" />
+                    <Icon size={16} className={`sm:w-[18px] sm:h-[18px] flex-shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />
                     <span className="hidden xs:inline">{tab.label}</span>
+                    {isActive && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-t-full"></span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Tab Content */}
-      <div className="animate-fade-in">
-        {activeTab === 'dashboard' && mockUser && <ProfileDashboard username={mockUser.username} user={mockUser} />}
-        {activeTab === 'posts' && <ProfilePosts username={mockUser.username} />}
-        {activeTab === 'replies' && <ProfileReplies username={mockUser.username} />}
-        {activeTab === 'pages' && <ProfilePages username={mockUser.username} />}
-        {activeTab === 'achievements' && <ProfileAchievements userId={mockUser.id} />}
-        {activeTab === 'settings' && <ProfileSettings user={mockUser} />}
+      {/* Tab Content - Mobile Optimized */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
+        <div className="animate-fade-in">
+          {activeTab === 'dashboard' && mockUser && <ProfileDashboard username={mockUser.username} user={mockUser} />}
+          {activeTab === 'posts' && mockUser && <ProfilePosts username={mockUser.username} />}
+          {activeTab === 'replies' && mockUser && <ProfileReplies username={mockUser.username} />}
+          {activeTab === 'pages' && mockUser && <ProfilePages username={mockUser.username} />}
+          {activeTab === 'achievements' && mockUser && <ProfileAchievements username={mockUser.username} isOwnProfile={!!isOwnProfile} />}
+          {activeTab === 'settings' && mockUser && <ProfileSettings user={mockUser} />}
+        </div>
       </div>
 
       {/* Edit Profile Modal */}

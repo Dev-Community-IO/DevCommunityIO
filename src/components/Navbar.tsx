@@ -1,5 +1,5 @@
-import { Moon, Sun, Bell, User, Menu, Search, LogIn } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Moon, Sun, Bell, User, Menu, Search, LogIn, Shield, LogOut } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
 import { SearchDropdown } from './SearchDropdown';
@@ -8,48 +8,77 @@ import { NotificationDropdown } from './NotificationDropdown';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Post } from '../types';
-import notificationsService from '../services/api/notifications.service';
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
+import { useDynamicAssets } from '../utils/dynamicAssets';
+import { useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
   onCreatePost: () => void;
   onPostClick: (post: Post) => void;
-  onProfileClick?: () => void;
   onLogoClick?: () => void;
   onNotificationsClick?: () => void;
   onMenuClick?: () => void;
   onOpenLoginModal?: () => void;
 }
 
-export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick, onNotificationsClick, onMenuClick, onOpenLoginModal }: NavbarProps) {
+export function Navbar({ onCreatePost, onPostClick, onLogoClick, onNotificationsClick, onMenuClick, onOpenLoginModal }: NavbarProps) {
   const { theme, toggleTheme } = useTheme();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
+  const dynamicAssets = useDynamicAssets();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const navigate = useNavigate();
+  const userMenuDesktopRef = useRef<HTMLDivElement>(null);
+  const userMenuMobileRef = useRef<HTMLDivElement>(null);
 
-  // Poll for unread count
+  // Check if user is admin or super admin
+  const isAdminUser = isAuthenticated && user && (user.role === 'admin' || user.role === 'super_admin');
+  const isModeratorUser = isAuthenticated && user && (user.role === 'moderator' || isAdminUser);
+
+  // Use real-time notifications hook for unread count
+  const { unreadCount } = useRealtimeNotifications({
+    pollInterval: 30000, // Poll every 30 seconds for navbar
+    autoFetch: isAuthenticated,
+    limit: 1, // Only need count
+  });
+
+  // Close user menu when clicking outside
   useEffect(() => {
-    if (!isAuthenticated) {
-      setUnreadCount(0);
-      return;
-    }
-
-    const fetchUnreadCount = async () => {
-      try {
-        const count = await notificationsService.getUnreadCount();
-        setUnreadCount(count);
-      } catch (error) {
-        console.error('Failed to fetch unread count:', error);
+    const handleClickOutside = (event: MouseEvent) => {
+      const clickedInsideDesktop = userMenuDesktopRef.current?.contains(event.target as Node);
+      const clickedInsideMobile = userMenuMobileRef.current?.contains(event.target as Node);
+      
+      if (!clickedInsideDesktop && !clickedInsideMobile) {
+        setShowUserMenu(false);
       }
     };
 
-    // Initial fetch
-    fetchUnreadCount();
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowUserMenu(false);
+      }
+    };
 
-    // Poll every 60 seconds
-    const interval = setInterval(fetchUnreadCount, 60000);
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [showUserMenu]);
 
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setShowUserMenu(false);
+      navigate('/');
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 shadow-sm">
@@ -69,7 +98,7 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
               className="flex-shrink-0 hover:opacity-80 transition-opacity"
             >
               <img
-                src="/devcommunity-new_LOG (1).png"
+                src={dynamicAssets?.logoUrl || '/devcommunity-new_LOG (1).png'}
                 alt="Dev Community"
                 className="h-8 sm:h-10 w-auto object-contain"
               />
@@ -84,7 +113,7 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
             <Search size={20} />
           </button>
 
-          <div className="hidden md:block flex-1 max-w-md mx-4">
+          <div className="hidden md:block flex-1 max-w-4xl mx-6 lg:mx-8">
             <SearchDropdown onPostClick={onPostClick} />
           </div>
 
@@ -125,25 +154,195 @@ export function Navbar({ onCreatePost, onPostClick, onProfileClick, onLogoClick,
                   )}
                 </button>
 
-                <button
-                  onClick={onProfileClick}
-                  className="hidden sm:block hover:scale-105 transition-transform duration-300 flex-shrink-0"
-                  aria-label="Profile"
-                >
-                  <Avatar
-                    src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
-                    alt={user?.username || 'User'}
-                    size="sm"
-                  />
-                </button>
+                <div className="hidden sm:block relative" ref={userMenuDesktopRef}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowUserMenu(!showUserMenu);
+                    }}
+                    className="hover:scale-105 transition-transform duration-300 flex-shrink-0"
+                    aria-label="User Menu"
+                    aria-expanded={showUserMenu}
+                    type="button"
+                  >
+                    <Avatar
+                      src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                      alt={user?.username || 'User'}
+                      size="sm"
+                    />
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      {/* User Info */}
+                      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                            alt={user?.username || 'User'}
+                            size="md"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">
+                              {user?.username || 'User'}
+                            </div>
+                            {user?.email && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {user.email}
+                              </div>
+                            )}
+                            {user?.role && (
+                              <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mt-1 capitalize">
+                                {user.role.replace('_', ' ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
-                <button
-                  onClick={onProfileClick}
-                  className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
-                  aria-label="Profile"
-                >
-                  <User size={20} />
-                </button>
+                      {/* Menu Items */}
+                      <div className="py-1">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowUserMenu(false);
+                            navigate('/profile/me');
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300 transition-colors"
+                          type="button"
+                        >
+                          <User size={18} />
+                          <span>My Profile</span>
+                        </button>
+
+                        {(isAdminUser || isModeratorUser) && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowUserMenu(false);
+                              navigate('/admin');
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-purple-600 dark:text-purple-400 transition-colors"
+                            type="button"
+                          >
+                            <Shield size={18} />
+                            <span>Management</span>
+                          </button>
+                        )}
+
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleLogout();
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600 dark:text-red-400 transition-colors"
+                          type="button"
+                        >
+                          <LogOut size={18} />
+                          <span>Disconnect</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="sm:hidden relative" ref={userMenuMobileRef}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowUserMenu(!showUserMenu);
+                    }}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 flex-shrink-0"
+                    aria-label="User Menu"
+                    aria-expanded={showUserMenu}
+                    type="button"
+                  >
+                    <User size={20} />
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      {/* User Info */}
+                      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                            alt={user?.username || 'User'}
+                            size="md"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">
+                              {user?.username || 'User'}
+                            </div>
+                            {user?.email && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {user.email}
+                              </div>
+                            )}
+                            {user?.role && (
+                              <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mt-1 capitalize">
+                                {user.role.replace('_', ' ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Menu Items */}
+                      <div className="py-1">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowUserMenu(false);
+                            navigate('/profile/me');
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300 transition-colors"
+                          type="button"
+                        >
+                          <User size={18} />
+                          <span>My Profile</span>
+                        </button>
+
+                        {(isAdminUser || isModeratorUser) && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowUserMenu(false);
+                              navigate('/admin');
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-purple-600 dark:text-purple-400 transition-colors"
+                            type="button"
+                          >
+                            <Shield size={18} />
+                            <span>Management</span>
+                          </button>
+                        )}
+
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleLogout();
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600 dark:text-red-400 transition-colors"
+                          type="button"
+                        >
+                          <LogOut size={18} />
+                          <span>Disconnect</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>

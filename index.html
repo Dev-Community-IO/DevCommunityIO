@@ -2,12 +2,61 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Web3 Forum UI/UX</title>
+    <link rel="icon" type="image/png" href="/devcommunity-new_LOG (1).png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="DevCommunity - Where Developers Build the Future" />
+    <meta name="theme-color" content="#6366f1" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="DevCommunity" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Android Chrome PWA -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="DevCommunity" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color-media" content="(prefers-color-scheme: light)" />
+    
+    <!-- iOS Safari -->
+    <link rel="apple-touch-icon" href="/devcommunity-new_LOG (1).png" />
+    <link rel="apple-touch-startup-image" href="/devcommunity-new_LOG (1).png" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Meta tag for API URL detection (will be dynamically set) -->
+    <link rel="icon" type="image/png" href="/devcommunity-new_LOG (1).png" />
+    <link rel="shortcut icon" type="image/png" href="/devcommunity-new_LOG (1).png" />
+    <link rel="apple-touch-icon" href="/devcommunity-new_LOG (1).png" />
+    
+    <title>DevCommunity</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      // Detect API URL dynamically based on current hostname
+      (function() {
+        if (typeof window !== 'undefined') {
+          const hostname = window.location.hostname;
+          const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+          
+          let apiBaseUrl = 'http://localhost:3333';
+          if (isLocalhost) {
+            apiBaseUrl = 'http://localhost:3333';
+          } else {
+            // For IP addresses like 10.219.158.234:3334, use 10.219.158.234:3333
+            apiBaseUrl = `http://${hostname}:3333`;
+          }
+          
+          // Store API URL in window for React app to use
+          window.__API_BASE_URL__ = apiBaseUrl;
+          console.log('🌐 Detected API URL:', apiBaseUrl);
+        }
+      })();
+    </script>
   </body>
 </html>

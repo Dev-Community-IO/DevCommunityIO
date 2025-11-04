@@ -6,7 +6,7 @@ interface User {
     id: string
     username: string
     pseudo?: string
-    avatarUrl: string
+    avatarUrl?: string | null
 }
 
 interface MentionTextareaProps {
@@ -146,14 +146,21 @@ export function MentionTextarea({ value, onChange, placeholder, rows = 4, classN
                                 index === selectedIndex ? 'bg-gray-100 dark:bg-gray-700' : ''
                             }`}
                         >
-                            <Avatar src={user.avatarUrl} alt={user.username} size="sm" className="w-8 h-8" />
-                            <div className="flex-1 text-left">
-                                <div className="font-medium text-sm text-gray-900 dark:text-white">
+                            <Avatar 
+                                src={user.avatarUrl || ''} 
+                                alt={user.username} 
+                                size="sm" 
+                                className="flex-shrink-0 w-8 h-8" 
+                            />
+                            <div className="flex-1 text-left min-w-0">
+                                <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
                                     {user.pseudo || user.username}
                                 </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    @{user.username}
-                                </div>
+                                {user.pseudo && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                        @{user.username}
+                                    </div>
+                                )}
                             </div>
                         </button>
                     ))}

@@ -1,4 +1,4 @@
-import { apiClient } from './config';
+import { apiClient, isNetworkError } from './config';
 
 export interface GetNotificationsParams {
     page?: number;
@@ -52,20 +52,45 @@ export interface NotificationPreferences {
 
 export const notificationsService = {
     getNotifications: async (params?: GetNotificationsParams) => {
-        const response = await apiClient.get('/notifications', { params });
-        return response.data;
+        try {
+            const response = await apiClient.get('/notifications', { params });
+            return response.data;
+        } catch (error: any) {
+            // Suppress network errors - they're handled gracefully
+            if (isNetworkError(error)) {
+                // Return empty result for network errors - don't throw
+                return { data: [], notifications: [], meta: {} };
+            }
+            console.error('Failed to fetch notifications:', error);
+            throw error;
+        }
     },
 
     getRecent: async (limit: number = 10) => {
-        const response = await apiClient.get('/notifications/recent', { params: { limit } });
-        return response.data.notifications || [];
+        try {
+            const response = await apiClient.get('/notifications/recent', { params: { limit } });
+            return response.data.notifications || [];
+        } catch (error: any) {
+            // Suppress network errors - they're handled gracefully
+            if (isNetworkError(error)) {
+                // Return empty array for network errors - don't throw
+                return [];
+            }
+            console.error('Failed to fetch recent notifications:', error);
+            return [];
+        }
     },
 
     getUnreadCount: async () => {
         try {
             const response = await apiClient.get('/notifications/unread-count');
             return response.data.count || 0;
-        } catch (error) {
+        } catch (error: any) {
+            // Suppress network errors - they're handled gracefully
+            if (isNetworkError(error)) {
+                // Return 0 for network errors - don't throw
+                return 0;
+            }
             console.error('Failed to get unread count:', error);
             return 0;
         }

@@ -4,6 +4,9 @@ import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { VerifiedBadge } from './VerifiedBadge';
 import { MapPin, Link as LinkIcon } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import usersService from '../services/api/users.service';
+import { useNavigate } from 'react-router-dom';
 
 interface UserHoverCardDropdownProps {
   user: {
@@ -12,6 +15,8 @@ interface UserHoverCardDropdownProps {
     pseudo?: string;
     avatar: string;
     avatarUrl?: string;
+    coverImage?: string;
+    coverImageUrl?: string;
     bio?: string;
     location?: string;
     website?: string;
@@ -19,19 +24,51 @@ interface UserHoverCardDropdownProps {
     isVerified: boolean;
     walletAddress?: string;
   };
+  page?: {
+    id?: string;
+    name?: string;
+    logo?: string;
+    logoUrl?: string;
+    slug?: string;
+    isVerified?: boolean;
+  };
   trigger: React.ReactNode;
   onFollow?: () => void;
   onViewProfile?: () => void;
 }
 
-export function UserHoverCardDropdown({ user, trigger, onFollow, onViewProfile }: UserHoverCardDropdownProps) {
+export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewProfile }: UserHoverCardDropdownProps) {
+  const { isAuthenticated, user: authUser } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<'top' | 'bottom'>('bottom');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isCheckingFollow, setIsCheckingFollow] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout>();
   const cardRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const [cardPosition, setCardPosition] = useState({ top: 0, left: 0 });
+  
+  const isOwnProfile = isAuthenticated && authUser && (authUser.id === user.id || authUser.username === user.username);
+
+  // Check follow status when card opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated && !isOwnProfile) {
+      const checkFollowStatus = async () => {
+        try {
+          setIsCheckingFollow(true);
+          const following = await usersService.isFollowing(user.id);
+          setIsFollowing(following);
+        } catch (error) {
+          console.error('Failed to check follow status:', error);
+        } finally {
+          setIsCheckingFollow(false);
+        }
+      };
+      checkFollowStatus();
+    }
+  }, [isOpen, user.id, isAuthenticated, isOwnProfile]);
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -95,6 +132,40 @@ export function UserHoverCardDropdown({ user, trigger, onFollow, onViewProfile }
     }
   };
 
+  const handleFollowClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!isAuthenticated) {
+      onFollow?.();
+      return;
+    }
+
+    if (isOwnProfile) return;
+
+    try {
+      if (isFollowing) {
+        await usersService.unfollowUser(user.id);
+        setIsFollowing(false);
+      } else {
+        await usersService.followUser(user.id);
+        setIsFollowing(true);
+      }
+    } catch (error: any) {
+      console.error('Failed to toggle follow:', error);
+      alert(error?.message || 'Failed to update follow status');
+    }
+  };
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onViewProfile) {
+      onViewProfile();
+    } else {
+      navigate(`/profile/${user.username}`);
+    }
+    setIsOpen(false);
+  };
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -124,19 +195,56 @@ export function UserHoverCardDropdown({ user, trigger, onFollow, onViewProfile }
         transition: 'opacity 0.2s ease-out'
       }}
     >
-          {/* Compact Header with Avatar Overlay */}
-          <div className="relative h-16 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent animate-shimmer"></div>
+          {/* Header with Cover Image and Avatar Overlay */}
+          <div className="relative h-24 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 overflow-visible">
+            {/* User Cover Image */}
+            {(user.coverImage || user.coverImageUrl) ? (
+              <>
+                <div className="absolute inset-0 overflow-hidden">
+                  <img 
+                    src={user.coverImage || user.coverImageUrl} 
+                    alt={`${user.username} cover`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent"></div>
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
+            )}
             
-            {/* Avatar positioned at bottom of header */}
-            <div className="absolute -bottom-8 left-4">
-              <div className="w-16 h-16 rounded-xl border-3 border-white dark:border-gray-900 overflow-hidden shadow-lg bg-white dark:bg-gray-800">
-                <Avatar 
-                  src={user.avatarUrl || user.avatar} 
-                  alt={user.username} 
-                  size="lg" 
-                  className="w-full h-full"
-                />
+            {/* Shimmer effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/10 to-transparent animate-shimmer pointer-events-none"></div>
+            
+            {/* Avatar positioned at bottom of header - circular, no square background */}
+            <div className="absolute -bottom-8 left-4 z-20">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-3 border-white dark:border-gray-900 overflow-hidden shadow-xl bg-white dark:bg-gray-800">
+                  <Avatar 
+                    src={user.avatarUrl || user.avatar} 
+                    alt={user.username} 
+                    size="lg" 
+                    className="w-full h-full rounded-full"
+                  />
+                </div>
+                {/* Page Logo under avatar if post is for a page */}
+                {page && (
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg">
+                    <img 
+                      src={page.logo || page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name || '')}`}
+                      alt={page.name || 'Page'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name || '')}`;
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -201,18 +309,23 @@ export function UserHoverCardDropdown({ user, trigger, onFollow, onViewProfile }
             <div className="flex gap-2">
               <Button
                 variant="primary"
-                onClick={() => onViewProfile?.()}
+                onClick={() => {
+                  handleProfileClick({ stopPropagation: () => {} } as React.MouseEvent);
+                }}
                 className="flex-1 text-xs py-1.5"
               >
                 Profile
               </Button>
-              {onFollow && (
+              {!isOwnProfile && (
                 <Button
-                  variant="secondary"
-                  onClick={() => onFollow()}
+                  variant={isFollowing ? 'secondary' : 'primary'}
+                  onClick={() => {
+                    handleFollowClick({ stopPropagation: () => {} } as React.MouseEvent);
+                  }}
                   className="flex-1 text-xs py-1.5"
+                  disabled={isCheckingFollow}
                 >
-                  Follow
+                  {isCheckingFollow ? '...' : isFollowing ? 'Following' : 'Follow'}
                 </Button>
               )}
             </div>

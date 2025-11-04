@@ -22,18 +22,43 @@ export const getAvailableWallets = (): CardanoWallet[] => {
         return wallets;
     }
 
-    // Common Cardano wallets
-    const walletNames = ['nami', 'eternl', 'flint', 'typhon', 'gerowallet', 'yoroi'];
+    // Common Cardano wallets - check both lowercase and original case
+    const walletNames = [
+        'nami', 'eternl', 'flint', 'typhon', 'gerowallet', 'yoroi',
+        'begin', 'lace', 'vespr', 'GeroWallet', 'nufi'
+    ];
 
+    // First, check known wallet names
     walletNames.forEach((name) => {
-        if (window.cardano?.[name]) {
-            wallets.push({
-                name: name.charAt(0).toUpperCase() + name.slice(1),
-                icon: window.cardano[name].icon || '',
-                version: window.cardano[name].apiVersion || '1.0.0',
-            });
+        const lowerName = name.toLowerCase();
+        if (window.cardano?.[lowerName] || window.cardano?.[name]) {
+            const wallet = window.cardano[lowerName] || window.cardano[name];
+            // Avoid duplicates
+            if (!wallets.some(w => w.name.toLowerCase() === lowerName)) {
+                wallets.push({
+                    name: name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+                    icon: wallet.icon || '',
+                    version: wallet.apiVersion || wallet.version || '1.0.0',
+                });
+            }
         }
     });
+
+    // Also check for any other wallets in cardano object
+    if (window.cardano) {
+        Object.keys(window.cardano).forEach((key) => {
+            const wallet = window.cardano[key];
+            // Skip if already added or if it's not a wallet object
+            if (typeof wallet === 'object' && wallet !== null && wallet.enable &&
+                !wallets.some(w => w.name.toLowerCase() === key.toLowerCase())) {
+                wallets.push({
+                    name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+                    icon: wallet.icon || '',
+                    version: wallet.apiVersion || wallet.version || '1.0.0',
+                });
+            }
+        });
+    }
 
     return wallets;
 };
@@ -58,10 +83,85 @@ export const connectCardanoWallet = async (walletName: string): Promise<CardanoC
         // Enable wallet
         const api = await wallet.enable();
 
-        // Get used addresses
-        const usedAddresses = await api.getUsedAddresses();
-        if (!usedAddresses || usedAddresses.length === 0) {
-            throw new Error('No addresses found in wallet');
+        // Try multiple methods to get an address
+        // Some wallets (like Lace) may not have used addresses yet
+        let address: string | null = null;
+
+        try {
+            // Method 1: Try used addresses first
+            const usedAddresses = await api.getUsedAddresses();
+            if (usedAddresses && usedAddresses.length > 0) {
+                address = usedAddresses[0];
+            }
+        } catch (e) {
+            console.warn('getUsedAddresses failed:', e);
+        }
+
+        // Method 2: Try unused addresses if no used addresses found
+        if (!address) {
+            try {
+                if (api.getUnusedAddresses) {
+                    const unusedAddresses = await api.getUnusedAddresses();
+                    if (unusedAddresses && unusedAddresses.length > 0) {
+                        address = unusedAddresses[0];
+                    }
+                }
+            } catch (e) {
+                console.warn('getUnusedAddresses failed:', e);
+            }
+        }
+
+        // Method 3: Try change address
+        if (!address) {
+            try {
+                if (api.getChangeAddress) {
+                    address = await api.getChangeAddress();
+                }
+            } catch (e) {
+                console.warn('getChangeAddress failed:', e);
+            }
+        }
+
+        // Method 4: Try getAddresses (some wallets provide this)
+        if (!address) {
+            try {
+                if (api.getAddresses) {
+                    const addresses = await api.getAddresses();
+                    if (addresses && addresses.length > 0) {
+                        address = addresses[0];
+                    }
+                }
+            } catch (e) {
+                console.warn('getAddresses failed:', e);
+            }
+        }
+
+        // Method 5: For Lace wallet specifically, try getBalance first to ensure wallet is accessible
+        // Then use getUsedAddresses with proper error handling
+        if (!address && walletName.toLowerCase() === 'lace') {
+            try {
+                // Check if wallet is accessible by trying to get balance
+                await api.getBalance();
+                // Retry getUsedAddresses after balance check
+                const usedAddresses = await api.getUsedAddresses();
+                if (usedAddresses && usedAddresses.length > 0) {
+                    address = usedAddresses[0];
+                } else {
+                    // If still no addresses, try getUnusedAddresses
+                    if (api.getUnusedAddresses) {
+                        const unusedAddresses = await api.getUnusedAddresses();
+                        if (unusedAddresses && unusedAddresses.length > 0) {
+                            address = unusedAddresses[0];
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Lace-specific address retrieval failed:', e);
+            }
+        }
+
+        if (!address) {
+            throw new Error('No addresses found in wallet. Please ensure your wallet has been initialized and contains at least one address.');
         }
 
         // Get reward addresses (stake address)
@@ -79,7 +179,7 @@ export const connectCardanoWallet = async (walletName: string): Promise<CardanoC
         const networkId = await api.getNetworkId();
 
         return {
-            address: usedAddresses[0],
+            address,
             stakeAddress,
             networkId,
         };
@@ -87,7 +187,10 @@ export const connectCardanoWallet = async (walletName: string): Promise<CardanoC
         if (error.code === -1) {
             throw new Error('User rejected wallet connection');
         }
-        throw new Error(`Failed to connect to ${walletName}: ${error.message}`);
+        if (error.message && error.message.includes('No addresses found')) {
+            throw error; // Re-throw our custom error message
+        }
+        throw new Error(`Failed to connect to ${walletName}: ${error.message || error.toString()}`);
     }
 };
 

@@ -57,6 +57,12 @@ class PostsService {
         return response.data.post;
     }
 
+    // Get post by slug (for editing)
+    async getPostBySlug(slug: string): Promise<Post> {
+        const response = await apiClient.get(`/posts/${slug}`);
+        return response.data.post;
+    }
+
     // Delete post
     async deletePost(postId: string): Promise<void> {
         await apiClient.delete(`/posts/${postId}`);

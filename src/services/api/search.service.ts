@@ -5,6 +5,9 @@ export interface SearchResults {
     posts: Post[];
     users: User[];
     pages?: any[];
+    hackathons?: any[];
+    events?: any[];
+    opportunities?: any[];
     tags?: any[];
 }
 

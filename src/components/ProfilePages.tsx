@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Plus, Users, Settings, BarChart3, Edit3, Trash2, UserPlus, Crown, Shield, ArrowLeft, Upload, Camera, Layout, FileText, Loader } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
-import { PostFeed } from './PostFeed';
+import { VerifiedBadge } from './VerifiedBadge';
+import { CompactPostCard } from './CompactPostCard';
+import { Post } from '../types';
+import { useNavigate } from 'react-router-dom';
 import usersService from '../services/api/users.service';
 import pagesService from '../services/api/pages.service';
 import { PageCardSkeletonList } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
+import { CreatePageModal } from './CreatePageModal';
 
 interface ProfilePagesProps {
   username: string;
 }
 
-type ViewMode = 'list' | 'manage' | 'create';
+type ViewMode = 'list' | 'manage';
+type FilterType = 'all' | 'owner' | 'admin' | 'member';
 
 export function ProfilePages({ username }: ProfilePagesProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -21,10 +26,36 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'posts' | 'overview' | 'members' | 'settings'>('dashboard');
   const [userPages, setUserPages] = useState<any[]>([]);
   const [pageMembers, setPageMembers] = useState<any[]>([]);
+  const [pagePosts, setPagePosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showAddTeamMemberModal, setShowAddTeamMemberModal] = useState(false);
+  const [selectedPageForTeam, setSelectedPageForTeam] = useState<string | null>(null);
+  const [teamMemberSearchQuery, setTeamMemberSearchQuery] = useState('');
+  const [teamMemberSearchResults, setTeamMemberSearchResults] = useState<any[]>([]);
+  const [selectedTeamRole, setSelectedTeamRole] = useState<'admin' | 'moderator'>('moderator');
+  const [filter, setFilter] = useState<FilterType>('all');
+
+  // Settings form state
+  const [settingsForm, setSettingsForm] = useState({
+    name: '',
+    description: '',
+    category: '',
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const { user: authUser } = useAuth();
   const isOwnProfile = authUser?.username === username;
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserPages = async () => {
@@ -52,7 +83,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       if (selectedPageId) {
         try {
           const members = await pagesService.getMembers(selectedPageId);
-          setPageMembers(members);
+          setPageMembers(members.members || members || []);
         } catch (err) {
           console.error('Error fetching page members:', err);
           setPageMembers([]);
@@ -63,12 +94,73 @@ export function ProfilePages({ username }: ProfilePagesProps) {
     fetchPageMembers();
   }, [selectedPageId]);
 
+  useEffect(() => {
+    const fetchPagePosts = async () => {
   const selectedPage = userPages.find(p => p.id === selectedPageId);
+      if (activeTab === 'posts' && selectedPage && selectedPage.slug) {
+        try {
+          setLoadingPosts(true);
+          const postsResponse = await pagesService.getPagePosts(selectedPage.slug);
+          const posts = postsResponse.posts || postsResponse.data || postsResponse || [];
+          // Deduplicate posts by ID to prevent duplicates
+          const uniquePosts = Array.isArray(posts) ? posts.filter((post: Post, index: number, self: Post[]) => 
+            index === self.findIndex((p: Post) => p.id === post.id)
+          ) : [];
+          setPagePosts(uniquePosts);
+        } catch (err) {
+          console.error('Error fetching page posts:', err);
+          setPagePosts([]);
+        } finally {
+          setLoadingPosts(false);
+        }
+      } else {
+        setPagePosts([]);
+      }
+    };
+
+    fetchPagePosts();
+  }, [activeTab, selectedPageId, userPages]);
+
+  const canManage = (page: any) => {
+    const role = page.role?.toLowerCase();
+    return role === 'owner' || role === 'admin' || role === 'Admin' || role === 'Owner';
+  };
+
+  const filteredPages = userPages.filter(page => {
+    if (filter === 'all') return true;
+    const role = page.role?.toLowerCase();
+    if (filter === 'owner') return role === 'owner';
+    if (filter === 'admin') return role === 'admin' || role === 'Admin';
+    if (filter === 'member') return role === 'member' || role === 'moderator';
+    return true;
+  });
+
+  const ownerPages = filteredPages.filter(p => canManage(p));
+  const memberPages = filteredPages.filter(p => !canManage(p));
+
+  const selectedPage = userPages.find(p => p.id === selectedPageId);
+
+  // Initialize settings form when page is selected
+  useEffect(() => {
+    if (selectedPage) {
+      setSettingsForm({
+        name: selectedPage.name || '',
+        description: selectedPage.description || '',
+        category: selectedPage.category || '',
+      });
+      setLogoPreview(selectedPage.logoUrl || null);
+      setCoverPreview(selectedPage.coverImageUrl || null);
+      setLogoFile(null);
+      setCoverFile(null);
+      setSaveError(null);
+      setSaveSuccess(false);
+    }
+  }, [selectedPage]);
 
   const handleManagePage = (pageId: string) => {
     setSelectedPageId(pageId);
     setViewMode('manage');
-    setActiveTab('overview');
+    setActiveTab('settings');
   };
 
   const handleBackToList = () => {
@@ -76,524 +168,1164 @@ export function ProfilePages({ username }: ProfilePagesProps) {
     setSelectedPageId(null);
   };
 
+  const handlePageCreated = async () => {
+    // Refresh the pages list
+    try {
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(pagesWithRoles);
+    } catch (err) {
+      console.error('Error refreshing pages:', err);
+    }
+  };
+
+  const handleSearchTeamMembers = async (query: string) => {
+    if (query.length < 2) {
+      setTeamMemberSearchResults([]);
+      return;
+    }
+
+    try {
+      const users = await pagesService.searchUsers(query);
+      setTeamMemberSearchResults(users);
+    } catch (err) {
+      console.error('Error searching users:', err);
+      setTeamMemberSearchResults([]);
+    }
+  };
+
+  const handleAddTeamMember = async (pageId: string, username: string) => {
+    try {
+      await pagesService.addTeamMember(pageId, username, selectedTeamRole);
+      setShowAddTeamMemberModal(false);
+      setTeamMemberSearchQuery('');
+      setTeamMemberSearchResults([]);
+      setSelectedPageForTeam(null);
+      
+      // Show success notification (user will be notified via backend)
+      alert(`Team member ${username} added successfully! They will receive a notification.`);
+      
+      // Refresh pages list
+      if (username) {
+        const pages = await usersService.getUserPages(username);
+        const pagesWithRoles = Array.isArray(pages) ? pages : [];
+        setUserPages(pagesWithRoles);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Failed to add team member');
+    }
+  };
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveError('Logo size must be less than 5MB');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Please upload a valid image file');
+      return;
+    }
+
+    setSaveError(null);
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveError('Cover image size must be less than 5MB');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Please upload a valid image file');
+      return;
+    }
+
+    setSaveError(null);
+    setCoverFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCoverPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!selectedPage) return;
+
+    if (!settingsForm.name.trim()) {
+      setSaveError('Page name is required');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      // Convert logo to base64 if a new file was selected
+      let logoUrl = selectedPage.logoUrl || undefined;
+      if (logoFile) {
+        logoUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(logoFile);
+        });
+      }
+
+      // Convert cover to base64 if a new file was selected
+      let coverImageUrl = selectedPage.coverImageUrl || undefined;
+      if (coverFile) {
+        coverImageUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64String = reader.result as string;
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(coverFile);
+        });
+      }
+
+      // Update page
+      await pagesService.updatePage(selectedPage.id, {
+        name: settingsForm.name.trim(),
+        description: settingsForm.description.trim() || undefined,
+        category: settingsForm.category || undefined,
+        logoUrl: logoUrl,
+        coverImageUrl: coverImageUrl,
+      });
+
+      setSaveSuccess(true);
+      
+      // Refresh pages list
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(pagesWithRoles);
+      
+      // Update selected page
+      const updatedPage = pagesWithRoles.find((p: any) => p.id === selectedPage.id);
+      if (updatedPage) {
+        setSettingsForm({
+          name: updatedPage.name || '',
+          description: updatedPage.description || '',
+          category: updatedPage.category || '',
+        });
+        setLogoPreview(updatedPage.logoUrl || null);
+        setCoverPreview(updatedPage.coverImageUrl || null);
+        setLogoFile(null);
+        setCoverFile(null);
+      }
+
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Error saving settings:', err);
+      setSaveError(err?.response?.data?.message || err?.message || 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeletePage = async () => {
+    if (!selectedPage) return;
+
+    if (!confirm(`Are you sure you want to delete "${selectedPage.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await pagesService.deletePage(selectedPage.id);
+      handleBackToList();
+      // Refresh pages list
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(pagesWithRoles);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to delete page');
+    }
+  };
+
   // List View
   if (viewMode === 'list') {
     return (
       <div className="space-y-6">
+        <CreatePageModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={handlePageCreated}
+        />
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Your Pages</h2>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage pages you own or moderate</p>
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+              {isOwnProfile ? 'Your Pages' : 'Pages'}
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              {isOwnProfile 
+                ? 'Manage pages you own or moderate' 
+                : `Pages ${username} owns or moderates`}
+            </p>
           </div>
-          <button
-            onClick={() => setViewMode('create')}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg hover:shadow-xl"
-          >
-            <Plus size={20} />
-            Create Page
-          </button>
+          {isOwnProfile && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+            >
+              <Plus size={20} />
+              Create Page
+            </button>
+          )}
         </div>
 
-        {/* Pages Grid */}
+        {/* Filters */}
+        {isOwnProfile && userPages.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2">
+            {(['all', 'owner', 'admin', 'member'] as FilterType[]).map((filterType) => {
+              const icons = {
+                all: Sparkles,
+                owner: Crown,
+                admin: Shield,
+                member: Users
+              };
+              const Icon = icons[filterType];
+              const isActive = filter === filterType;
+              const count = filterType === 'all' ? userPages.length : filteredPages.filter(p => {
+                const role = p.role?.toLowerCase();
+                if (filterType === 'owner') return role === 'owner';
+                if (filterType === 'admin') return role === 'admin' || role === 'Admin';
+                if (filterType === 'member') return !canManage(p);
+                return true;
+              }).length;
+              
+              return (
+                <button
+                  key={filterType}
+                  onClick={() => setFilter(filterType)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="capitalize">{filterType}</span>
+                  <Badge variant="default" className={`text-xs px-1.5 py-0.5 ${
+                    isActive ? 'bg-white/20 text-white' : ''
+                  }`}>
+                    {count}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Loading State */}
         {loading ? (
           <PageCardSkeletonList count={4} />
-        ) : userPages.length === 0 ? (
-          <GlassCard className="p-12 text-center space-y-4">
-            <div className="text-6xl">📄</div>
-            <div>
-              <h3 className="text-xl font-bold mb-2">No Pages Yet</h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                This user hasn't created or joined any community pages yet.
-              </p>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
-              >
-                Explore Pages
-              </button>
+        ) : filteredPages.length === 0 ? (
+          /* Empty State */
+          <GlassCard className="p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
+              <Building2 size={40} className="text-blue-500 dark:text-blue-400" />
             </div>
+            <h3 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
+              {isOwnProfile ? 'No Pages Yet' : 'No Pages Found'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+              {isOwnProfile
+                ? "Create your first community page to start building and engaging with your audience."
+                : `This user hasn't created or joined any community pages yet.`}
+            </p>
+            {isOwnProfile && (
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
+              >
+                Create Your First Page
+              </button>
+            )}
           </GlassCard>
         ) : (
+          /* Pages Grid */
+          <div className="space-y-8">
+            {/* Pages You Manage */}
+            {ownerPages.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+                    <Crown size={20} className="text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Pages You Manage
+                  </h3>
+                  <Badge variant="default" className="px-2.5 py-1">
+                    {ownerPages.length}
+                  </Badge>
+                </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {userPages.map(page => (
-            <GlassCard key={page.id} className="p-6 hover:scale-[1.02] transition-all duration-300">
-              <div className="space-y-4">
+                  {ownerPages.map(page => (
+                    <GlassCard key={`page-${page.id}`} className="hover:shadow-xl transition-all duration-300 group relative overflow-visible">
+              {/* Cover Image Banner */}
+                      <div className="relative h-40 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
+                {page.coverImageUrl ? (
+                  <img 
+                    src={page.coverImageUrl} 
+                    alt={`${page.name} cover`} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
+                
+                {/* Role Badge */}
+                        <div className="absolute top-4 right-4 z-10">
+                  <Badge
+                            variant="gradient"
+                            className="flex items-center gap-1.5 backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 px-3 py-1.5"
+                          >
+                            {page.role === 'owner' || page.role === 'Owner' ? (
+                              <>
+                                <Crown size={14} />
+                                <span className="font-semibold">Owner</span>
+                              </>
+                            ) : (
+                              <>
+                                <Shield size={14} />
+                                <span className="font-semibold">Admin</span>
+                              </>
+                            )}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Logo positioned overlapping cover and content */}
+                        <div className="absolute -bottom-10 left-6 z-30">
+                          <div className="w-24 h-24 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-2xl relative">
+                    <img 
+                      src={page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
+                      alt={`${page.name} logo`} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                      }}
+                    />
+                    {page.isVerified && (
+                      <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
+                        <VerifiedBadge size={16} />
+                  </div>
+                    )}
+                </div>
+              </div>
+
+              {/* Content Section */}
+              <div className="p-6 pt-20 space-y-4">
                 {/* Page Header */}
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
-                    <img src={page.avatar} alt={page.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold hover:text-blue-500 cursor-pointer transition-colors">
-                          {page.name}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {page.description}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={page.role === 'Owner' ? 'gradient' : 'secondary'}
-                        className="flex items-center gap-1"
-                      >
-                        {page.role === 'Owner' && <Crown size={12} />}
-                        {page.role === 'Admin' && <Shield size={12} />}
-                        {page.role}
-                      </Badge>
-                    </div>
-                  </div>
+                <div>
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                  <h3 
+                              onClick={() => navigate(`/pages/${page.slug}`)}
+                              className="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors flex-1"
+                  >
+                    {page.name}
+                  </h3>
+                            {page.isVerified && (
+                              <VerifiedBadge size={18} />
+                            )}
+                          </div>
+                  {page.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                      {page.description}
+                    </p>
+                  )}
                 </div>
 
                 {/* Page Stats */}
-                <div className="flex items-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Users size={16} className="text-gray-400" />
-                    <span className="font-semibold">{page.memberCount || page.members || 0}</span>
-                    <span className="text-gray-500 dark:text-gray-400">members</span>
+                        <div className="grid grid-cols-3 gap-4 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                          <div className="text-center">
+                            <div className="flex items-center justify-center gap-1 mb-1">
+                              <Users size={16} className="text-blue-500" />
+                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                {page.memberCount || page.members || 0}
+                              </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <BarChart3 size={16} className="text-gray-400" />
-                    <span className="font-semibold">{page.postCount || page.posts || 0}</span>
-                    <span className="text-gray-500 dark:text-gray-400">posts</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Members</span>
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400">
-                    Created {page.created || new Date(page.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                          <div className="text-center">
+                            <div className="flex items-center justify-center gap-1 mb-1">
+                              <FileText size={16} className="text-purple-500" />
+                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                {page.postCount || page.posts || 0}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Posts</span>
+                  </div>
+                          <div className="text-center">
+                            <div className="flex items-center justify-center gap-1 mb-1">
+                              <Hash size={16} className="text-green-500" />
+                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                                {page.category || 'N/A'}
+                              </span>
+                  </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Category</span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {(page.role === 'Owner' || page.role === 'Admin') ? (
-                    <button
-                      onClick={() => handleManagePage(page.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 font-medium"
-                    >
-                      <Settings size={16} />
-                      Manage
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => window.location.href = `/pages/${page.slug}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 font-medium"
-                    >
-                      <Layout size={16} />
-                      View Page
-                    </button>
-                  )}
-                  <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300">
-                    <UserPlus size={16} />
-                  </button>
-                  <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300">
-                    <BarChart3 size={16} />
-                  </button>
+                      <button
+                            onClick={() => navigate(`/pages/${page.slug}`)}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg hover:shadow-xl hover:scale-105"
+                      >
+                            <Layout size={18} />
+                            View Page
+                      </button>
+                      <button
+                        onClick={() => handleManagePage(page.id)}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all font-semibold"
+                            title="Manage Page"
+                      >
+                            <Settings size={18} />
+                      </button>
                 </div>
               </div>
             </GlassCard>
             ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pages You're a Member Of */}
+            {memberPages.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+                    <Users size={20} className="text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Pages You're a Member Of
+                  </h3>
+                  <Badge variant="default" className="px-2.5 py-1">
+                    {memberPages.length}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {memberPages.map(page => (
+                    <GlassCard 
+                      key={`page-${page.id}`} 
+                      className="hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-visible"
+                      onClick={() => navigate(`/pages/${page.slug}`)}
+                    >
+                      {/* Cover Image Banner */}
+                      <div className="relative h-32 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
+                        {page.coverImageUrl ? (
+                          <img 
+                            src={page.coverImageUrl} 
+                            alt={`${page.name} cover`} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                      </div>
+                      
+                      {/* Logo - positioned outside cover container */}
+                      <div className="absolute -bottom-8 left-4 z-30">
+                        <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl relative">
+                          <img 
+                            src={page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
+                            alt={`${page.name} logo`} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                            }}
+                          />
+                          {page.isVerified && (
+                            <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
+                              <VerifiedBadge size={12} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-5 pt-16 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-lg font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex-1">
+                            {page.name}
+                          </h3>
+                          {page.isVerified && (
+                            <VerifiedBadge size={16} />
+                          )}
+                        </div>
+                        
+                        {page.description && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                            {page.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+                          <span className="flex items-center gap-1">
+                            <Users size={12} />
+                            {page.memberCount || page.members || 0}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <FileText size={12} />
+                            {page.postCount || page.posts || 0}
+                          </span>
+                </div>
+              </div>
+            </GlassCard>
+            ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Add Team Member Modal */}
+        {showAddTeamMemberModal && selectedPageForTeam && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <GlassCard className="w-full max-w-md p-6 space-y-4 animate-slide-up">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Add Team Member</h3>
+                <button
+                  onClick={() => {
+                    setShowAddTeamMemberModal(false);
+                    setTeamMemberSearchQuery('');
+                    setTeamMemberSearchResults([]);
+                    setSelectedPageForTeam(null);
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X size={20} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Search by Username
+                  </label>
+                  <input
+                    type="text"
+                    value={teamMemberSearchQuery}
+                    onChange={(e) => {
+                      setTeamMemberSearchQuery(e.target.value);
+                      handleSearchTeamMembers(e.target.value);
+                    }}
+                    placeholder="Type username..."
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
+                    autoFocus
+                  />
+                </div>
+
+                {teamMemberSearchResults.length > 0 && (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {teamMemberSearchResults.map((user: any) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleAddTeamMember(selectedPageForTeam, user.username)}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                      >
+                        <Avatar
+                          src={user.avatarUrl || user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                          alt={user.username}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900 dark:text-white truncate">{user.username}</p>
+                          {user.name && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.name}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {teamMemberSearchQuery.length >= 2 && teamMemberSearchResults.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                    No users found
+                  </p>
+                )}
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Role
+                  </label>
+                  <select
+                    value={selectedTeamRole}
+                    onChange={(e) => setSelectedTeamRole(e.target.value as 'admin' | 'moderator')}
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
+                  >
+                    <option value="moderator">Moderator</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+            </GlassCard>
           </div>
         )}
       </div>
     );
   }
 
-  // Create Page View
-  if (viewMode === 'create') {
-    return (
-      <div className="space-y-6">
-        <button
-          onClick={handleBackToList}
-          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-        >
-          <ArrowLeft size={20} />
-          Back to Pages
-        </button>
-
-        <GlassCard className="p-8">
-          <h2 className="text-2xl font-bold mb-6">Create New Page</h2>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Page Name *</label>
-              <input
-                type="text"
-                placeholder="Enter page name..."
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold mb-2">Description *</label>
-              <textarea
-                placeholder="Describe your page..."
-                rows={4}
-                className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold mb-2">Category</label>
-              <select className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none">
-                <option>Development</option>
-                <option>DeFi</option>
-                <option>NFTs</option>
-                <option>DAOs</option>
-                <option>Other</option>
-              </select>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl">
-                Create Page
-              </button>
-              <button
-                onClick={handleBackToList}
-                className="px-6 py-3 border-2 border-gray-300 dark:border-gray-700 rounded-xl font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-    );
-  }
-
-  // Manage Page View
+  // Manage Page View (Only for owners/admins)
   if (viewMode === 'manage' && selectedPage) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+        <div className="flex items-center justify-between">
           <button
             onClick={handleBackToList}
-            className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-medium"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium transition-all"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
             Back to Pages
           </button>
         </div>
 
-        {/* Cover & Profile Section */}
-        <div className="relative px-4 pt-4 pb-4">
-          {/* Cover Image as Background */}
-          <div className="absolute inset-0 h-48 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
-            {selectedPage.coverImage && (
-              <img src={selectedPage.coverImage} alt="Cover" className="w-full h-full object-cover" />
+        {/* Hero Section */}
+        <div className="relative">
+          {/* Cover Image */}
+          <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
+            {selectedPage.coverImageUrl && (
+              <img 
+                src={selectedPage.coverImageUrl} 
+                alt={`${selectedPage.name} cover`} 
+                className="w-full h-full object-cover" 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                }}
+              />
             )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
           </div>
 
-          {/* Profile Info Card - On top of cover */}
-          <div className="relative z-10 pt-8">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4">
-              <div className="flex items-start gap-3 mb-4">
-                {/* Page Avatar */}
-                <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg">
-                  <img src={selectedPage.avatar} alt={selectedPage.name} className="w-full h-full object-cover" />
+          {/* Profile Card */}
+          <div className="relative px-4 -mt-16 z-10">
+            <GlassCard className="p-6 shadow-2xl">
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Logo */}
+                <div className="flex-shrink-0">
+                  <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl relative">
+                  <img 
+                    src={selectedPage.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(selectedPage.name)}`} 
+                    alt={`${selectedPage.name} logo`} 
+                    className="w-full h-full object-cover" 
+                  />
+                  {selectedPage.isVerified && (
+                    <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
+                      <VerifiedBadge size={18} />
+                    </div>
+                  )}
+                  </div>
                 </div>
 
-                {/* Page Name & Badge */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">{selectedPage.name}</h2>
-                    <Badge variant="gradient" className="flex items-center gap-1 flex-shrink-0">
-                      {selectedPage.role === 'Owner' && <Crown size={12} />}
-                      {selectedPage.role === 'Admin' && <Shield size={12} />}
-                      <span className="text-xs">{selectedPage.role}</span>
+                {/* Info */}
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                          {selectedPage.name}
+                        </h2>
+                        {selectedPage.isVerified && (
+                          <VerifiedBadge size={20} />
+                        )}
+                        <Badge variant="gradient" className="flex items-center gap-1">
+                          {selectedPage.role === 'owner' || selectedPage.role === 'Owner' ? (
+                            <>
+                              <Crown size={12} />
+                              <span>Owner</span>
+                            </>
+                          ) : (
+                            <>
+                              <Shield size={12} />
+                              <span>Admin</span>
+                            </>
+                          )}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{selectedPage.description}</p>
+                      {selectedPage.description && (
+                        <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                          {selectedPage.description}
+                        </p>
+                      )}
                 </div>
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <Users size={16} className="text-gray-400" />
-                  <span className="font-bold text-gray-900 dark:text-white">{selectedPage.members}</span>
-                  <span className="text-gray-500 dark:text-gray-400">members</span>
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {selectedPage.memberCount || selectedPage.members || 0}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Members</p>
                 </div>
-                <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
-                <div className="flex items-center gap-1.5">
-                  <BarChart3 size={16} className="text-gray-400" />
-                  <span className="font-bold text-gray-900 dark:text-white">{selectedPage.posts}</span>
-                  <span className="text-gray-500 dark:text-gray-400">posts</span>
+                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800">
+                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        {selectedPage.postCount || selectedPage.posts || 0}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Posts</p>
                 </div>
+                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800">
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {selectedPage.category || 'N/A'}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Category</p>
               </div>
             </div>
+                </div>
+              </div>
+            </GlassCard>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="sticky top-[57px] z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-2">
-          <div className="flex gap-1 overflow-x-auto hide-scrollbar">
+        <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 rounded-t-2xl">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide px-2">
+            {[
+              { id: 'overview', label: 'Overview', icon: Layout },
+              { id: 'posts', label: 'Posts', icon: FileText },
+              { id: 'members', label: 'Members', icon: Users },
+              { id: 'settings', label: 'Settings', icon: Settings }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
             <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                activeTab === 'dashboard'
-                  ? 'border-blue-500 text-blue-500'
-                  : 'border-transparent text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              <Layout size={18} />
-              Dashboard
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-5 py-4 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span>{tab.label}</span>
             </button>
-            <button
-              onClick={() => setActiveTab('posts')}
-              className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                activeTab === 'posts'
-                  ? 'border-blue-500 text-blue-500'
-                  : 'border-transparent text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              <FileText size={18} />
-              Posts
-            </button>
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                activeTab === 'overview'
-                  ? 'border-blue-500 text-blue-500'
-                  : 'border-transparent text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                activeTab === 'members'
-                  ? 'border-blue-500 text-blue-500'
-                  : 'border-transparent text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              Members
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                activeTab === 'settings'
-                  ? 'border-blue-500 text-blue-500'
-                  : 'border-transparent text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              Settings
-            </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4 pb-8">
-
             {/* Tab Content */}
-            {activeTab === 'dashboard' && (
-              <div className="space-y-4">
-                {/* Stats Cards */}
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Total Members</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
-                      <Users size={20} className="text-white" />
-                    </div>
+        <div className="space-y-6">
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <GlassCard className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Page Statistics</h3>
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+                    <BarChart3 size={24} className="text-white" />
                   </div>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{selectedPage.members}</p>
                 </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Total Posts</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-                      <BarChart3 size={20} className="text-white" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Members</span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">
+                      {selectedPage.memberCount || selectedPage.members || 0}
+                    </span>
                     </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Posts</span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">
+                      {selectedPage.postCount || selectedPage.posts || 0}
+                    </span>
                   </div>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{selectedPage.posts}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Category</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-teal-500">
-                      <Settings size={20} className="text-white" />
-                    </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Category</span>
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">
+                      {selectedPage.category || 'N/A'}
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedPage.category}</p>
                 </div>
+              </GlassCard>
 
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3">Recent Activity</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Activity feed coming soon...</p>
-                </div>
-              </div>
+              <GlassCard className="p-6">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+                <div className="space-y-2">
+            <button
+                    onClick={() => navigate(`/pages/${selectedPage.slug}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
+                  >
+                    <ExternalLink size={18} />
+                    <span className="font-medium">View Public Page</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('members')}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
+                  >
+                    <UserPlus size={18} />
+                    <span className="font-medium">Manage Members</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
+                  >
+                    <Settings size={18} />
+                    <span className="font-medium">Edit Settings</span>
+            </button>
+          </div>
+              </GlassCard>
+        </div>
             )}
 
             {activeTab === 'posts' && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-sm border border-gray-200 dark:border-gray-800 text-center">
-                <FileText size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
-                <p className="text-gray-500 dark:text-gray-400 font-medium">Posts for this page will appear here</p>
-              </div>
-            )}
-
-            {activeTab === 'overview' && (
-              <div className="space-y-4">
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Total Members</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
-                      <Users size={20} className="text-white" />
+              <div className="space-y-6">
+                {loadingPosts ? (
+                  <GlassCard className="p-12 text-center">
+                    <Loader className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">Loading posts...</p>
+                  </GlassCard>
+                ) : pagePosts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {pagePosts.map((post) => (
+                      <CompactPostCard
+                        key={post.id}
+                        post={post}
+                        onClick={() => navigate(`/posts/${post.id}`)}
+                        onLoginRequired={() => {
+                          // Handle login requirement if needed
+                          navigate('/login');
+                        }}
+                      />
+                    ))}
                     </div>
+                ) : (
+                  <GlassCard className="p-12 text-center">
+                    <FileText size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Posts Yet</h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-4">
+                      This page doesn't have any posts yet.
+                    </p>
+                    {selectedPage?.slug && (
+                      <button
+                        onClick={() => navigate(`/pages/${selectedPage.slug}`)}
+                        className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all"
+                      >
+                        View Public Page
+                      </button>
+                    )}
+                  </GlassCard>
+                )}
                   </div>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{selectedPage.members}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Total Posts</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-                      <BarChart3 size={20} className="text-white" />
-                    </div>
-                  </div>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{selectedPage.posts}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">Category</p>
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-teal-500">
-                      <Settings size={20} className="text-white" />
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{selectedPage.category}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3">Recent Activity</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Activity feed coming soon...</p>
-                </div>
-              </div>
             )}
 
             {activeTab === 'members' && (
-              <div className="space-y-4">
+            <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Team Members</h3>
-                  <button className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg text-sm">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Team Members</h3>
+                <button
+                  onClick={() => {
+                    setSelectedPageForTeam(selectedPage.id);
+                    setShowAddTeamMemberModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg"
+                >
                     <UserPlus size={18} />
-                    Add
+                  Add Member
                   </button>
                 </div>
 
-                {pageMembers.map(member => (
-                  <div key={member.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar src={member.avatar} alt={member.name} size="md" className="w-12 h-12" />
+              {pageMembers.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pageMembers.map((member: any) => (
+                    <GlassCard key={member.id} className="p-4">
+                      <div className="flex items-center gap-4">
+                        <Avatar src={member.avatar || member.avatarUrl} alt={member.username || member.name} size="lg" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 dark:text-white truncate">{member.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Joined {member.joined}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select className="flex-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 outline-none text-sm font-medium">
-                        <option value="admin">Admin</option>
-                        <option value="moderator">Moderator</option>
-                        <option value="member">Member</option>
-                      </select>
-                      <button className="p-2.5 text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl transition-all">
-                        <Trash2 size={18} />
-                      </button>
+                          <p className="font-bold text-gray-900 dark:text-white truncate">
+                            {member.username || member.name}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {member.role || 'Member'}
+                          </p>
                     </div>
                   </div>
-                ))}
+                    </GlassCard>
+                  ))}
+                </div>
+              ) : (
+                <GlassCard className="p-12 text-center">
+                  <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">No team members yet</p>
+                </GlassCard>
+              )}
               </div>
             )}
 
             {activeTab === 'settings' && (
+            <div className="space-y-6">
+              {/* Success Message */}
+              {saveSuccess && (
+                <GlassCard className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle size={20} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-green-900 dark:text-green-100">Settings saved successfully!</p>
+                </div>
+              </div>
+                </GlassCard>
+              )}
+
+              {/* Error Message */}
+              {saveError && (
+                <GlassCard className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-red-900 dark:text-red-100">Error</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{saveError}</p>
+              </div>
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* Page Settings Form */}
+              <GlassCard className="p-6 space-y-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Page Settings</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Manage your page information and appearance
+                    </p>
+                    </div>
+                </div>
+
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Basic Information
+                  </h4>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                      Page Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsForm.name}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base"
+                      placeholder="Enter page name"
+                      disabled={isSaving}
+                    />
+                </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                      Description
+                    </label>
+                    <textarea
+                      value={settingsForm.description}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base min-h-[120px] resize-y"
+                      placeholder="Describe your page..."
+                      disabled={isSaving}
+                    />
+                </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsForm.category}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, category: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base"
+                      placeholder="e.g., Web3, DeFi, NFT"
+                      disabled={isSaving}
+                    />
+                </div>
+              </div>
+
+                {/* Logo */}
               <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Logo
+                  </h4>
+                  <div className="flex items-start gap-6">
+                    <div className="flex-shrink-0">
+                      <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl">
+                        {logoPreview ? (
+                          <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                            <Camera size={32} className="text-gray-400" />
+                </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                        Upload Logo
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl cursor-pointer transition-colors">
+                          <Upload size={18} />
+                          <span className="text-sm font-medium">Choose File</span>
+                          <input
+                            ref={logoInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoSelect}
+                            className="hidden"
+                            disabled={isSaving}
+                          />
+                        </label>
+                        {logoPreview && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLogoFile(null);
+                              setLogoPreview(selectedPage?.logoUrl || null);
+                              if (logoInputRef.current) logoInputRef.current.value = '';
+                            }}
+                            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                            disabled={isSaving}
+                          >
+                            Reset
+                      </button>
+                        )}
+                    </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Recommended: Square image, at least 512x512px, max 5MB
+                      </p>
+                  </div>
+              </div>
+                </div>
+
                 {/* Cover Image */}
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Cover Image</label>
-                  <div className="relative h-32 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
-                    {selectedPage.coverImage && (
-                      <img src={selectedPage.coverImage} alt="Cover preview" className="w-full h-full object-cover" />
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                    Cover Image
+                  </h4>
+                  <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 group">
+                    {coverPreview && (
+                      <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
                     )}
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 cursor-pointer transition-colors">
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 cursor-pointer transition-colors group-hover:bg-black/60">
                       <div className="text-center text-white">
                         <Camera size={28} className="mx-auto mb-2" />
-                        <span className="text-sm font-semibold">Change Cover</span>
+                        <span className="text-sm font-semibold">
+                          {coverPreview ? 'Change Cover' : 'Upload Cover Image'}
+                        </span>
+                        <p className="text-xs mt-1 opacity-90">Recommended: 1200x300px</p>
                       </div>
-                      <input type="file" accept="image/*" className="hidden" />
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCoverSelect}
+                        className="hidden"
+                        disabled={isSaving}
+                      />
                     </label>
+                    {coverPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCoverFile(null);
+                          setCoverPreview(selectedPage?.coverImageUrl || null);
+                          if (coverInputRef.current) coverInputRef.current.value = '';
+                        }}
+                        className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                        disabled={isSaving}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Recommended: 1200x300px, max 5MB
+                  </p>
                 </div>
 
-                {/* Avatar */}
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <label className="block text-sm font-bold mb-3 text-gray-900 dark:text-white">Page Avatar</label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
-                      <img src={selectedPage.avatar} alt={selectedPage.name} className="w-full h-full object-cover" />
+                {/* Danger Zone */}
+                {selectedPage?.role === 'owner' || selectedPage?.role === 'Owner' ? (
+                  <div className="space-y-4 pt-6 border-t border-red-200 dark:border-red-800">
+                    <h4 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h4>
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-red-900 dark:text-red-100">Delete Page</p>
+                          <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                            Once you delete a page, there is no going back. Please be certain.
+                          </p>
                     </div>
-                    <label className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-semibold cursor-pointer transition-colors flex items-center justify-center gap-2 text-sm">
-                      <Upload size={18} />
-                      Upload
-                      <input type="file" accept="image/*" className="hidden" />
-                    </label>
+                        <button
+                          onClick={handleDeletePage}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
+                          disabled={isSaving}
+                        >
+                          <Trash2 size={18} />
+                          Delete Page
+                        </button>
                   </div>
                 </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Page Name</label>
-                  <input
-                    type="text"
-                    defaultValue={selectedPage.name}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
-                  />
                 </div>
+                ) : null}
 
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Description</label>
-                  <textarea
-                    defaultValue={selectedPage.description}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none resize-none text-base"
-                  />
-                </div>
-
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-800">
-                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Category</label>
-                  <select
-                    defaultValue={selectedPage.category}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
+                {/* Save Button */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={handleBackToList}
+                    className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all font-semibold"
+                    disabled={isSaving}
                   >
-                    <option>Development</option>
-                    <option>DeFi</option>
-                    <option>NFTs</option>
-                    <option>DAOs</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button className="flex-1 px-6 py-3.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg">
-                    Save
-                  </button>
-                  <button className="px-6 py-3.5 border-2 border-gray-300 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-gray-700 dark:text-gray-300">
                     Cancel
                   </button>
-                </div>
-
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl p-4 border-2 border-red-200 dark:border-red-900">
-                  <h3 className="text-base font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
-                    <Shield size={18} />
-                    Danger Zone
-                  </h3>
-                  <p className="text-sm text-red-600 dark:text-red-400 mb-3">
-                    Once you delete a page, there is no going back.
-                  </p>
-                  <button className="w-full px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all shadow-lg">
-                    Delete Page
+                  <button
+                    onClick={handleSaveSettings}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader size={18} className="animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Save Changes
+                      </>
+                    )}
                   </button>
                 </div>
+              </GlassCard>
               </div>
             )}
         </div>

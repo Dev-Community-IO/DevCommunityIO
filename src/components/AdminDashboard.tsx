@@ -1,74 +1,66 @@
 import { useState, useEffect } from 'react';
-import { Users, FileText, AlertTriangle, ShieldCheck, TrendingUp, Calendar } from 'lucide-react';
+import { 
+  TrendingUp, 
+  Users, 
+  FileText, 
+  Building2, 
+  Hash, 
+  Settings, 
+  Database,
+  ShieldCheck,
+  Award,
+  AlertTriangle,
+  Github,
+  MessageSquare
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import adminService from '../services/api/admin.service';
-import { UserManagement } from './UserManagement';
-import { ContentModeration } from './ContentModeration';
-import { ModeratorPanel } from './ModeratorPanel';
 import { GlassCard } from './GlassCard';
+import { AdminOverview } from './admin/AdminOverview';
+import { AdminContents } from './admin/AdminContents';
+import { AdminUsers } from './admin/AdminUsers';
+import { AdminPages } from './admin/AdminPages';
+import { AdminTags } from './admin/AdminTags';
+import { AdminApp } from './admin/AdminApp';
+import { AdminConfigs } from './admin/AdminConfigs';
+import { AdminStaticPages } from './admin/AdminStaticPages';
 
-interface DashboardStats {
-  totalUsers: number;
-  activeToday: number;
-  totalPosts: number;
-  postsToday: number;
-  totalPages: number;
-  pendingReports: number;
-  activeModerators: number;
-}
-
-type TabType = 'overview' | 'users' | 'content' | 'moderators';
+type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages';
 
 export function AdminDashboard() {
   const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    activeToday: 0,
-    totalPosts: 0,
-    postsToday: 0,
-    totalPages: 0,
-    pendingReports: 0,
-    activeModerators: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [githubIssuesUrl, setGithubIssuesUrl] = useState<string | null>(null);
 
+  // Check if user is moderator (limited access)
+  const isModerator = user?.role === 'moderator';
+  const isFullAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  // If moderator tries to access admin-only tab, redirect to overview
+  // This useEffect must be before any conditional returns to follow Rules of Hooks
   useEffect(() => {
-    loadDashboardStats();
-  }, []);
-
-  const loadDashboardStats = async () => {
-    try {
-      const data = await adminService.getDashboard();
-      setStats(data.stats || {
-        totalUsers: 0,
-        activeToday: 0,
-        totalPosts: 0,
-        postsToday: 0,
-        totalPages: 0,
-        pendingReports: 0,
-        activeModerators: 0,
-      });
-    } catch (error) {
-      console.error('Failed to load dashboard stats:', error);
-      setStats({
-        totalUsers: 0,
-        activeToday: 0,
-        totalPosts: 0,
-        postsToday: 0,
-        totalPages: 0,
-        pendingReports: 0,
-        activeModerators: 0,
-      });
-    } finally {
-      setIsLoading(false);
+    if (isModerator && ['app', 'configs', 'static-pages'].includes(activeTab)) {
+      setActiveTab('overview');
     }
-  };
+  }, [activeTab, isModerator]);
+
+  // Fetch GitHub Issues URL for Report Issue button
+  useEffect(() => {
+    const fetchGithubIssues = async () => {
+      try {
+        const url = await siteSettingsService.getSetting('github_issues_url');
+        setGithubIssuesUrl(url);
+      } catch (err) {
+        console.error('Error fetching GitHub issues URL:', err);
+      }
+    };
+
+    fetchGithubIssues();
+  }, []);
 
   if (!isAdmin()) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <GlassCard className="p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center pt-20 px-4">
+        <GlassCard className="p-8 text-center max-w-md">
           <ShieldCheck size={48} className="mx-auto mb-4 text-red-500" />
           <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
           <p className="text-gray-600 dark:text-gray-400">
@@ -79,149 +71,94 @@ export function AdminDashboard() {
     );
   }
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: TrendingUp },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'content', label: 'Content', icon: AlertTriangle },
-    { id: 'moderators', label: 'Moderators', icon: ShieldCheck },
+  // Define tabs based on permissions
+  const allTabs = [
+    { id: 'overview' as TabType, label: 'Overview', icon: TrendingUp, adminOnly: false },
+    { id: 'contents' as TabType, label: 'Contents', icon: FileText, adminOnly: false },
+    { id: 'users' as TabType, label: 'Users', icon: Users, adminOnly: false },
+    { id: 'pages' as TabType, label: 'Pages', icon: Building2, adminOnly: false },
+    { id: 'tags' as TabType, label: 'Tags', icon: Hash, adminOnly: false },
+    { id: 'achievements' as TabType, label: 'Achievements', icon: Award, adminOnly: false },
+    { id: 'static-pages' as TabType, label: 'Static Pages', icon: FileText, adminOnly: true },
+    { id: 'requests' as TabType, label: 'Requests', icon: MessageSquare, adminOnly: true },
+    { id: 'app' as TabType, label: 'App', icon: Settings, adminOnly: true },
+    { id: 'configs' as TabType, label: 'Configs', icon: Database, adminOnly: true },
   ];
+
+  // Filter tabs based on permissions
+  const availableTabs = allTabs.filter(tab => !tab.adminOnly || isFullAdmin);
 
   return (
     <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48 pb-12">
-      <div className="max-w-[1400px] mx-auto space-y-6">
+      <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+              Admin Dashboard
+            </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Manage users, content, and moderators
+              Manage your platform and community
             </p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-            <ShieldCheck size={20} />
-            <span className="font-semibold capitalize">{user?.role}</span>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-all duration-300 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
+          <div className="flex items-center gap-2">
+            {githubIssuesUrl && (
+              <a
+                href={githubIssuesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30 hover:from-orange-600 hover:to-red-600 transition-all"
               >
-                <Icon size={18} />
-                <span className="font-medium">{tab.label}</span>
-              </button>
-            );
-          })}
+                <AlertTriangle size={18} />
+                <span className="font-semibold">Report Issue</span>
+                <Github size={16} />
+              </a>
+            )}
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30">
+              <ShieldCheck size={20} />
+              <span className="font-semibold capitalize">{user?.role || 'Admin'}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Content */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-3 rounded-lg bg-blue-500/10">
-                    <Users className="text-blue-600 dark:text-blue-400" size={24} />
-                  </div>
-                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                    +{stats.activeToday} today
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold mb-1">{stats.totalUsers.toLocaleString()}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
-              </GlassCard>
-
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-3 rounded-lg bg-green-500/10">
-                    <FileText className="text-green-600 dark:text-green-400" size={24} />
-                  </div>
-                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                    +{stats.postsToday} today
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold mb-1">{stats.totalPosts.toLocaleString()}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Posts</p>
-              </GlassCard>
-
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-3 rounded-lg bg-orange-500/10">
-                    <AlertTriangle className="text-orange-600 dark:text-orange-400" size={24} />
-                  </div>
-                  {stats.pendingReports > 0 && (
-                    <span className="px-2 py-1 text-xs font-bold rounded-full bg-red-500 text-white">
-                      {stats.pendingReports}
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-2xl font-bold mb-1">{stats.pendingReports}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Pending Reports</p>
-              </GlassCard>
-
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="p-3 rounded-lg bg-purple-500/10">
-                    <ShieldCheck className="text-purple-600 dark:text-purple-400" size={24} />
-                  </div>
-                </div>
-                <h3 className="text-2xl font-bold mb-1">{stats.activeModerators}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Active Moderators</p>
-              </GlassCard>
-            </div>
-
-            {/* Recent Activity */}
-            <GlassCard className="p-6">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Calendar size={20} />
-                Recent Activity
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">New user registration</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">john_doe joined the platform</p>
-                  </div>
-                  <span className="text-xs text-gray-400">2m ago</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Content reported</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Post flagged for review</p>
-                  </div>
-                  <span className="text-xs text-gray-400">15m ago</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Moderator action</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">User suspended by @moderator</p>
-                  </div>
-                  <span className="text-xs text-gray-400">1h ago</span>
-                </div>
-              </div>
-            </GlassCard>
+        {/* Sticky Tabs Navigation */}
+        <div className="sticky top-20 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-12 xl:-mx-24 2xl:-mx-48 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-2">
+            {availableTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg border-b-2 transition-all duration-300 whitespace-nowrap ${
+                    isActive
+                      ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 font-semibold'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
-        {activeTab === 'users' && <UserManagement />}
-        {activeTab === 'content' && <ContentModeration />}
-        {activeTab === 'moderators' && <ModeratorPanel />}
+        {/* Tab Content */}
+        <div className="animate-fade-in">
+          {activeTab === 'overview' && <AdminOverview />}
+          {activeTab === 'contents' && <AdminContents />}
+          {activeTab === 'users' && <AdminUsers />}
+          {activeTab === 'pages' && <AdminPages />}
+          {activeTab === 'tags' && <AdminTags />}
+          {activeTab === 'achievements' && <AdminAchievements />}
+          {activeTab === 'static-pages' && isFullAdmin && <AdminStaticPages />}
+          {activeTab === 'requests' && isFullAdmin && <AdminRequests />}
+          {activeTab === 'app' && isFullAdmin && <AdminApp />}
+          {activeTab === 'configs' && isFullAdmin && <AdminConfigs />}
+        </div>
       </div>
     </div>
   );
 }
-

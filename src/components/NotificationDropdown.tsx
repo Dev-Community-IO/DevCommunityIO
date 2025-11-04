@@ -1,13 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Settings, Bookmark, Smile, Share2, Users, ShieldCheck, Loader } from 'lucide-react';
+import { Bell, Check, MessageCircle, Heart, AtSign, UserPlus, FileText, Award, Settings, Bookmark, Smile, Share2, Users, ShieldCheck, Loader, X } from 'lucide-react';
 import { Notification as AppNotification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
 import notificationsService, { Notification } from '../services/api/notifications.service';
 import { useAuth } from '../contexts/AuthContext';
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
+import { useNavigate } from 'react-router-dom';
 
 interface NotificationDropdownProps {
   onViewAll: () => void;
 }
+
+// Helper function to parse notification message and extract username
+const parseNotificationMessage = (message: string, username?: string): { username?: string; rest: string } => {
+  if (!username) return { rest: message };
+  
+  // Check if username appears at the start of the message
+  if (message.startsWith(username)) {
+    return {
+      username,
+      rest: message.substring(username.length).trim()
+    };
+  }
+  
+  // Check if username appears elsewhere in the message
+  const index = message.indexOf(username);
+  if (index !== -1) {
+    return {
+      username,
+      rest: message.substring(0, index).trim() + ' ' + message.substring(index + username.length).trim()
+    };
+  }
+  
+  return { rest: message };
+};
 
 // Map API notification to app notification format
 const mapApiNotification = (apiNotif: Notification): AppNotification => {
@@ -20,14 +46,16 @@ const mapApiNotification = (apiNotif: Notification): AppNotification => {
     isRead: apiNotif.isRead,
     user: apiNotif.relatedUser ? {
       id: apiNotif.relatedUser.id,
-      username: apiNotif.relatedUser.username,
+      username: apiNotif.relatedUser.username || apiNotif.relatedUser.pseudo || '',
       avatar: apiNotif.relatedUser.avatar_url || undefined,
+      avatarUrl: apiNotif.relatedUser.avatar_url || undefined,
       walletAddress: '',
       reputation: 0,
     } : undefined,
     post: apiNotif.relatedPost ? {
       id: apiNotif.relatedPost.id,
       title: apiNotif.relatedPost.title,
+      slug: apiNotif.relatedPost.slug,
     } : undefined,
     actionUrl: apiNotif.actionUrl,
   };
@@ -113,54 +141,34 @@ const formatTimestamp = (date: Date) => {
 
 export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch notifications when dropdown opens
+  // Use real-time notifications hook
+  const {
+    notifications: apiNotifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    refresh,
+  } = useRealtimeNotifications({
+    pollInterval: 15000, // Poll every 15 seconds
+    autoFetch: isAuthenticated,
+    limit: 6,
+  });
+
+  // Map API notifications to app format
+  const notifications = apiNotifications.map(mapApiNotification);
+
+  // Refresh when dropdown opens
   useEffect(() => {
     if (isOpen && isAuthenticated) {
-      fetchNotifications();
-      fetchUnreadCount();
+      refresh();
     }
-  }, [isOpen, isAuthenticated]);
-
-  // Poll for unread count every 30 seconds when authenticated
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-      if (isOpen) {
-        fetchNotifications();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated, isOpen]);
-
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const recent = await notificationsService.getRecent(6);
-      setNotifications(recent.map(mapApiNotification));
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUnreadCount = async () => {
-    try {
-      const count = await notificationsService.getUnreadCount();
-      setUnreadCount(count);
-    } catch (error) {
-      console.error('Failed to fetch unread count:', error);
-    }
-  };
+  }, [isOpen, isAuthenticated, refresh]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -180,12 +188,9 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
 
   const handleMarkAsRead = async (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    event.preventDefault();
     try {
-      await notificationsService.markAsRead(id);
-      setNotifications(notifications.map(n =>
-        n.id === id ? { ...n, isRead: true } : n
-      ));
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      await markAsRead(id);
     } catch (error) {
       console.error('Failed to mark as read:', error);
     }
@@ -193,11 +198,151 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationsService.markAllAsRead();
-      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
+      await markAllAsRead();
     } catch (error) {
       console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  const handleNotificationClick = (notification: AppNotification, event: React.MouseEvent) => {
+    // Don't navigate if clicking on a username link
+    if ((event.target as HTMLElement).closest('span[class*="cursor-pointer"]')) {
+      return;
+    }
+
+    if (!notification.actionUrl) {
+      // Fallback: try to navigate to post if available
+      if (notification.post) {
+        const postSlug = notification.post.slug || notification.post.id;
+        navigate(`/post/${postSlug}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+      // Final fallback: navigate to user profile
+      if (notification.user) {
+        navigate(`/profile/${notification.user.username}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+      }
+      return;
+    }
+
+    event.preventDefault();
+    setIsOpen(false);
+    
+    const url = notification.actionUrl;
+    
+    // Extract slug/ID from URL - handle both absolute and relative URLs
+    const extractSlugFromUrl = (url: string, pattern: string): string | null => {
+      // Handle relative URLs
+      if (url.startsWith('/')) {
+        const match = url.match(new RegExp(`${pattern}([^/#?]+)`));
+        return match ? match[1] : null;
+      }
+      // Handle absolute URLs
+      try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const match = pathname.match(new RegExp(`${pattern}([^/#?]+)`));
+        return match ? match[1] : null;
+      } catch {
+        // Fallback to regex on full URL
+        const match = url.match(new RegExp(`${pattern}([^/#?]+)`));
+        return match ? match[1] : null;
+      }
+    };
+
+    // Hackathons - check actionUrl for hackathon routes
+    if (url.includes('/hackathons/') || url.includes('/hackathon/')) {
+      const slug = extractSlugFromUrl(url, '/hackathons?/');
+      if (slug) {
+        navigate(`/hackathons/${slug}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Events - check actionUrl for event routes
+    if (url.includes('/events/') || url.includes('/event/')) {
+      const slug = extractSlugFromUrl(url, '/events?/');
+      if (slug) {
+        navigate(`/events/${slug}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Opportunities - check actionUrl for opportunity routes
+    if (url.includes('/opportunities/') || url.includes('/opportunity/')) {
+      const slug = extractSlugFromUrl(url, '/opportunities?/');
+      if (slug) {
+        navigate(`/opportunities/${slug}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Posts - use /post/ route (singular)
+    if (url.includes('/post/') || url.includes('/posts/')) {
+      const slug = extractSlugFromUrl(url, '/posts?/');
+      if (slug) {
+        const hash = url.includes('#') ? '#' + url.split('#')[1].split('?')[0] : '';
+        navigate(`/post/${slug}${hash}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Pages
+    if (url.includes('/pages/') || url.includes('/page/')) {
+      const slug = extractSlugFromUrl(url, '/pages?/');
+      if (slug) {
+        navigate(`/pages/${slug}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Profile
+    if (url.includes('/profile/') || url.includes('/users/') || url.includes('/user/')) {
+      const username = extractSlugFromUrl(url, '/(users?|profile)/');
+      if (username) {
+        navigate(`/profile/${username}`);
+        if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+        return;
+      }
+    }
+    
+    // Default: navigate to actionUrl as-is if it's a relative URL
+    if (url.startsWith('/')) {
+      navigate(url);
+      if (!notification.isRead) {
+        markAsRead(notification.id).catch(console.error);
+      }
+      return;
+    }
+
+    // Fallback: try to navigate to post if available
+    if (notification.post) {
+      const postSlug = notification.post.slug || notification.post.id;
+      navigate(`/post/${postSlug}`);
+      if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+      return;
+    }
+
+    // Final fallback: navigate to user profile
+    if (notification.user) {
+      navigate(`/profile/${notification.user.username}`);
+      if (!notification.isRead) markAsRead(notification.id).catch(console.error);
+    }
+  };
+
+  const handleDelete = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    try {
+      await deleteNotification(id);
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
     }
   };
 
@@ -260,66 +405,96 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
                 const colorClass = getNotificationColor(notification.type);
 
                 return (
-                  <a
+                  <div
                     key={notification.id}
-                    href={notification.actionUrl || '#'}
-                    onClick={(e) => {
-                      if (notification.actionUrl?.startsWith('/')) {
-                        e.preventDefault();
-                        window.location.href = notification.actionUrl;
-                      }
-                      if (!notification.isRead) {
-                        handleMarkAsRead(notification.id, e);
-                      }
-                    }}
-                    className={`relative p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-800 block ${
+                    onClick={(e) => handleNotificationClick(notification, e)}
+                    className={`relative group p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all cursor-pointer border-b border-gray-100 dark:border-gray-800 ${
                       !notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                     }`}
                   >
-                    {!notification.isRead && (
-                      <div className="absolute top-4 right-4">
-                        <button
-                          onClick={(e) => handleMarkAsRead(notification.id, e)}
-                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
-                          title="Mark as read"
-                        >
-                          <Check size={14} className="text-blue-600 dark:text-blue-400" />
-                        </button>
-                      </div>
-                    )}
-
                     <div className="flex gap-3">
                       {notification.user ? (
-                        <Avatar
-                          src={notification.user.avatar}
-                          alt={notification.user.username}
-                          size="sm"
-                          className="flex-shrink-0"
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/profile/${notification.user?.username}`);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Avatar
+                            src={notification.user.avatar || notification.user.avatarUrl || ''}
+                            alt={notification.user.username}
+                            size="sm"
+                            className="flex-shrink-0 hover:ring-2 hover:ring-blue-500 transition-all border-2 border-gray-200 dark:border-gray-700"
                         />
+                        </div>
                       ) : (
-                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center flex-shrink-0`}>
+                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center flex-shrink-0 shadow-lg`}>
                           <Icon size={18} className="text-white" />
                         </div>
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
                             {notification.title}
                           </p>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {!notification.isRead && (
+                              <button
+                                onClick={(e) => handleMarkAsRead(notification.id, e)}
+                                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                title="Mark as read"
+                              >
+                                <Check size={14} className="text-blue-600 dark:text-blue-400" />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => handleDelete(notification.id, e)}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <X size={14} className="text-red-600 dark:text-red-400" />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2 flex items-center gap-2">
-                          {formatTimestamp(notification.timestamp)}
-                          {!notification.isRead && (
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                          {notification.user ? (() => {
+                            const parsed = parseNotificationMessage(notification.message, notification.user.username);
+                            return (
+                              <span>
+                                {parsed.username && (
+                                  <>
+                                    <span
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/profile/${notification.user?.username}`);
+                                      }}
+                                      className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer transition-colors hover:underline"
+                                    >
+                                      {parsed.username}
+                                    </span>
+                                    {' '}
+                                  </>
+                                )}
+                                <span>{parsed.rest}</span>
+                              </span>
+                            );
+                          })() : (
+                            <span>{notification.message}</span>
                           )}
-                        </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <p className="text-xs text-gray-500 dark:text-gray-500">
+                            {formatTimestamp(notification.timestamp)}
+                          </p>
+                          {!notification.isRead && (
+                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </a>
+                  </div>
                 );
               })
             )}

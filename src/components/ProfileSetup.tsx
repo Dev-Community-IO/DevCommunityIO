@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { User, AtSign, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/apiUrl';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
+const API_BASE_URL = getApiBaseUrl();
 
 interface ProfileSetupProps {
   initialUsername?: string;
@@ -25,7 +26,16 @@ export function ProfileSetup({
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameError, setUsernameError] = useState('');
 
-  // Sync with parent component changes
+  // Sync with parent component changes (when initial props change)
+  useEffect(() => {
+    setUsername(initialUsername);
+    setBio(initialBio);
+    setSkills(initialSkills);
+    setUsernameValid(initialUsername ? true : null);
+    setUsernameError('');
+  }, [initialUsername, initialBio, initialSkills]);
+
+  // Sync with parent component changes (when local state changes)
   useEffect(() => {
     if (username !== initialUsername || bio !== initialBio || JSON.stringify(skills) !== JSON.stringify(initialSkills)) {
       onSave({ username, bio, skills });

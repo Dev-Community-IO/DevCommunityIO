@@ -1,9 +1,17 @@
-import { useState } from 'react';
-import { User, Mail, MapPin, Briefcase, Link as LinkIcon, Twitter, Github, Globe, Save, Shield, Bell, Eye, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Mail, Shield, Bell, Eye, Smartphone, Trash2, AlertTriangle, X, CheckCircle, Loader, Save, BadgeCheck } from 'lucide-react';
 import { GlassCard } from './GlassCard';
-import { Avatar } from './Avatar';
 import { NotificationSettings } from './NotificationSettings';
 import { EmailPreferences } from './EmailPreferences';
+import { PWASettings } from './PWASettings';
+import { useAuth } from '../contexts/AuthContext';
+import privacyService from '../services/api/privacy.service';
+import accountService from '../services/api/account.service';
+import verificationService from '../services/api/verification.service';
+import { VerifiedBadge } from './VerifiedBadge';
+import { useToast } from './Toast';
+import { ConfirmDialog } from './ConfirmDialog';
+import { getApiUrl } from '../utils/apiUrl';
 
 interface ProfileSettingsProps {
   user: {
@@ -17,25 +25,211 @@ interface ProfileSettingsProps {
 }
 
 export function ProfileSettings({ user }: ProfileSettingsProps) {
-  const [activeSection, setActiveSection] = useState<'profile' | 'account' | 'privacy' | 'notifications' | 'email'>('profile');
-  const [formData, setFormData] = useState({
-    username: user.username,
-    email: 'emma.smith@example.com',
-    role: user.role,
-    location: user.location,
-    bio: user.bio,
-    website: 'https://emmasmith.dev',
-    twitter: '@emmasmith',
-    github: 'emmasmith'
+  const { user: authUser, updateUser } = useAuth();
+  const toast = useToast();
+  const [activeSection, setActiveSection] = useState<'account' | 'privacy' | 'notifications' | 'email' | 'pwa'>('account');
+  
+  // Verification Status
+  const [verificationStatus, setVerificationStatus] = useState<'not_requested' | 'pending' | 'approved'>('not_requested');
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationReason, setVerificationReason] = useState('');
+  const [verificationRequest, setVerificationRequest] = useState<any>(null);
+  const [minReputation, setMinReputation] = useState(0);
+  
+  // Privacy Settings
+  const [privacyPrefs, setPrivacyPrefs] = useState({
+    show_email: false,
+    show_activity_status: true,
+    profile_visible: true,
+    show_wallet_address: false,
+    allow_direct_messages: true,
+    show_reputation: true,
+    show_followers: true,
+    show_following: true,
   });
+  const [privacyLoading, setPrivacyLoading] = useState(true);
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [privacySaveSuccess, setPrivacySaveSuccess] = useState(false);
+  const [privacyError, setPrivacyError] = useState<string | null>(null);
+
+  // Account Deletion
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deletionRequested, setDeletionRequested] = useState(false);
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  // Check auth method
+  const hasEmail = authUser?.email && !authUser?.walletAddress;
+  const hasOAuth = authUser?.email && (authUser as any).googleId || (authUser as any).githubId;
+  const isWalletOnly = authUser?.walletAddress && !authUser?.email;
 
   const sections = [
-    { id: 'profile', label: 'Profile Info', icon: User },
     { id: 'account', label: 'Account', icon: Shield },
     { id: 'privacy', label: 'Privacy', icon: Eye },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'email', label: 'Email Preferences', icon: Mail }
+    ...(hasOAuth || hasEmail ? [{ id: 'email', label: 'Email Preferences', icon: Mail }] : []),
+    { id: 'pwa', label: 'PWA Settings', icon: Smartphone }
   ];
+
+  useEffect(() => {
+    if (authUser?.id) {
+      loadPrivacyPreferences();
+      checkDeletionStatus();
+      loadVerificationStatus();
+      loadMinReputation();
+    }
+  }, [authUser?.id]);
+
+  const loadPrivacyPreferences = async () => {
+    if (!authUser?.id) return;
+    try {
+      setPrivacyLoading(true);
+      const prefs = await privacyService.getPreferences(authUser.id);
+      setPrivacyPrefs(prefs);
+    } catch (error: any) {
+      console.error('Failed to load privacy preferences:', error);
+      setPrivacyError(error?.message || 'Failed to load privacy preferences');
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
+
+  const checkDeletionStatus = async () => {
+    if (!authUser?.id) return;
+    try {
+      // Check if user has deletion_requested_at
+      const userResponse = await fetch(`${getApiUrl()}/api/auth/me`, {
+        credentials: 'include',
+      });
+      const data = await userResponse.json();
+      if (data.user?.deletionRequestedAt) {
+        const deletionDate = new Date(data.user.deletionRequestedAt);
+        const now = new Date();
+        const diffTime = deletionDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setDeletionRequested(true);
+        setDaysRemaining(diffDays > 0 ? diffDays : 0);
+      }
+    } catch (error) {
+      console.error('Failed to check deletion status:', error);
+    }
+  };
+
+  const handlePrivacyToggle = (key: keyof typeof privacyPrefs) => {
+    setPrivacyPrefs(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const handleSavePrivacy = async () => {
+    if (!authUser?.id) return;
+    try {
+      setPrivacySaving(true);
+      setPrivacySaveSuccess(false);
+      setPrivacyError(null);
+
+      await privacyService.updatePreferences(authUser.id, privacyPrefs);
+      setPrivacySaveSuccess(true);
+      setTimeout(() => setPrivacySaveSuccess(false), 3000);
+    } catch (error: any) {
+      console.error('Failed to save privacy preferences:', error);
+      setPrivacyError(error?.message || 'Failed to save privacy preferences');
+    } finally {
+      setPrivacySaving(false);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    if (!authUser?.id) return;
+    try {
+      setDeleting(true);
+      const response = await accountService.requestDeletion(authUser.id, deleteReason);
+      setDeletionRequested(true);
+      setDaysRemaining(response.daysRemaining || 30);
+      setShowDeleteDialog(false);
+      setDeleteReason('');
+      
+      // Update user context
+      updateUser({ ...authUser, deletionRequestedAt: response.deletionDate });
+    } catch (error: any) {
+      console.error('Failed to request account deletion:', error);
+      alert(error?.response?.data?.message || 'Failed to request account deletion');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    if (!authUser?.id) return;
+    try {
+      setCancelling(true);
+      await accountService.cancelDeletion(authUser.id);
+      setDeletionRequested(false);
+      setDaysRemaining(null);
+      setShowCancelDialog(false);
+      
+      // Update user context
+      updateUser({ ...authUser, deletionRequestedAt: null });
+    } catch (error: any) {
+      console.error('Failed to cancel account deletion:', error);
+      alert(error?.response?.data?.message || 'Failed to cancel account deletion');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const loadVerificationStatus = async () => {
+    if (!authUser?.id) return;
+    try {
+      setVerificationLoading(true);
+      const status = await verificationService.getStatus();
+      setVerificationStatus(status.status);
+      setVerificationRequest(status.request);
+      if (status.isVerified) {
+        updateUser({ ...authUser, isVerified: true });
+      }
+    } catch (error: any) {
+      console.error('Failed to load verification status:', error);
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  const loadMinReputation = async () => {
+    try {
+      const response = await fetch(`${getApiUrl()}/api/admin/reputation-requirements`);
+      const data = await response.json();
+      setMinReputation(data.requirements?.verification || 0);
+    } catch (error) {
+      console.error('Failed to load minimum reputation:', error);
+    }
+  };
+
+  const handleRequestVerification = async () => {
+    if (!verificationReason.trim() || verificationReason.trim().length < 50) {
+      toast.warning('Please provide a reason of at least 50 characters');
+      return;
+    }
+
+    try {
+      setVerificationLoading(true);
+      await verificationService.requestVerification(verificationReason);
+      toast.success('Verification request submitted successfully!');
+      setShowVerificationModal(false);
+      setVerificationReason('');
+      await loadVerificationStatus();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to submit verification request';
+      toast.error(errorMessage);
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -64,224 +258,155 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
 
       {/* Settings Content */}
       <div className="lg:col-span-3">
-        {activeSection === 'profile' && (
-          <GlassCard className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Profile Information</h2>
-
-            <div className="space-y-6">
-              {/* Avatar Upload */}
-              <div>
-                <label className="block text-sm font-semibold mb-3">Profile Picture</label>
-                <div className="flex items-center gap-4">
-                  <Avatar src={user.avatar} alt={user.username} size="xl" className="w-20 h-20" />
-                  <div className="space-y-2">
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-medium">
-                      Upload New
-                    </button>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      JPG, PNG or GIF. Max size 2MB.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  <User size={16} className="inline mr-2" />
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  <Mail size={16} className="inline mr-2" />
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  <Briefcase size={16} className="inline mr-2" />
-                  Current Role
-                </label>
-                <input
-                  type="text"
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                />
-              </div>
-
-              {/* Location */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  <MapPin size={16} className="inline mr-2" />
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                />
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">Bio</label>
-                <textarea
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  rows={4}
-                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none transition-all"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  {formData.bio.length} / 500 characters
-                </p>
-              </div>
-
-              {/* Social Links */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold">Social Links</h3>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    <Globe size={16} className="inline mr-2" />
-                    Website
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.website}
-                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                    placeholder="https://"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    <Twitter size={16} className="inline mr-2" />
-                    Twitter
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.twitter}
-                    onChange={(e) => setFormData({ ...formData, twitter: e.target.value })}
-                    placeholder="@username"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    <Github size={16} className="inline mr-2" />
-                    GitHub
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.github}
-                    onChange={(e) => setFormData({ ...formData, github: e.target.value })}
-                    placeholder="username"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex gap-3 pt-4">
-                <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg">
-                  <Save size={18} />
-                  Save Changes
-                </button>
-                <button className="px-6 py-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all font-semibold">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </GlassCard>
-        )}
-
         {activeSection === 'account' && (
           <GlassCard className="p-6">
             <h2 className="text-2xl font-bold mb-6">Account Settings</h2>
 
             <div className="space-y-6">
               {/* Wallet Address */}
-              <div>
-                <label className="block text-sm font-semibold mb-2">Wallet Address</label>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={user.walletAddress}
-                    readOnly
-                    className="flex-1 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 outline-none"
-                  />
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-medium">
-                    Copy
-                  </button>
+              {user.walletAddress && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Wallet Address</label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={user.walletAddress}
+                      readOnly
+                      className="flex-1 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 outline-none font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(user.walletAddress);
+                        alert('Wallet address copied to clipboard');
+                      }}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-medium"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Change Password */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <Lock size={20} />
-                  Change Password
-                </h3>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Current Password</label>
-                  <input
-                    type="password"
-                    placeholder="Enter current password"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
+              {/* Verification Status */}
+              {authUser?.isVerified ? (
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <VerifiedBadge size={24} />
+                    <div>
+                      <p className="font-semibold text-green-900 dark:text-green-100">
+                        Account Verified
+                      </p>
+                      <p className="text-sm text-green-800 dark:text-green-200">
+                        Your account has been verified. You have a verified badge on your profile.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">New Password</label>
-                  <input
-                    type="password"
-                    placeholder="Enter new password"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
+              ) : (
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BadgeCheck size={20} className="text-blue-600 dark:text-blue-400" />
+                        <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                          Verification Request
+                        </h3>
+                      </div>
+                      {verificationLoading ? (
+                        <div className="flex items-center gap-2">
+                          <Loader className="w-4 h-4 animate-spin" />
+                          <span className="text-sm text-blue-800 dark:text-blue-200">Loading...</span>
+                        </div>
+                      ) : verificationStatus === 'pending' ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            Your verification request is pending review. You'll be notified when it's reviewed.
+                          </p>
+                          {verificationRequest?.adminComment && (
+                            <div className="mt-2 p-2 bg-blue-100 dark:bg-blue-900/40 rounded">
+                              <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Admin Comment:</p>
+                              <p className="text-xs text-blue-800 dark:text-blue-200">{verificationRequest.adminComment}</p>
+                            </div>
+                          )}
+                          {verificationRequest?.daysUntilCanRequestAgain !== undefined && verificationRequest.daysUntilCanRequestAgain > 0 && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              You can request again in {verificationRequest.daysUntilCanRequestAgain} day{verificationRequest.daysUntilCanRequestAgain !== 1 ? 's' : ''}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            Request verification to get a verified badge on your profile. 
+                            {minReputation > 0 && (
+                              <span className="font-semibold"> Minimum {minReputation} reputation required.</span>
+                            )}
+                          </p>
+                          {authUser?.reputation !== undefined && authUser.reputation < minReputation && (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              You need {minReputation - authUser.reputation} more reputation to request verification.
+                            </p>
+                          )}
+                          <button
+                            onClick={() => setShowVerificationModal(true)}
+                            disabled={authUser?.reputation !== undefined && authUser.reputation < minReputation}
+                            className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            <BadgeCheck size={16} />
+                            Request Verification
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Confirm New Password</label>
-                  <input
-                    type="password"
-                    placeholder="Confirm new password"
-                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                  />
+              )}
+
+              {/* Deletion Status */}
+              {deletionRequested && daysRemaining !== null && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                        Account Deletion Scheduled
+                      </p>
+                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                        Your account will be permanently deleted in <strong>{daysRemaining} day{daysRemaining !== 1 ? 's' : ''}</strong>.
+                        You can cancel this deletion at any time before then.
+                      </p>
+                      <button
+                        onClick={() => setShowCancelDialog(true)}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Cancel Deletion
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <button className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-medium">
-                  Update Password
-                </button>
-              </div>
+              )}
 
               {/* Danger Zone */}
               <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-bold text-red-500 mb-4">Danger Zone</h3>
+                <h3 className="text-lg font-bold text-red-500 mb-4 flex items-center gap-2">
+                  <AlertTriangle size={20} />
+                  Danger Zone
+                </h3>
                 <div className="space-y-3">
-                  <button className="w-full px-6 py-3 border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all font-semibold">
-                    Deactivate Account
-                  </button>
-                  <button className="w-full px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold">
-                    Delete Account
-                  </button>
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-800 dark:text-red-200 mb-3">
+                      <strong>Warning:</strong> Deleting your account will permanently remove all your data, posts, comments, and content. 
+                      This action cannot be undone. You will have 30 days to cancel this request.
+                    </p>
+                    <button
+                      onClick={() => setShowDeleteDialog(true)}
+                      disabled={deletionRequested}
+                      className="w-full px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={18} />
+                      {deletionRequested ? 'Deletion Already Requested' : 'Delete Account'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -292,49 +417,257 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
           <GlassCard className="p-6">
             <h2 className="text-2xl font-bold mb-6">Privacy Settings</h2>
 
-            <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Show Email Address</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Allow others to see your email address
-                  </p>
-                </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
+            {privacyLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader className="w-8 h-8 animate-spin text-blue-500" />
               </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Show Email Address</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Allow others to see your email address on your profile
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('show_email')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.show_email
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.show_email
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Show Activity Status</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Let others see when you're online
-                  </p>
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Show Activity Status</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Let others see when you're online
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('show_activity_status')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.show_activity_status
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.show_activity_status
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                 </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
-              </div>
 
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <div>
-                  <h4 className="font-semibold">Profile Visibility</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Make your profile visible to everyone
-                  </p>
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Profile Visibility</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Make your profile visible to everyone
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('profile_visible')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.profile_visible
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.profile_visible
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                 </div>
-                <label className="relative inline-block w-12 h-6">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-12 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-blue-500 transition-all cursor-pointer"></div>
-                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
-                </label>
+
+                {user.walletAddress && (
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                    <div>
+                      <h4 className="font-semibold">Show Wallet Address</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Display your wallet address on your profile
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handlePrivacyToggle('show_wallet_address')}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        privacyPrefs.show_wallet_address
+                          ? 'bg-blue-500'
+                          : 'bg-gray-300 dark:bg-gray-700'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                          privacyPrefs.show_wallet_address
+                            ? 'translate-x-6'
+                            : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Allow Direct Messages</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Let other users send you direct messages
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('allow_direct_messages')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.allow_direct_messages
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.allow_direct_messages
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Show Reputation</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Display your reputation score on your profile
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('show_reputation')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.show_reputation
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.show_reputation
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Show Followers</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Display your followers count on your profile
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('show_followers')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.show_followers
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.show_followers
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div>
+                    <h4 className="font-semibold">Show Following</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Display who you're following on your profile
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handlePrivacyToggle('show_following')}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      privacyPrefs.show_following
+                        ? 'bg-blue-500'
+                        : 'bg-gray-300 dark:bg-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                        privacyPrefs.show_following
+                          ? 'translate-x-6'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Error Message */}
+                {privacyError && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                    <X size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-red-900 dark:text-red-100">Error</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{privacyError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                  {privacySaveSuccess ? (
+                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <CheckCircle size={20} />
+                      <span className="font-medium">Privacy settings saved successfully!</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Changes will take effect immediately
+                    </p>
+                  )}
+                  <button
+                    onClick={handleSavePrivacy}
+                    disabled={privacySaving}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {privacySaving ? (
+                      <>
+                        <Loader size={18} className="animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Save Preferences
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </GlassCard>
         )}
 
@@ -343,9 +676,175 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         )}
 
         {activeSection === 'email' && (
-          <EmailPreferences />
+          <>
+            {isWalletOnly ? (
+              <GlassCard className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <Mail size={22} className="text-gray-500" />
+                  <h2 className="text-2xl font-bold">Email Preferences</h2>
+                </div>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+                        Email Not Available
+                      </p>
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        You're connected with a wallet only. Email preferences are only available for users who 
+                        connected with Google or GitHub, as those accounts have email addresses associated with them.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ) : (
+              <EmailPreferences user={user} />
+            )}
+          </>
+        )}
+        
+        {activeSection === 'pwa' && (
+          <PWASettings />
         )}
       </div>
+
+      {/* Delete Account Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setDeleteReason('');
+        }}
+        onConfirm={handleRequestDeletion}
+        title="Delete Account"
+        message="Are you sure you want to delete your account? This action will schedule your account for deletion in 30 days. You can cancel this request anytime before then."
+        confirmText={deleting ? "Deleting..." : "Yes, Delete Account"}
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleting}
+      >
+        <div className="mt-4">
+          <label className="block text-sm font-medium mb-2">
+            Reason (optional)
+          </label>
+          <textarea
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            placeholder="Tell us why you're leaving..."
+            rows={3}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none resize-none"
+          />
+        </div>
+      </ConfirmDialog>
+
+      {/* Cancel Deletion Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancelDeletion}
+        title="Cancel Account Deletion"
+        message="Are you sure you want to cancel the account deletion request? Your account will remain active."
+        confirmText={cancelling ? "Cancelling..." : "Yes, Cancel Deletion"}
+        cancelText="Keep Deletion"
+        variant="default"
+        isLoading={cancelling}
+      />
+
+      {/* Verification Request Modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <GlassCard className="p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <BadgeCheck size={24} className="text-blue-500" />
+                Request Verification
+              </h3>
+              <button
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  setVerificationReason('');
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  To request verification, please provide a reason explaining why you should be verified. 
+                  This helps our team review your request.
+                </p>
+                {minReputation > 0 && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Minimum Reputation:</strong> You need at least {minReputation} reputation to request verification.
+                      {authUser?.reputation !== undefined && (
+                        <span className="block mt-1">
+                          Your current reputation: <strong>{authUser.reputation}</strong>
+                          {authUser.reputation < minReputation && (
+                            <span className="text-red-600 dark:text-red-400">
+                              {' '}({minReputation - authUser.reputation} more needed)
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Reason for Verification <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={verificationReason}
+                  onChange={(e) => setVerificationReason(e.target.value)}
+                  placeholder="Explain why you should be verified (minimum 50 characters)..."
+                  rows={6}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  minLength={50}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {verificationReason.length}/50 characters (minimum)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleRequestVerification}
+                  disabled={verificationLoading || verificationReason.trim().length < 50 || (authUser?.reputation !== undefined && authUser.reputation < minReputation)}
+                  className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {verificationLoading ? (
+                    <>
+                      <Loader size={16} className="animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <BadgeCheck size={16} />
+                      Submit Request
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowVerificationModal(false);
+                    setVerificationReason('');
+                  }}
+                  className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }

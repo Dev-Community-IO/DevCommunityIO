@@ -37,7 +37,16 @@ export interface User {
 export interface Page {
   id: string;
   name: string;
-  logo: string;
+  logo?: string;
+  logoUrl?: string;
+  coverImage?: string;
+  coverImageUrl?: string;
+  slug?: string;
+  description?: string;
+  category?: string;
+  memberCount?: number;
+  postCount?: number;
+  isVerified?: boolean;
 }
 
 export interface Post {
@@ -61,6 +70,10 @@ export interface Post {
   coverImageUrl?: string;
   ogImageUrl?: string;
   page?: Page;
+  pageId?: string;
+  postOrigin?: string | null;
+  originSource?: string | null;
+  originUrl?: string | null;
 }
 
 export interface Comment {
@@ -112,6 +125,7 @@ export interface Notification {
   post?: {
     id: string;
     title: string;
+    slug?: string;
   };
   actionUrl?: string;
 }

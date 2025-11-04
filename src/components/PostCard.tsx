@@ -8,6 +8,7 @@ import { Tooltip } from './Tooltip';
 import { EmojiReactions } from './EmojiReactions';
 import { UserHoverCardDropdown } from './UserHoverCardDropdown';
 import { PageHoverCardDropdown } from './PageHoverCardDropdown';
+import { ShareDropdown } from './ShareDropdown';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import reactionsService from '../services/api/reactions.service';
@@ -24,13 +25,14 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
+  const [postData, setPostData] = useState<Post>(post);
   
   // Check bookmark status on mount
   useEffect(() => {
     if (isAuthenticated) {
       const checkBookmark = async () => {
         try {
-          const response = await bookmarksService.checkBookmark(post.id);
+          const response = await bookmarksService.checkBookmark(postData.id);
           setBookmarked(response.isBookmarked);
         } catch (error) {
           console.error('Failed to check bookmark status:', error);
@@ -38,7 +40,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
       };
       checkBookmark();
     }
-  }, [isAuthenticated, post.id]);
+  }, [isAuthenticated, postData.id]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
@@ -48,19 +50,36 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
   useEffect(() => {
     const loadReactions = async () => {
       try {
-        const { reactions } = await reactionsService.getEmojis({ postId: post.id });
+        const { reactions } = await reactionsService.getEmojis({ postId: postData.id });
         setEmojis(reactions || []);
         
         if (user) {
-          const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: post.id });
+          try {
+          const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: postData.id });
           setUserEmojis(userEmojisList || []);
+          } catch (error: any) {
+            // Don't log 401 errors for user emojis - user might not be authenticated
+            if (error?.response?.status !== 401) {
+              console.error('Failed to load user reactions:', error);
+            }
+          }
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Don't log 401 errors - user might not be authenticated
+        // Public reactions should still load even if user is not authenticated
+        // Only log actual errors (network issues, server errors, etc.)
+        if (error?.response?.status !== 401) {
         console.error('Failed to load reactions:', error);
+        }
       }
     };
     loadReactions();
-  }, [post.id, user]);
+  }, [postData.id, user]);
+
+  // Update postData when post prop changes
+  useEffect(() => {
+    setPostData(post);
+  }, [post]);
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -187,7 +206,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     }
 
     try {
-      const response = await reactionsService.addEmoji({ postId: post.id, emoji });
+      const response = await reactionsService.addEmoji({ postId: postData.id, emoji });
       
       // Update emojis list
       const emojiIndex = emojis.findIndex(e => e.emoji === emoji);
@@ -212,6 +231,17 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
         }
         setUserEmojis(userEmojis.filter(e => e !== emoji));
       }
+
+      // Update author reputation if returned from backend
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setPostData(prev => ({
+          ...prev,
+          author: {
+            ...prev.author,
+            reputation: response.authorReputation
+          }
+        }));
+      }
     } catch (error) {
       console.error('Failed to add emoji:', error);
     }
@@ -225,17 +255,43 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
       return;
     }
     
+    // Optimistically update UI
+    const previousBookmarked = bookmarked;
+    setBookmarked(!bookmarked);
+    
     try {
-      if (bookmarked) {
-        await bookmarksService.removeBookmark(post.id);
-        setBookmarked(false);
+      if (previousBookmarked) {
+        await bookmarksService.removeBookmark(postData.id);
       } else {
-        await bookmarksService.addBookmark(post.id);
-        setBookmarked(true);
+        await bookmarksService.addBookmark(postData.id);
       }
-    } catch (error) {
-      console.error('Failed to toggle bookmark:', error);
-      alert('Failed to toggle bookmark');
+    } catch (error: any) {
+      // Revert optimistic update on error
+      setBookmarked(previousBookmarked);
+      
+      // If error says already bookmarked, check actual status and update accordingly
+      if (error?.message?.includes('already bookmarked') || error?.data?.message?.includes('already bookmarked')) {
+        try {
+          const response = await bookmarksService.checkBookmark(postData.id);
+          setBookmarked(response.isBookmarked);
+        } catch (checkError) {
+          console.error('Failed to check bookmark status after error:', checkError);
+        }
+      } else if (error?.message?.includes('not found') || error?.data?.message?.includes('not found')) {
+        // If bookmark not found when trying to remove, check actual status
+        try {
+          const response = await bookmarksService.checkBookmark(postData.id);
+          setBookmarked(response.isBookmarked);
+        } catch (checkError) {
+          console.error('Failed to check bookmark status after error:', checkError);
+        }
+      } else {
+        console.error('Failed to toggle bookmark:', error);
+        // Don't show alert for "already bookmarked" errors as we handle it gracefully
+        if (!error?.message?.includes('already bookmarked') && !error?.data?.message?.includes('already bookmarked')) {
+          alert('Failed to toggle bookmark');
+        }
+      }
     }
   };
 
@@ -258,26 +314,48 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
   };
 
   return (
-    <GlassCard hover className="p-3 overflow-hidden" onClick={onClick}>
-      <div className="space-y-2">
+    <GlassCard hover className="p-3 sm:p-4 md:p-5 overflow-hidden active:scale-[0.98] transition-transform duration-150 touch-manipulation" onClick={onClick}>
+      <div className="space-y-2 sm:space-y-3">
         {/* Main Content */}
-        <div className="space-y-2 min-w-0">
-          {/* Header with Author Info */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {/* Page Logo and Author Avatar - With Hover Cards */}
-              {post.page ? (
+        <div className="space-y-2 sm:space-y-3 min-w-0">
+          {/* Header with Author Info - Mobile Optimized */}
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              {/* Page Logo and Author Avatar - With Hover Cards - Mobile Optimized */}
+              {postData.page ? (
                 <div className="relative flex-shrink-0 group flex items-center gap-0">
                   {/* Page Logo with Hover Card */}
                   <PageHoverCardDropdown
-                    page={post.page}
+                    page={postData.page}
                     trigger={
-                      <div className="w-9 h-9 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
-                        <img src={post.page.logo} alt={post.page.name} className="w-full h-full object-cover" />
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (postData.page?.slug) {
+                            navigate(`/pages/${postData.page.slug}`);
+                          }
+                        }}
+                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 relative z-10 cursor-pointer touch-manipulation`}>
+                        <img 
+                          src={postData.page.logo || postData.page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(postData.page.name)}`} 
+                          alt={postData.page.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(post.page.name)}`;
+                          }}
+                        />
+                        {postData.page.isVerified && (
+                          <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
+                            <VerifiedBadge size={10} className="sm:w-3 sm:h-3" />
+                          </div>
+                        )}
                       </div>
                     }
                     onViewPage={() => {
-                      // Navigation logic
+                      if (postData.page?.slug) {
+                        navigate(`/pages/${postData.page.slug}`);
+                      }
                     }}
                     onJoin={() => {
                       if (!isAuthenticated) {
@@ -285,16 +363,22 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                       }
                     }}
                   />
-                  {/* Author Avatar with Hover Card */}
+                  {/* Author Avatar with Hover Card - Mobile Optimized */}
                   <UserHoverCardDropdown
-                    user={post.author}
+                    user={postData.author}
+                    page={postData.page}
                     trigger={
-                      <div className="-ml-2 w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ring-2 ring-blue-500/20 hover:ring-blue-500/40 relative z-20">
-                        <Avatar src={post.author.avatar || post.author.avatarUrl} alt={post.author.username} size="sm" className="w-full h-full" />
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/profile/${postData.author.username}`);
+                        }}
+                        className="-ml-1.5 sm:-ml-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg active:scale-95 transition-all duration-200 ring-2 ring-blue-500/20 relative z-20 touch-manipulation">
+                        <Avatar src={postData.author.avatar || postData.author.avatarUrl} alt={postData.author.username} size="sm" className="w-full h-full" />
                       </div>
                     }
                     onViewProfile={() => {
-                      // Navigation logic
+                      navigate(`/profile/${post.author.username}`);
                     }}
                     onFollow={() => {
                       if (!isAuthenticated) {
@@ -305,14 +389,19 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                 </div>
               ) : (
                 <UserHoverCardDropdown
-                  user={post.author}
+                  user={postData.author}
                   trigger={
-                    <div className="flex-shrink-0 w-6 h-6 cursor-pointer hover:scale-110 transition-transform duration-300">
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/profile/${post.author.username}`);
+                      }}
+                      className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 cursor-pointer active:scale-95 transition-transform duration-200 touch-manipulation">
                       <Avatar src={post.author.avatar || post.author.avatarUrl} alt={post.author.username} size="sm" className="w-full h-full" />
                     </div>
                   }
                   onViewProfile={() => {
-                    // Navigation logic
+                    navigate(`/profile/${post.author.username}`);
                   }}
                   onFollow={() => {
                     if (!isAuthenticated) {
@@ -322,92 +411,118 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                 />
               )}
 
-              {/* Author Name / Page Info */}
-              {post.page ? (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-semibold text-sm truncate">
-                    {post.author.username}
+              {/* Author Name / Page Info - Mobile Optimized */}
+              {postData.page ? (
+                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-wrap">
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/profile/${post.author.username}`);
+                    }}
+                    className="font-semibold text-xs sm:text-sm truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
+                  >
+                    {postData.author.username}
                   </span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 font-medium">posted for</span>
-                  <span className="font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer truncate">
-                    {post.page.name}
+                  {postData.author.isVerified && (
+                    <VerifiedBadge size={12} className="flex-shrink-0 sm:w-3.5 sm:h-3.5" />
+                  )}
+                  <span className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 font-medium hidden xs:inline">posted for</span>
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (postData.page?.slug) {
+                        navigate(`/pages/${postData.page.slug}`);
+                      }
+                    }}
+                    className="font-bold text-xs sm:text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer truncate touch-manipulation"
+                  >
+                    {postData.page.name}
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-medium text-sm truncate">
-                    {post.author.username}
+                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-wrap">
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/profile/${post.author.username}`);
+                    }}
+                    className="font-medium text-xs sm:text-sm truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
+                  >
+                    {postData.author.username}
                   </span>
-                  {post.author.isVerified && (
-                    <VerifiedBadge size={14} className="flex-shrink-0" />
+                  {postData.author.isVerified && (
+                    <VerifiedBadge size={12} className="flex-shrink-0 sm:w-3.5 sm:h-3.5" />
                   )}
-                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:inline">
-                    {post.author.walletAddress}
+                  <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:inline">
+                    {postData.author.walletAddress}
                   </span>
                 </div>
               )}
 
-              <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {timeAgo(post.publishedAt || post.createdAt || post.timestamp)}
+              <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 hidden xs:inline">•</span>
+              <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {timeAgo(postData.publishedAt || postData.createdAt || postData.timestamp)}
               </span>
-              {!post.page && (
-                <Badge variant="gradient" className="text-xs px-2 py-0.5">{post.author.reputation} rep</Badge>
+              {!postData.page && (
+                <Badge variant="gradient" className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 flex-shrink-0">{postData.author.reputation} rep</Badge>
               )}
             </div>
             <button
               onClick={(e) => e.stopPropagation()}
-              className="p-1.5 rounded-md hover:bg-white/10 dark:hover:bg-white/5 transition-all duration-200 flex-shrink-0"
+              className="p-1.5 sm:p-2 rounded-md hover:bg-white/10 dark:hover:bg-white/5 active:scale-95 transition-all duration-200 flex-shrink-0 touch-manipulation"
             >
-              <MoreHorizontal size={16} />
+              <MoreHorizontal size={14} className="sm:w-4 sm:h-4" />
             </button>
           </div>
 
-          {/* Title - Colorful Gradient */}
-          <h3 className="text-lg font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 dark:hover:from-blue-300 dark:hover:via-purple-300 dark:hover:to-pink-300 transition-all duration-300 leading-tight cursor-pointer">
-            {post.title}
+          {/* Title - Colorful Gradient - Mobile Optimized */}
+          <h3 className="text-base sm:text-lg md:text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 dark:hover:from-blue-300 dark:hover:via-purple-300 dark:hover:to-pink-300 transition-all duration-300 leading-tight sm:leading-snug cursor-pointer line-clamp-2">
+            {postData.title}
           </h3>
 
-          {/* Cover Image */}
-          {(post.coverImage || post.coverImageUrl) && (
-            <div className="relative w-full h-32 sm:h-40 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 mb-3">
+          {/* Cover Image - Always show post's cover, not page's cover - Mobile Optimized */}
+          {(postData.coverImage || postData.coverImageUrl) && (
+            <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3">
               <img
-                src={post.coverImage || post.coverImageUrl}
-                alt={post.title}
+                src={postData.coverImage || postData.coverImageUrl}
+                alt={postData.title}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  // Hide image on error
-                  (e.target as HTMLImageElement).style.display = 'none';
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
                 }}
               />
             </div>
           )}
 
-          {/* Content Preview - Clean Text with Formatted Mentions */}
-          <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
-            {formatContentPreview(getCleanPreview(post.content, 300))}
+          {/* Content Preview - Clean Text with Formatted Mentions - Mobile Optimized */}
+          <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-2 sm:line-clamp-3 leading-relaxed">
+            {formatContentPreview(getCleanPreview(postData.content, 250))}
           </div>
 
-          {/* Tags */}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {post.tags.map(tag => {
+          {/* Tags - Mobile Optimized */}
+          {postData.tags && postData.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
+              {postData.tags.slice(0, 3).map(tag => {
                 const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
                 const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
                 return (
-                  <Badge key={tagKey} className="text-xs px-2 py-0.5">#{tagName}</Badge>
+                  <Badge key={tagKey} className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">#{tagName}</Badge>
                 );
               })}
+              {postData.tags.length > 3 && (
+                <Badge className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">+{postData.tags.length - 3}</Badge>
+              )}
             </div>
           )}
 
-          {/* Actions Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-white/5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Emoji Reactions - Inline and Compact */}
+          {/* Actions Footer - Mobile Optimized */}
+          <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200 dark:border-white/5">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap flex-1 min-w-0">
+              {/* Emoji Reactions - Inline and Compact - Mobile Optimized */}
               {emojis.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap">
-                  {emojis.map(({ emoji, count }) => (
+                <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
+                  {emojis.slice(0, 3).map(({ emoji, count }) => (
                     <button
                       key={emoji}
                       onClick={(e) => {
@@ -418,20 +533,20 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         }
                         handleEmojiReaction(emoji);
                       }}
-                      className={`px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 ${
+                      className={`px-1 sm:px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 active:scale-95 touch-manipulation ${
                         userEmojis.includes(emoji)
                           ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-400/50'
-                          : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                          : 'hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
                       }`}
                     >
-                      <span className="text-sm">{emoji}</span>
-                      <span className="font-semibold text-[10px]">{count}</span>
+                      <span className="text-xs sm:text-sm">{emoji}</span>
+                      <span className="font-semibold text-[9px] sm:text-[10px]">{count}</span>
                     </button>
                   ))}
                 </div>
               )}
               
-              {/* Add Emoji Button */}
+              {/* Add Emoji Button - Mobile Optimized */}
               <div className="relative" ref={emojiPickerRef}>
                 <button
                   onClick={(e) => {
@@ -442,16 +557,16 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                     }
                     setShowEmojiPicker(!showEmojiPicker);
                   }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
                 >
-                  <Smile size={14} />
-                  <span className="text-xs font-medium">React</span>
+                  <Smile size={12} className="sm:w-3.5 sm:h-3.5" />
+                  <span className="text-[10px] sm:text-xs font-medium hidden sm:inline">React</span>
                 </button>
 
                 {showEmojiPicker && (
-                  <div className="absolute bottom-full mb-3 left-0 z-[9999] animate-fade-in">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-3 min-w-[260px]">
-                      <div className="grid grid-cols-4 gap-2">
+                  <div className="absolute bottom-full mb-2 sm:mb-3 left-0 z-[9999] animate-fade-in">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-2 sm:p-3 min-w-[200px] sm:min-w-[260px]">
+                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                         {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
                           <button
                             key={emoji}
@@ -460,10 +575,10 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                               handleEmojiReaction(emoji);
                               setShowEmojiPicker(false);
                             }}
-                            className={`p-3 text-2xl rounded-xl hover:scale-110 transition-all duration-200 ${
+                            className={`p-2 sm:p-3 text-xl sm:text-2xl rounded-lg sm:rounded-xl active:scale-95 hover:scale-110 transition-all duration-200 touch-manipulation ${
                               userEmojis.includes(emoji) 
                                 ? 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600'
                             }`}
                           >
                             {emoji}
@@ -471,7 +586,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         ))}
                       </div>
                       {/* Arrow pointer */}
-                      <div className="absolute -bottom-2 left-4 w-4 h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
+                      <div className="absolute -bottom-2 left-3 sm:left-4 w-3 h-3 sm:w-4 sm:h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
                     </div>
                   </div>
                 )}
@@ -479,31 +594,40 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
 
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
               >
-                <MessageCircle size={14} />
-                <span className="text-xs font-medium">{post.commentCount}</span>
+                <MessageCircle size={12} className="sm:w-3.5 sm:h-3.5" />
+                <span className="text-[10px] sm:text-xs font-medium">{postData.commentCount || 0}</span>
               </button>
+              <ShareDropdown
+        url={`${window.location.origin}/post/${postData.slug}`}
+        title={postData.title}
+        type="post"
+        hashtags={postData.tags || []}
+        description={postData.content?.substring(0, 150)}
+                trigger={
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
               >
-                <Share2 size={14} />
-                <span className="text-xs font-medium hidden sm:inline">Share</span>
+                <Share2 size={12} className="sm:w-3.5 sm:h-3.5" />
+                <span className="text-[10px] sm:text-xs font-medium hidden sm:inline">Share</span>
               </button>
+                }
+              />
             </div>
             <Tooltip content={!isAuthenticated ? "Login to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark"}>
               <button
                 onClick={handleBookmark}
-                className={`p-1.5 rounded-md transition-all duration-200 ${
+                className={`p-1.5 sm:p-2 rounded-md transition-all duration-200 active:scale-95 touch-manipulation flex-shrink-0 ${
                   bookmarked
                     ? 'bg-yellow-500/20 text-yellow-500 shadow-md shadow-yellow-500/20'
                     : !isAuthenticated
-                      ? 'opacity-50 cursor-not-allowed hover:bg-white/5'
+                      ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-white/10 dark:hover:bg-white/5'
                 }`}
               >
-                <Bookmark size={14} fill={bookmarked ? 'currentColor' : 'none'} strokeWidth={bookmarked ? 2.5 : 2} />
+                <Bookmark size={12} className="sm:w-3.5 sm:h-3.5" fill={bookmarked ? 'currentColor' : 'none'} strokeWidth={bookmarked ? 2.5 : 2} />
               </button>
             </Tooltip>
           </div>

@@ -68,6 +68,26 @@ class OnboardingService {
     async skip(): Promise<void> {
         await apiClient.post('/onboarding/skip');
     }
+
+    // Get current onboarding data (interests, followed users, joined pages)
+    async getCurrentData(): Promise<{
+        interests: string[];
+        followedUsers: string[];
+        joinedPages: string[];
+    }> {
+        try {
+            const response = await apiClient.get('/onboarding/current-data');
+            return response.data;
+        } catch (error: any) {
+            console.error('Failed to get current onboarding data:', error);
+            // Return empty arrays if endpoint doesn't exist or fails
+            return {
+                interests: [],
+                followedUsers: [],
+                joinedPages: []
+            };
+        }
+    }
 }
 
 export default new OnboardingService();

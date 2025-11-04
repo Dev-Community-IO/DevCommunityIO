@@ -17,7 +17,10 @@ export interface Page {
     logoUrl?: string;
     coverImageUrl?: string;
     ownerId: string;
-    memberCount: number;
+    memberCount?: number;
+    followerCount?: number;
+    follower_count?: number;
+    isFollowing?: boolean;
     isTrending: boolean;
     createdAt: string;
     updatedAt: string;
@@ -49,13 +52,95 @@ export const pagesService = {
         return response.data;
     },
 
-    getPageMembers: async (id: string, params?: { page?: number; limit?: number }) => {
+    getMembers: async (id: string, params?: { page?: number; limit?: number; type?: 'team' | 'followers' }) => {
         const response = await apiClient.get(`/pages/${id}/members`, { params });
         return response.data;
     },
 
+    addTeamMember: async (id: string, username: string, role: 'admin' | 'moderator') => {
+        const response = await apiClient.post(`/pages/${id}/team`, { username, role });
+        return response.data;
+    },
+
+    updateTeamMemberRole: async (id: string, userId: string, role: 'admin' | 'moderator') => {
+        const response = await apiClient.patch(`/pages/${id}/team/${userId}`, { role });
+        return response.data;
+    },
+
+    removeTeamMember: async (id: string, userId: string) => {
+        const response = await apiClient.delete(`/pages/${id}/team/${userId}`);
+        return response.data;
+    },
+
+    searchUsers: async (query: string) => {
+        const response = await apiClient.get('/users/search', { params: { q: query, limit: 10 } });
+        return response.data.users || response.data || [];
+    },
+
     getMyPostablePages: async () => {
         const response = await apiClient.get('/pages/my/postable');
+        return response.data;
+    },
+
+    createPage: async (pageData: {
+        name: string;
+        description?: string;
+        shortBio?: string;
+        category?: string;
+        logoUrl?: string;
+        coverImageUrl?: string;
+        url?: string;
+        socialLinks?: Record<string, string>;
+        username?: string;
+    }) => {
+        const response = await apiClient.post('/pages', pageData);
+        return response.data;
+    },
+
+    requestVerification: async (pageId: string, reason: string) => {
+        const response = await apiClient.post(`/pages/${pageId}/verification/request`, {
+            reason,
+        });
+        return response.data;
+    },
+
+    getVerificationStatus: async (pageId: string) => {
+        const response = await apiClient.get(`/pages/${pageId}/verification/status`);
+        return response.data;
+    },
+
+    listVerificationRequests: async (params?: { page?: number; limit?: number }) => {
+        const response = await apiClient.get('/admin/pages/verification/requests', {
+            params,
+        });
+        return response.data;
+    },
+
+    approveVerification: async (pageId: string) => {
+        const response = await apiClient.post(`/admin/pages/${pageId}/verification/approve`);
+        return response.data;
+    },
+
+    rejectVerification: async (pageId: string, reason?: string) => {
+        const response = await apiClient.post(`/admin/pages/${pageId}/verification/reject`, {
+            reason,
+        });
+        return response.data;
+    },
+
+    updatePage: async (pageId: string, pageData: {
+        name?: string;
+        description?: string;
+        category?: string;
+        logoUrl?: string;
+        coverImageUrl?: string;
+    }) => {
+        const response = await apiClient.put(`/pages/${pageId}`, pageData);
+        return response.data;
+    },
+
+    deletePage: async (pageId: string) => {
+        const response = await apiClient.delete(`/pages/${pageId}`);
         return response.data;
     },
 };

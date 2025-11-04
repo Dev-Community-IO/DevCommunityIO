@@ -25,12 +25,22 @@ class TrendingService {
     /**
      * Get trending authors
      */
-    async getTrendingAuthors(limit = 5): Promise<User[]> {
+    async getTrendingAuthors(timeframe: '24h' | '7d' | '30d' | '1yr' | 'all' = 'all', limit = 10): Promise<User[]> {
         const response = await apiClient.get('/users/trending', {
-            params: { limit }
+            params: { timeframe, limit }
         });
         // API returns array directly, not paginated
-        return Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        return Array.isArray(response.data) ? response.data : (response.data?.data || response.data?.users || []);
+    }
+
+    /**
+     * Get most reputed authors
+     */
+    async getMostReputedAuthors(limit = 10): Promise<User[]> {
+        const response = await apiClient.get('/users', {
+            params: { sort: 'reputation', limit, order: 'desc' }
+        });
+        return Array.isArray(response.data) ? response.data : (response.data?.data || response.data?.users || []);
     }
 
     /**

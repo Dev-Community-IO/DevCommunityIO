@@ -29,6 +29,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   }, [isOpen]);
 
+  // Don't render login modal if not open
   if (!isOpen) return null;
 
   const handleCardanoLogin = async (walletName: string) => {
@@ -38,7 +39,13 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       // Connect to Cardano wallet
-      const { address, stakeAddress } = await connectCardanoWallet(walletName);
+      const { address, stakeAddress, networkId } = await connectCardanoWallet(walletName);
+
+      // Verify it's mainnet (networkId === 1)
+      // Testnet has networkId === 0, Preview has networkId === 2, etc.
+      if (networkId !== 1) {
+        throw new Error('Please switch to Cardano Mainnet. Testnet wallets are not supported.');
+      }
 
       setStep('signing');
 
@@ -57,10 +64,10 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         stakeAddress
       );
 
-      // Save auth state
-      login(response.user, response.token);
+      // Save auth state (this will check onboarding automatically)
+      await login(response.user, response.token);
 
-      // Close modal
+      // Close modal - onboarding will be handled globally if needed
       onClose();
     } catch (err: any) {
       console.error('Cardano login error:', err);
@@ -217,27 +224,38 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <ChevronRight size={20} className="text-gray-400 group-hover:text-blue-500 transition-colors group-hover:translate-x-1 transition-transform" />
                   </button>
                 ) : (
-                  <div className="space-y-2 pl-2 animate-slide-in">
+                  <div className="space-y-4 animate-slide-in">
                     {cardanoWallets.length > 0 ? (
-                      cardanoWallets.map((wallet) => (
-                        <button
-                          key={wallet.name}
-                          onClick={() => handleCardanoLogin(wallet.name)}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300 group hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500/20 transition-colors">
-                            {wallet.icon ? (
-                              <img src={wallet.icon} alt={wallet.name} className="w-6 h-6" />
-                            ) : (
-                              <span className="text-blue-500 font-bold text-lg">₳</span>
-                            )}
-                          </div>
-                          <div className="flex-1 text-left">
-                            <p className="font-semibold text-sm">{wallet.name}</p>
-                          </div>
-                          <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
-                        </button>
-                      ))
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {cardanoWallets.map((wallet) => (
+                            <button
+                              key={wallet.name}
+                              onClick={() => handleCardanoLogin(wallet.name)}
+                              className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-500/5 hover:to-cyan-500/5 transition-all duration-300 group hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 flex items-center justify-center flex-shrink-0 group-hover:from-blue-500/20 group-hover:to-cyan-500/20 transition-all border-2 border-blue-500/20 group-hover:border-blue-500/40">
+                                {wallet.icon ? (
+                                  <img src={wallet.icon} alt={wallet.name} className="w-10 h-10 object-contain" />
+                                ) : (
+                                  <span className="text-blue-500 font-bold text-2xl">₳</span>
+                                )}
+                              </div>
+                              <div className="text-center">
+                                <p className="font-semibold text-sm text-gray-900 dark:text-white">{wallet.name}</p>
+                                {wallet.version && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">v{wallet.version}</p>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
+                          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium text-center">
+                            ⚠️ Mainnet wallets only. Testnet wallets are not supported.
+                          </p>
+                        </div>
+                      </>
                     ) : (
                       <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
                         <p className="font-medium mb-1">No Cardano wallet detected</p>

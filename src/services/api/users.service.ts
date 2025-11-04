@@ -4,7 +4,7 @@ export interface UserProfile {
     id: string;
     username: string;
     pseudo?: string | null;
-    email?: string;
+    email?: string | null; // Email is included only if privacy preference allows it
     avatarUrl: string | null;
     coverImageUrl: string | null;
     bio: string | null;

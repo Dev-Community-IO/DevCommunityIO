@@ -17,18 +17,19 @@ interface OnboardingWizardProps {
 type Step = 'profile' | 'interests' | 'users' | 'pages' | 'complete';
 
 export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWizardProps) {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, checkAuth } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('profile');
   const [profileData, setProfileData] = useState({
-    username: user?.username || '',
-    bio: user?.bio || '',
-    skills: user?.skills || []
+    username: '',
+    bio: '',
+    skills: [] as string[]
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   const steps = [
     { id: 'profile', label: 'Profile', description: 'Set up your profile' },
@@ -47,6 +48,43 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
       setTimeout(() => setShowConfetti(false), 3000);
     }
   }, [isOpen, currentStep]);
+
+  // Load current data when modal opens and user is available
+  useEffect(() => {
+    if (isOpen && user) {
+      loadCurrentData();
+    }
+  }, [isOpen, user?.id, user?.username, user?.bio, user?.skills]);
+
+  const loadCurrentData = async () => {
+    if (!user) return;
+    
+    setIsLoadingData(true);
+    try {
+      // Load current profile data from user (always use latest user data)
+      setProfileData({
+        username: user.username || '',
+        bio: user.bio || '',
+        skills: user.skills || []
+      });
+
+      // Load current onboarding data (interests, followed users, joined pages)
+      const currentData = await onboardingService.getCurrentData();
+      setSelectedTags(currentData.interests || []);
+      setSelectedUsers(currentData.followedUsers || []);
+      setSelectedPages(currentData.joinedPages || []);
+    } catch (error) {
+      console.error('Failed to load current onboarding data:', error);
+      // Fallback to user data if API fails
+      setProfileData({
+        username: user.username || '',
+        bio: user.bio || '',
+        skills: user.skills || []
+      });
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -88,12 +126,22 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   const handleSkip = async () => {
     try {
+      setIsLoading(true);
       await onboardingService.skip();
+      // Update user with onboardingCompleted flag
       updateUser({ onboardingCompleted: true });
+      // Refresh auth state to ensure onboarding status is updated
+      await checkAuth();
       onComplete();
       onClose();
     } catch (error) {
       console.error('Skip onboarding error:', error);
+      // Even if API call fails, close the modal to prevent blocking user
+      updateUser({ onboardingCompleted: true });
+      onComplete();
+      onClose();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -200,60 +248,72 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
           {/* Content */}
           <div className="p-4 sm:p-5 overflow-y-auto max-h-[55vh]">
-            {currentStep === 'profile' && (
-              <ProfileSetup
-                initialUsername={profileData.username}
-                initialBio={profileData.bio}
-                initialSkills={profileData.skills}
-                onSave={setProfileData}
-              />
-            )}
-            {currentStep === 'interests' && (
-              <InterestSelection
-                selectedTags={selectedTags}
-                onTagsChange={setSelectedTags}
-              />
-            )}
-            {currentStep === 'users' && (
-              <UserSuggestions
-                selectedUsers={selectedUsers}
-                onUsersChange={setSelectedUsers}
-              />
-            )}
-            {currentStep === 'pages' && (
-              <PageSuggestions
-                selectedPages={selectedPages}
-                onPagesChange={setSelectedPages}
-              />
-            )}
-            {currentStep === 'complete' && (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4 animate-bounce">🎉</div>
-                <h3 className="text-3xl font-bold mb-2">All Set!</h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Your feed is now personalized based on your interests
-                </p>
-                <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-                  <div className="p-4 rounded-xl bg-blue-500/10">
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {selectedTags.length}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Topics</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-green-500/10">
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {selectedUsers.length}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Following</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-purple-500/10">
-                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {selectedPages.length}
-                    </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Communities</p>
-                  </div>
+            {isLoadingData ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading your data...</p>
                 </div>
               </div>
+            ) : (
+              <>
+                {currentStep === 'profile' && (
+                  <ProfileSetup
+                    key={`profile-${user?.id}-${profileData.username}`}
+                    initialUsername={profileData.username}
+                    initialBio={profileData.bio}
+                    initialSkills={profileData.skills}
+                    onSave={setProfileData}
+                  />
+                )}
+                {currentStep === 'interests' && (
+                  <InterestSelection
+                    selectedTags={selectedTags}
+                    onTagsChange={setSelectedTags}
+                  />
+                )}
+                {currentStep === 'users' && (
+                  <UserSuggestions
+                    selectedUsers={selectedUsers}
+                    onUsersChange={setSelectedUsers}
+                  />
+                )}
+                {currentStep === 'pages' && (
+                  <PageSuggestions
+                    selectedPages={selectedPages}
+                    onPagesChange={setSelectedPages}
+                  />
+                )}
+                {currentStep === 'complete' && (
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4 animate-bounce">🎉</div>
+                    <h3 className="text-3xl font-bold mb-2">All Set!</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                      Your feed is now personalized based on your interests
+                    </p>
+                    <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+                      <div className="p-4 rounded-xl bg-blue-500/10">
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {selectedTags.length}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Topics</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-green-500/10">
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {selectedUsers.length}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Following</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-purple-500/10">
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          {selectedPages.length}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Communities</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

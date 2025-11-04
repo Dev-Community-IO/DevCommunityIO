@@ -1,6 +1,71 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
+/**
+ * Detect API base URL dynamically
+ * - Uses VITE_API_BASE_URL if set in environment
+ * - Checks window.__API_BASE_URL__ set by index.html script
+ * - Otherwise, detects based on current hostname
+ * - For IP addresses (mobile/LAN), uses same IP with port 3333
+ * - For localhost, uses localhost:3333
+ */
+function getApiBaseUrl(): string {
+    // Use environment variable if set
+    if (import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL;
+    }
+
+    // Check if API URL was set by index.html script
+    if (typeof window !== 'undefined' && (window as any).__API_BASE_URL__) {
+        return `${(window as any).__API_BASE_URL__}/api`;
+    }
+
+    // Detect API URL based on current location
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+        
+        if (isLocalhost) {
+            return 'http://localhost:3333/api';
+        } else {
+            // For IP addresses or other hostnames, use same hostname with port 3333
+            return `http://${hostname}:3333/api`;
+        }
+    }
+
+    // Fallback default
+    return 'http://localhost:3333/api';
+}
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Track if we've already logged a network error to prevent spam
+let networkErrorLogged = false;
+
+// Helper function to check if an error is a network error (server not available)
+export function isNetworkError(error: any): boolean {
+    if (!error) return false;
+    
+    // Check if error is marked as network error (from our interceptor)
+    if (error.isNetworkError === true) {
+        return true;
+    }
+    
+    // Check for various network error indicators
+    const isNetworkError = 
+        !error.response && // No response means network error
+        (error.message === 'Network Error' || 
+         error.message?.includes('ERR_CONNECTION_REFUSED') ||
+         error.message?.includes('ECONNREFUSED') ||
+         error.code === 'ECONNREFUSED' ||
+         error.code === 'ERR_NETWORK');
+    
+    return !!isNetworkError;
+}
+
+// Log API URL for debugging (always log for mobile debugging)
+console.log('🔌 API Base URL:', API_BASE_URL);
+console.log('📍 Current Location:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+console.log('🌐 Hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
 
 // Create axios instance
 export const apiClient = axios.create({
@@ -10,15 +75,33 @@ export const apiClient = axios.create({
         'Content-Type': 'application/json',
     },
     withCredentials: true, // For session cookies
+    // Suppress axios internal error logging for network errors
+    validateStatus: (status) => {
+        // Don't throw errors for network-level issues (status 0 or no response)
+        return status >= 200 && status < 500;
+    },
 });
 
 // Request interceptor - Add auth token
 apiClient.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         const token = localStorage.getItem('auth_token');
+
+        // Handle FormData requests - must remove Content-Type so browser sets it with boundary
+        if (config.data instanceof FormData) {
+            // Remove default Content-Type header to let browser set it with multipart boundary
+            if (config.headers) {
+                delete config.headers['Content-Type'];
+                // For FormData, axios should not set Content-Type at all
+                // The browser will set it automatically with the correct boundary
+            }
+        }
+
         if (token && config.headers) {
+            // Ensure Authorization header is set even for FormData requests
             config.headers.Authorization = `Bearer ${token}`;
         }
+
         return config;
     },
     (error: AxiosError) => {
@@ -29,24 +112,74 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle errors globally
 apiClient.interceptors.response.use(
     (response: AxiosResponse) => {
+        // Reset network error flag on successful response
+        networkErrorLogged = false;
         return response;
     },
     async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+        const status = error.response?.status;
+        const url = originalRequest?.url || '';
 
-        // Handle 401 Unauthorized
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Handle network errors (server not available) - suppress logging to prevent spam
+        const isNetworkErr = isNetworkError(error);
+        if (isNetworkErr) {
+            // Only log network error once per session to avoid spam
+            if (!networkErrorLogged) {
+                networkErrorLogged = true;
+                // Don't log to console - silently handle network errors
+            }
+            // Reject silently for network errors - components should handle gracefully
+            return Promise.reject({
+                message: error.message || 'Network Error',
+                status: undefined,
+                data: undefined,
+                isNetworkError: true,
+            });
+        }
+
+        // Handle 401 Unauthorized - don't log as error for expected endpoints
+        // Some endpoints are expected to return 401 when user is not authenticated
+        if (status === 401) {
+            // List of endpoints where 401 is expected and shouldn't be logged
+            // Note: /reactions/emoji is now public, but we keep this list for other endpoints
+            const isExpected401Endpoint = url.includes('/auth/me');
+            
+            // Don't log errors for expected 401 endpoints
+            if (!isExpected401Endpoint) {
+        console.error('❌ API Error:', {
+                    url,
+            method: originalRequest?.method,
+                    status,
+            message: error.message,
+            baseURL: apiClient.defaults.baseURL,
+        });
+            }
+
+            // Only clear auth state and dispatch logout for protected endpoints
+            // Don't do this for public endpoints
+            if (!originalRequest._retry) {
             originalRequest._retry = true;
 
-            // Clear auth state
+                // Clear auth state for protected endpoints
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
 
             // Redirect to login or emit event
             window.dispatchEvent(new CustomEvent('auth:logout'));
+            }
 
             return Promise.reject(error);
         }
+
+        // Log error details for debugging (non-401 errors)
+        console.error('❌ API Error:', {
+            url,
+            method: originalRequest?.method,
+            status,
+            message: error.message,
+            baseURL: apiClient.defaults.baseURL,
+        });
 
         // Handle other errors
         const errorMessage = error.response?.data?.message || error.message || 'An error occurred';

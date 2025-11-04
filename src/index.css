@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Toast Animation */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* PWA Install Prompt Animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
 @layer base {
   body {
     @apply bg-white;
@@ -177,6 +205,10 @@
     }
   }
 
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
   .line-clamp-1 {
     display: -webkit-box;
     -webkit-line-clamp: 1;
@@ -189,6 +221,73 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Touch optimization for mobile */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area insets for mobile devices */
+  @supports (padding: max(0px)) {
+    .safe-top {
+      padding-top: max(env(safe-area-inset-top), 0px);
+    }
+    .safe-bottom {
+      padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    }
+    .safe-left {
+      padding-left: max(env(safe-area-inset-left), 0px);
+    }
+    .safe-right {
+      padding-right: max(env(safe-area-inset-right), 0px);
+    }
+  }
+
+  /* Mobile-optimized animations */
+  @media (prefers-reduced-motion: no-preference) {
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out;
+    }
+  }
+
+  /* Improve text rendering on mobile */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Better button touch targets on mobile */
+  @media (max-width: 640px) {
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 

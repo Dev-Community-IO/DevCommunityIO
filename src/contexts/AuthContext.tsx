@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import authService from '../services/api/auth.service';
+import onboardingService from '../services/api/onboarding.service';
+import { isNetworkError } from '../services/api/config';
 
 export interface User {
   id: string;
@@ -35,12 +37,15 @@ export interface User {
   permissions?: string[];
   onboardingCompleted?: boolean;
   pseudo?: string;
+  deletionRequestedAt?: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  showOnboarding: boolean;
+  setShowOnboarding: (show: boolean) => void;
   login: (userData: User, token?: string) => void;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
@@ -56,6 +61,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const isAuthenticated = !!user;
 
@@ -87,13 +93,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       setUser(normalizedUser);
       
+      // Check onboarding status if user is authenticated
+      if (normalizedUser) {
+        try {
+          const onboardingStatus = await onboardingService.getStatus();
+          // Show onboarding if not completed and user doesn't have onboardingCompleted flag
+          if (!onboardingStatus.completed && !normalizedUser.onboardingCompleted) {
+            setShowOnboarding(true);
+          }
+        } catch (error) {
+          console.error('Failed to check onboarding status:', error);
+          // Don't block auth if onboarding check fails
+        }
+      }
+      
       // If we got user data but no token, it means session-based auth (OAuth)
       const token = localStorage.getItem('auth_token');
       if (!token && normalizedUser) {
         console.log('🔐 Session-based authentication detected (OAuth)');
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Don't log errors for expected 401 responses (user not authenticated) or network errors
+      // Network errors are already handled by the API interceptor
+      if (error?.response?.status !== 401 && !isNetworkError(error)) {
       console.error('Auth check failed:', error);
+      }
       // Only clear localStorage if we have a token (wallet auth)
       const token = localStorage.getItem('auth_token');
       if (token) {
@@ -101,17 +125,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('user');
       }
       setUser(null);
+      setShowOnboarding(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = (userData: User, token?: string) => {
+  const login = async (userData: User, token?: string) => {
     setUser(userData);
     if (token) {
       localStorage.setItem('auth_token', token);
     }
     localStorage.setItem('user', JSON.stringify(userData));
+    
+    // Check onboarding status after login
+    try {
+      const onboardingStatus = await onboardingService.getStatus();
+      if (!onboardingStatus.completed && !userData.onboardingCompleted) {
+        setShowOnboarding(true);
+      }
+    } catch (error) {
+      console.error('Failed to check onboarding status after login:', error);
+      // Don't block login if onboarding check fails
+    }
   };
 
   const logout = async () => {
@@ -121,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      setShowOnboarding(false);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
     }
@@ -131,6 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const updatedUser = { ...user, ...userData };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      // Hide onboarding if user completed it
+      if (userData.onboardingCompleted) {
+        setShowOnboarding(false);
+      }
     }
   };
 
@@ -158,6 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated,
         isLoading,
+        showOnboarding,
+        setShowOnboarding,
         login,
         logout,
         updateUser,

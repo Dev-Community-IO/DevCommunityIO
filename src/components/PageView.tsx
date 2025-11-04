@@ -1,28 +1,56 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Users, TrendingUp, MessageSquare, Settings, UserPlus, Bell, BellOff, Loader } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Loader, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
-import { PostFeed } from './PostFeed';
+import { CompactPostCard } from './CompactPostCard';
+import { VerifiedBadge } from './VerifiedBadge';
 import { Post } from '../types';
 import pagesService from '../services/api/pages.service';
+import { useAuth } from '../contexts/AuthContext';
+import { useSEO } from '../hooks/useSEO';
+import { useNavigate } from 'react-router-dom';
 
 interface PageViewProps {
-  pageId: string;
+  pageId?: string;
+  pageSlug?: string;
   onBack: () => void;
   onPostClick?: (post: Post) => void;
+  onLoginRequired?: () => void;
 }
 
-type TabType = 'posts' | 'about' | 'members';
+type TabType = 'posts' | 'about' | 'members' | 'manage' | 'stats';
 
-export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
+export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequired }: PageViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [pageData, setPageData] = useState<any>(null);
   const [pagePosts, setPagePosts] = useState<Post[]>([]);
   const [pageMembers, setPageMembers] = useState<any[]>([]);
+  const [pageFollowers, setPageFollowers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  // Determine user role and permissions
+  const isOwner = pageData && user && (
+    pageData.ownerId === user.id ||
+    pageData.owner?.id === user.id
+  );
+  
+  const isAdmin = pageData && user && (
+    pageData.userRole === 'admin' ||
+    (pageData.userRole && ['owner', 'admin'].includes(pageData.userRole))
+  );
+  
+  const canManage = isOwner || isAdmin || (pageData && pageData.userRole === 'moderator');
+
+  // SEO metadata
+  useSEO({
+    type: 'page',
+    slug: pageData?.slug || pageSlug || '',
+    enabled: !!pageData?.slug || !!pageSlug
+  });
 
   // Fetch page data
   useEffect(() => {
@@ -31,18 +59,63 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
         setLoading(true);
         setError(null);
         
-        // Fetch page details
-        const page = await pagesService.getPage(pageId);
+        const identifier = pageSlug || pageId;
+        if (!identifier) {
+          throw new Error('Page identifier is required');
+        }
+        
+        const pageResponse = await pagesService.getPage(identifier);
+        console.log('[PageView] Raw API response:', pageResponse);
+        
+        // Extract page object - handle both nested and direct response
+        const page = pageResponse.page || pageResponse;
         setPageData(page);
-        setIsFollowing(page.isFollowing || false);
         
-        // Fetch page posts
-        const posts = await pagesService.getPagePosts(pageId);
-        setPagePosts(posts);
+        // Set following status - check multiple possible locations
+        let followingStatus = false;
+        if (page.isFollowing !== undefined && page.isFollowing !== null) {
+          followingStatus = page.isFollowing;
+        } else if (page.is_following !== undefined && page.is_following !== null) {
+          followingStatus = page.is_following;
+        } else if (pageResponse.isFollowing !== undefined && pageResponse.isFollowing !== null) {
+          followingStatus = pageResponse.isFollowing;
+        }
         
-        // Fetch page members
-        const members = await pagesService.getMembers(pageId);
-        setPageMembers(members);
+        setIsFollowing(followingStatus);
+        
+        console.log('[PageView] Page loaded:', { 
+          pageResponse,
+          page,
+          isFollowing: followingStatus, 
+          pageIsFollowing: page.isFollowing,
+          pageResponseIsFollowing: pageResponse.isFollowing,
+          pageIs_following: page.is_following 
+        });
+        
+        const postsResponse = await pagesService.getPagePosts(page.slug || identifier);
+        const posts = postsResponse.posts || postsResponse.data || postsResponse || [];
+        // Deduplicate posts by ID to prevent duplicates
+        const uniquePosts = Array.isArray(posts) ? posts.filter((post: Post, index: number, self: Post[]) => 
+          index === self.findIndex((p: Post) => p.id === post.id)
+        ) : [];
+        setPagePosts(uniquePosts);
+        
+        if (page.id) {
+          try {
+            // Fetch team members and followers separately
+            const [teamResponse, followersResponse] = await Promise.all([
+              pagesService.getMembers(page.id, { type: 'team' }),
+              pagesService.getMembers(page.id, { type: 'followers' })
+            ]);
+            
+            setPageMembers(teamResponse.members || teamResponse.data || teamResponse || []);
+            setPageFollowers(followersResponse.followers || followersResponse.data || followersResponse || []);
+          } catch (err) {
+            console.warn('Could not fetch members:', err);
+            setPageMembers([]);
+            setPageFollowers([]);
+          }
+        }
       } catch (err: any) {
         setError(err?.message || 'Failed to load page data');
         console.error('Error fetching page:', err);
@@ -52,21 +125,49 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
     };
 
     fetchPageData();
-  }, [pageId]);
+  }, [pageId, pageSlug]);
 
   const handleFollowToggle = async () => {
+    if (!pageData || !pageData.id) return;
+    
+    // Optimistic update
+    const previousFollowing = isFollowing;
+    const previousFollowerCount = pageData.followerCount || pageData.follower_count || 0;
+    
+    // Don't do optimistic update if already following - just check status
+    if (!previousFollowing) {
+      setIsFollowing(true);
+    }
+    
     try {
-      if (isFollowing) {
-        await pagesService.leave(pageId);
-        setIsFollowing(false);
+      if (previousFollowing) {
+        const response = await pagesService.leavePage(pageData.id);
+        // Update following status from response
+        setIsFollowing(response?.isFollowing !== undefined ? response.isFollowing : false);
+        // Update follower count from response
+        if (response?.followerCount !== undefined) {
+          setPageData({ ...pageData, followerCount: response.followerCount });
+        } else {
+          setPageData({ ...pageData, followerCount: Math.max(0, previousFollowerCount - 1) });
+        }
       } else {
-        await pagesService.join(pageId);
-        setIsFollowing(true);
+        const response = await pagesService.joinPage(pageData.id);
+        // Update following status from response (handles both new follow and already following)
+        setIsFollowing(response?.isFollowing !== undefined ? response.isFollowing : true);
+        // Update follower count from response
+        if (response?.followerCount !== undefined) {
+          setPageData({ ...pageData, followerCount: response.followerCount });
+        } else {
+          setPageData({ ...pageData, followerCount: previousFollowerCount + 1 });
+        }
       }
     } catch (err: any) {
+      // Revert optimistic update on error
+      setIsFollowing(previousFollowing);
+      
+      const errorMessage = err?.response?.data?.message || err?.message || '';
       console.error('Error toggling follow:', err);
-      // Revert on error
-      setIsFollowing(!isFollowing);
+      alert(errorMessage || 'Failed to update follow status');
     }
   };
 
@@ -76,20 +177,27 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="text-center">
+          <Loader className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading page...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !pageData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         <div className="text-center">
-          <p className="text-red-500 mb-4">{error || 'Page not found'}</p>
+          <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Page Not Found</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">{error || 'The page you are looking for does not exist.'}</p>
           <button
             onClick={onBack}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg shadow-blue-500/25"
           >
             Back to Pages
           </button>
@@ -99,238 +207,648 @@ export function PageView({ pageId, onBack, onPostClick }: PageViewProps) {
   }
 
   const tabs = [
-    { id: 'posts', label: 'Posts', icon: MessageSquare },
-    { id: 'about', label: 'About', icon: TrendingUp },
-    { id: 'members', label: 'Members', icon: Users }
+    { id: 'posts', label: 'Posts', icon: MessageSquare, count: pagePosts.length },
+    { id: 'about', label: 'About', icon: FileText },
+    { id: 'members', label: 'Members', icon: Users, count: pageData.followerCount || pageData.follower_count || 0 },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 animate-fade-in">
-      {/* Fixed Header with Back Button */}
-      <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-medium"
-        >
-          <ArrowLeft size={20} />
-          Back to Pages
-        </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {/* Hero Section with Cover */}
+      <div className="relative">
+        {/* Cover Image */}
+        <div className="relative h-72 md:h-96 overflow-hidden">
+          {pageData.coverImageUrl ? (
+            <>
+            <img
+              src={pageData.coverImageUrl}
+              alt={`${pageData.name} cover`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
+          )}
+          
+          {/* Back Button */}
+                  <button
+            onClick={onBack}
+            className="absolute top-4 left-4 z-20 flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 transition-all shadow-lg"
+          >
+            <ArrowLeft size={18} />
+            <span className="hidden sm:inline">Back</span>
+                  </button>
+
+          {/* Action Buttons - Top Right */}
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            {user && !canManage && (
+                  <button
+                    onClick={handleNotificationToggle}
+                className={`p-2.5 rounded-xl backdrop-blur-xl border transition-all ${
+                      notificationsEnabled
+                    ? 'bg-blue-500/90 text-white border-blue-400/50 shadow-lg shadow-blue-500/25'
+                    : 'bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800'
+                    }`}
+                    title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
+                  >
+                    {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
+                  </button>
+            )}
+
+                  <button
+              className="p-2.5 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all"
+                    title="Share page"
+                  >
+                    <Share2 size={20} />
+                  </button>
+          </div>
+            </div>
+            
+        {/* Profile Section */}
+        <div className="relative px-4 sm:px-6 lg:px-8 -mt-20 z-10">
+          <div className="max-w-7xl mx-auto">
+            <GlassCard className="p-6 sm:p-8 shadow-2xl border-2 border-gray-200/50 dark:border-gray-700/50">
+              <div className="flex flex-col md:flex-row md:items-end gap-6">
+                {/* Logo */}
+                <div className="relative flex-shrink-0">
+                  <div className={`w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden border-4 border-white dark:border-gray-900 shadow-2xl bg-white dark:bg-gray-800`}>
+                    <img
+                      src={pageData.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`}
+                      alt={`${pageData.name} logo`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`;
+                      }}
+                    />
+                    {pageData.isVerified && (
+                      <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
+                        <VerifiedBadge size={20} />
+                      </div>
+                    )}
+                  </div>
+          </div>
+
+                {/* Info Section */}
+                <div className="flex-1 min-w-0 pt-4 md:pt-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+                          {pageData.name}
+                        </h1>
+                        {pageData.isVerified && (
+                          <Badge variant="gradient" className="text-xs px-2 py-1">
+                            {/* <Sparkles size={12} className="mr-1" /> */}
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {pageData.category && (
+                          <Badge variant="default" className="text-xs">
+                            <Building2 size={12} className="mr-1" />
+                            {pageData.category}
+                          </Badge>
+                        )}
+                        {pageData.createdAt && (
+                          <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <Calendar size={14} />
+                            Created {new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+        </div>
       </div>
 
-      {/* Cover & Profile Section */}
-      <div className="relative z-30">
-        {/* Cover Image */}
-        <div className="relative h-48 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
-          <img
-            src={pageData.coverImage}
-            alt="Cover"
-            className="w-full h-full object-cover"
-          />
-        </div>
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {user ? (
+                        <>
+                          {!canManage && (
+                            <button
+                              onClick={handleFollowToggle}
+                              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm ${
+                                isFollowing
+                                  ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-600'
+                                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105'
+                              }`}
+                            >
+                              <UserPlus size={18} />
+                              {isFollowing ? 'Following' : 'Follow'}
+                            </button>
+                          )}
+                </>
+              ) : (
+                <button
+                  onClick={() => {/* Open login modal */}}
+                          className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30"
+                >
+                  <UserPlus size={18} />
+                  Follow to Join
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-        {/* Profile Card */}
-        <div className="px-4 pb-4 -mt-16 relative z-40">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 p-4">
-            {/* Logo and Name */}
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg">
-                <img
-                  src={pageData.logo}
-                  alt={pageData.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0 pt-1">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1 truncate">{pageData.name}</h1>
-                <Badge variant="secondary" className="text-xs">{pageData.category}</Badge>
-              </div>
+                  {/* Stats */}
+                  <div className="flex items-center gap-6 mb-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                        <Users size={18} className="text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {(pageData.followerCount || pageData.follower_count || 0).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Followers</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
+                        <MessageSquare size={18} className="text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {pageData.postCount || pageData.posts || 0}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Posts</p>
+                      </div>
+                    </div>
+                    {pageData.viewCount && (
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/20">
+                          <Eye size={18} className="text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {pageData.viewCount.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Views</p>
+                        </div>
+                </div>
+              )}
             </div>
-
-            {/* Stats */}
-            <div className="flex items-center gap-4 mb-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <Users size={16} className="text-gray-400" />
-                <span className="font-bold text-gray-900 dark:text-white">{pageData.members.toLocaleString()}</span>
-                <span className="text-gray-500 dark:text-gray-400">members</span>
+            
+                  {/* Description */}
+                  {pageData.description && (
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {pageData.description}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
-              <div className="flex items-center gap-1.5">
-                <MessageSquare size={16} className="text-gray-400" />
-                <span className="font-bold text-gray-900 dark:text-white">{pageData.posts}</span>
-                <span className="text-gray-500 dark:text-gray-400">posts</span>
-              </div>
-            </div>
-
-            {/* Description */}
-            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
-              {pageData.description}
-            </p>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleFollowToggle}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg text-sm ${
-                  isFollowing
-                    ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                    : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
-                }`}
-              >
-                <UserPlus size={18} />
-                {isFollowing ? 'Following' : 'Follow'}
-              </button>
-
-              <button
-                onClick={handleNotificationToggle}
-                className={`p-2.5 rounded-xl transition-all ${
-                  notificationsEnabled
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
-              </button>
-
-              <button className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-gray-700 dark:text-gray-300">
-                <Settings size={20} />
-              </button>
-            </div>
+            </GlassCard>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="sticky top-[57px] z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-2">
-        <div className="flex gap-1 overflow-x-auto hide-scrollbar">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-500'
-                    : 'border-transparent text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                <Icon size={18} />
-                {tab.label}
-              </button>
-            );
-          })}
+      {/* Tabs Navigation */}
+      <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4 overflow-x-auto hide-scrollbar">
+            <div className="flex gap-1 min-w-0">
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                    className={`flex items-center gap-2 px-4 py-4 font-semibold text-sm whitespace-nowrap transition-all relative group ${
+                      isActive
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon size={18} className={isActive ? 'text-blue-600 dark:text-blue-400' : ''} />
+                  <span>{tab.label}</span>
+                    {tab.count !== undefined && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        isActive 
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-t-full"></span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 pb-8">
-
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'posts' && (
-          <PostFeed
-            posts={pagePosts}
-            onPostClick={onPostClick || (() => {})}
-            loading={false}
-            error={null}
-          />
-        )}
-
-        {activeTab === 'about' && (
-          <div className="space-y-4">
-            {/* About Section */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-              <h2 className="text-base font-bold mb-2 text-gray-900 dark:text-white">About</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                {pageData.description}
-              </p>
-            </div>
-
-            {/* Page Rules */}
-            {pageData.rules && pageData.rules.length > 0 && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-                <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Page Rules</h2>
-                <ul className="space-y-3">
-                  {pageData.rules.map((rule: string, index: number) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-xs flex items-center justify-center font-bold">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{rule}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Admins & Moderators */}
-            {pageMembers && pageMembers.length > 0 && (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-                <h2 className="text-base font-bold mb-3 text-gray-900 dark:text-white">Admins & Moderators</h2>
-                <div className="space-y-3">
-                  {pageMembers.filter((m: any) => m.role !== 'member').map((admin: any) => (
-                    <div key={admin.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                      <img
-                        src={admin.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${admin.username}`}
-                        alt={admin.username}
-                        className="w-12 h-12 rounded-full flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 dark:text-white truncate">{admin.username}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{admin.role}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Meta Info */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Created</p>
-                  <p className="font-bold text-gray-900 dark:text-white">
-                    {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</p>
-                  <p className="font-bold text-gray-900 dark:text-white">{pageData.category || 'General'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'members' && (
           <div>
-            {pageMembers.length > 0 ? (
-              <div className="space-y-3">
-                {pageMembers.map((member: any) => (
-                  <div key={member.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={member.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
-                        alt={member.username}
-                        className="w-12 h-12 rounded-full flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{member.role}</p>
-                      </div>
-                    </div>
-                  </div>
+            {pagePosts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pagePosts.map(post => (
+                  <CompactPostCard
+                    key={post.id}
+                    post={post}
+                    onClick={() => onPostClick?.(post)}
+                    onLoginRequired={onLoginRequired}
+                  />
                 ))}
               </div>
             ) : (
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-8 text-center">
-                <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
-                <h2 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">
-                  {pageData.memberCount || pageData.members || 0} Members
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Member list coming soon...</p>
-              </div>
+              <GlassCard className="p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare size={32} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">No posts yet</h3>
+                <p className="text-gray-500 dark:text-gray-400">Be the first to create a post for this page!</p>
+              </GlassCard>
             )}
           </div>
+        )}
+
+        {activeTab === 'about' && (
+          <AboutTab pageData={pageData} pageMembers={pageMembers} />
+        )}
+
+        {activeTab === 'members' && (
+          <MembersTab 
+            pageMembers={pageMembers} 
+            pageFollowers={pageFollowers}
+            pageData={pageData}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// About Tab Component
+function AboutTab({ pageData, pageMembers }: any) {
+  return (
+          <div className="space-y-6">
+      <GlassCard className="p-6 md:p-8">
+        <div className="flex items-start justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText size={24} className="text-blue-500" />
+                  About
+                </h2>
+              </div>
+        <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-lg">
+                {pageData.description || pageData.shortBio || 'No description available.'}
+              </p>
+            </GlassCard>
+
+            {/* Page Details Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <GlassCard className="p-6 hover:shadow-xl transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/20">
+              <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
+            </div>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</p>
+                </div>
+          <p className="font-bold text-xl text-gray-900 dark:text-white">
+                  {pageData.category || 'General'}
+                </p>
+              </GlassCard>
+
+        <GlassCard className="p-6 hover:shadow-xl transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/20">
+              <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
+            </div>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
+                </div>
+          <p className="font-bold text-xl text-gray-900 dark:text-white">
+                  {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
+                </p>
+              </GlassCard>
+
+              {pageData.url && (
+          <GlassCard className="p-6 hover:shadow-xl transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/20">
+                <Globe size={20} className="text-green-600 dark:text-green-400" />
+              </div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Website</p>
+                  </div>
+                  <a 
+                    href={pageData.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline break-all flex items-center gap-1 group"
+                  >
+              <span className="truncate">{pageData.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+              <ExternalLink size={14} className="flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </a>
+                </GlassCard>
+              )}
+            </div>
+
+            {/* Team Members */}
+            {pageMembers && pageMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
+        <GlassCard className="p-6 md:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Shield size={24} className="text-blue-500" />
+                    Team
+                  </h2>
+                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pageMembers
+                    .filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role))
+                    .map((member: any) => (
+              <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-lg transition-all border border-gray-200 dark:border-gray-700">
+                      <img
+                        src={member.avatarUrl || member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+                        alt={member.username}
+                  className="w-14 h-14 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700"
+                      />
+                      <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                          <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
+                          {member.is_verified && (
+                            <Badge variant="gradient" className="text-xs px-1.5 py-0.5">
+                              ✓
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge 
+                    variant={member.role === 'owner' ? 'gradient' : 'default'}
+                    className="text-xs"
+                        >
+                          {member.role === 'owner' ? 'Owner' : member.role === 'admin' ? 'Admin' : 'Moderator'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            )}
+
+            {/* Social Links */}
+            {pageData.socialLinks && Object.keys(pageData.socialLinks).length > 0 && (
+        <GlassCard className="p-6 md:p-8">
+          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
+            <Globe size={24} className="text-blue-500" />
+            Social Links
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {pageData.socialLinks.twitter && (
+                    <a
+                      href={pageData.socialLinks.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                  <span className="text-white text-lg">🐦</span>
+                </div>
+                <span className="font-semibold">Twitter</span>
+                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+                  {pageData.socialLinks.linkedin && (
+                    <a
+                      href={pageData.socialLinks.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <span className="text-white text-lg">💼</span>
+                </div>
+                <span className="font-semibold">LinkedIn</span>
+                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+                  {pageData.socialLinks.github && (
+                    <a
+                      href={pageData.socialLinks.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-gray-900 dark:bg-gray-100 flex items-center justify-center">
+                  <span className="text-white dark:text-gray-900 text-lg">💻</span>
+                </div>
+                <span className="font-semibold">GitHub</span>
+                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+                  {pageData.socialLinks.website && (
+                    <a
+                      href={pageData.socialLinks.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all border border-purple-200 dark:border-purple-800 group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
+                  <Globe size={18} className="text-white" />
+                </div>
+                <span className="font-semibold">Website</span>
+                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  )}
+                </div>
+              </GlassCard>
+            )}
+          </div>
+  );
+}
+
+// Members Tab Component
+function MembersTab({ pageMembers, pageFollowers }: any) {
+  const navigate = useNavigate();
+  
+  const teamMembers = pageMembers || [];
+  const followers = pageFollowers || [];
+  
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'gradient';
+      case 'admin':
+        return 'default';
+      case 'moderator':
+        return 'default';
+      default:
+        return 'default';
+    }
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white';
+      case 'admin':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
+      case 'moderator':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
+      default:
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'Owner';
+      case 'admin':
+        return 'Admin';
+      case 'moderator':
+        return 'Moderator';
+      default:
+        return 'Member';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Team Members Section */}
+      {teamMembers.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <Shield size={24} className="text-blue-600 dark:text-blue-400" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Team</h2>
+            <Badge variant="default" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              {teamMembers.length}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {teamMembers.map((member: any) => (
+              <GlassCard 
+                key={member.id} 
+                className="p-5 hover:shadow-xl transition-all cursor-pointer group"
+                onClick={() => navigate(`/profile/${member.username}`)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={member.avatar_url || member.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+                      alt={member.username}
+                      className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-all"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`;
+                      }}
+                    />
+                    {member.is_verified && (
+                      <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
+                        <VerifiedBadge size={14} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {member.username}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge 
+                        variant={getRoleBadgeVariant(member.role)}
+                        className={`text-xs font-semibold ${getRoleBadgeColor(member.role)}`}
+                      >
+                        {getRoleLabel(member.role)}
+                      </Badge>
+                      {member.reputation !== undefined && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {member.reputation} rep
+                        </span>
+                      )}
+                    </div>
+                    {member.bio && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                        {member.bio}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Followers Section */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <Users size={24} className="text-purple-600 dark:text-purple-400" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Followers</h2>
+          <Badge variant="default" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+            {followers.length}
+          </Badge>
+        </div>
+        {followers.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {followers.map((follower: any) => (
+              <GlassCard 
+                key={follower.id} 
+                className="p-5 hover:shadow-xl transition-all cursor-pointer group"
+                onClick={() => navigate(`/profile/${follower.username}`)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={follower.avatar_url || follower.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${follower.username}`}
+                      alt={follower.username}
+                      className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700 group-hover:border-purple-500 dark:group-hover:border-purple-400 transition-all"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${follower.username}`;
+                      }}
+                    />
+                    {follower.is_verified && (
+                      <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
+                        <VerifiedBadge size={14} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="font-bold text-gray-900 dark:text-white truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                        {follower.username}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {follower.reputation !== undefined && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {follower.reputation} reputation
+                        </span>
+                      )}
+                      {follower.created_at && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          • Joined {new Date(follower.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                    {follower.bio && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                        {follower.bio}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        ) : (
+          <GlassCard className="p-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+              <Users size={40} className="text-gray-400" />
+            </div>
+            <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">No followers yet</h3>
+            <p className="text-gray-500 dark:text-gray-400">Be the first to follow this page!</p>
+          </GlassCard>
         )}
       </div>
     </div>

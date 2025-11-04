@@ -25,24 +25,41 @@ export function Tooltip({ content, children, delay = 300 }: TooltipProps) {
     const rect = element.getBoundingClientRect();
     const scrollY = window.scrollY || window.pageYOffset;
     const scrollX = window.scrollX || window.pageXOffset;
-    const gap = 8;
+    const gap = 10;
 
-    const tooltipWidth = 200;
-    const tooltipHeight = 40;
+    // Estimate tooltip dimensions based on content
+    const tooltipWidth = 120;
+    const tooltipHeight = 36;
 
-    let top = rect.top + scrollY - tooltipHeight - gap;
-    let left = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
+    // Position tooltip to the right (for left sidebar)
+    let top = rect.top + scrollY + (rect.height / 2) - (tooltipHeight / 2);
+    let left = rect.right + scrollX + gap;
 
-    if (left < scrollX + 8) {
-      left = scrollX + 8;
-    }
-
+    // If tooltip would go off right side of screen, position to the left
     if (left + tooltipWidth > window.innerWidth + scrollX - 8) {
-      left = window.innerWidth + scrollX - tooltipWidth - 8;
+      left = rect.left + scrollX - tooltipWidth - gap;
     }
 
-    if (rect.top - tooltipHeight - gap < 8) {
+    // If still off screen on left, position below
+    if (left < scrollX + 8) {
       top = rect.bottom + scrollY + gap;
+      left = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
+      
+      // Keep it within screen bounds
+      if (left < scrollX + 8) {
+        left = scrollX + 8;
+      }
+      if (left + tooltipWidth > window.innerWidth + scrollX - 8) {
+        left = window.innerWidth + scrollX - tooltipWidth - 8;
+      }
+    }
+
+    // Ensure tooltip doesn't go off the top or bottom
+    if (top < scrollY + 8) {
+      top = scrollY + 8;
+    }
+    if (top + tooltipHeight > window.innerHeight + scrollY - 8) {
+      top = window.innerHeight + scrollY - tooltipHeight - 8;
     }
 
     setPosition({ top, left });
@@ -88,7 +105,6 @@ export function Tooltip({ content, children, delay = 300 }: TooltipProps) {
         >
           <div className="px-3 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-gray-800 rounded-lg shadow-xl border border-gray-700 whitespace-nowrap">
             {content}
-            <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 bg-gray-900 dark:bg-gray-800 border-r border-b border-gray-700 rotate-45" />
           </div>
         </div>,
         document.body

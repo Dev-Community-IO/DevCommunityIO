@@ -1,17 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
-import { Check, FileText, Trophy, Calendar, Briefcase, Upload, X } from 'lucide-react';
+import { Check, FileText, Trophy, Calendar, Briefcase, Upload, X, Plus, Trash2, Award, AlertCircle, TrendingUp, Star, Hash } from 'lucide-react';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Avatar } from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import postsService from '../services/api/posts.service';
 import pagesService from '../services/api/pages.service';
+import hackathonsService from '../services/api/hackathons.service';
+import eventsService from '../services/api/events.service';
+import opportunitiesService from '../services/api/opportunities.service';
+import adminService from '../services/api/admin.service';
+import tagsService, { Tag } from '../services/api/tags.service';
 
 interface CreatePostProps {
   onBack: () => void;
   pageId?: string;
   pageName?: string;
   pageLogo?: string;
+  editPostId?: string;
 }
 
 type ContentType = 'post' | 'hackathon' | 'event' | 'opportunity';
@@ -42,17 +48,24 @@ const getRandomTagColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-export function CreatePost({ onBack, pageId }: CreatePostProps) {
+export function CreatePost({ onBack, pageId, editPostId }: CreatePostProps) {
   const [contentType, setContentType] = useState<ContentType>('post');
+  const [isEditMode, setIsEditMode] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [companyLogoImage, setCompanyLogoImage] = useState<string | null>(null);
+  const [companyLogoError, setCompanyLogoError] = useState<string | null>(null);
   const [tagsList, setTagsList] = useState<{ tag: string; color: string }[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [availableTags, setAvailableTags] = useState(defaultTags);
   const [newTagsWithColors, setNewTagsWithColors] = useState<Record<string, string>>({});
+  const [tagSuggestions, setTagSuggestions] = useState<Tag[]>([]);
+  const [trendingTags, setTrendingTags] = useState<Tag[]>([]);
+  const [featuredTags, setFeaturedTags] = useState<Tag[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(pageId || null);
   const [postOrigin, setPostOrigin] = useState('');
   const [originSource, setOriginSource] = useState('');
@@ -60,9 +73,92 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
   const [userPagesData, setUserPagesData] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [reputationRequirements, setReputationRequirements] = useState<Record<string, number>>({});
+  const [reputationError, setReputationError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const companyLogoInputRef = useRef<HTMLInputElement>(null);
+  const organizerLogoInputRef = useRef<HTMLInputElement>(null);
+  const isSubmittingRef = useRef(false);
+  const editDataRef = useRef<{ postId: string; hackathonId?: string; eventId?: string; opportunityId?: string } | null>(null);
+
+  // Fetch reputation requirements on mount
+  useEffect(() => {
+    const fetchReputationRequirements = async () => {
+      try {
+        const data = await adminService.getReputationRequirements();
+        if (data.requirements) {
+          setReputationRequirements(data.requirements);
+        }
+      } catch (error) {
+        console.error('Failed to fetch reputation requirements:', error);
+      }
+    };
+    
+    fetchReputationRequirements();
+  }, []);
+
+  // Fetch trending and featured tags on mount
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        setLoadingTags(true);
+        const [trendingResponse, featuredResponse] = await Promise.all([
+          tagsService.getTrendingTags('7d', 20).catch(() => ({ tags: [] })),
+          tagsService.getFeaturedTags(15).catch(() => ({ tags: [] }))
+        ]);
+        
+        if (trendingResponse.tags) {
+          setTrendingTags(trendingResponse.tags);
+        }
+        if (featuredResponse.tags) {
+          setFeaturedTags(featuredResponse.tags);
+          // Also add to available tags
+          const tagNames = featuredResponse.tags.map((t: Tag) => t.name);
+          setAvailableTags([...new Set([...defaultTags, ...tagNames])]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tags:', error);
+      } finally {
+        setLoadingTags(false);
+      }
+    };
+    
+    fetchTags();
+  }, []);
+
+  // Fetch tag suggestions based on input
+  useEffect(() => {
+    const fetchTagSuggestions = async () => {
+      if (!tagInput.trim() || tagInput.length < 2) {
+        setTagSuggestions([]);
+        return;
+      }
+
+      try {
+        setLoadingTags(true);
+        const response = await tagsService.getTags({
+          search: tagInput.trim(),
+          limit: 15
+        });
+        
+        if (response.tags) {
+          setTagSuggestions(response.tags);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tag suggestions:', error);
+        setTagSuggestions([]);
+      } finally {
+        setLoadingTags(false);
+      }
+    };
+
+    // Debounce the search
+    const timeoutId = setTimeout(fetchTagSuggestions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [tagInput]);
 
   // Fetch user's pages on mount
   useEffect(() => {
@@ -81,35 +177,176 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
     fetchUserPages();
   }, [user]);
 
-  const filteredTags = tagInput.trim()
-    ? availableTags.filter(tag =>
-        tag.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !tagsList.some(t => t.tag === tag)
-      )
-    : [];
+  // Load post data for edit mode
+  useEffect(() => {
+    if (!editPostId) return;
+    
+    const loadPostData = async () => {
+      try {
+        setIsLoading(true);
+        const post = await postsService.getPost(editPostId);
+        
+        // Set common fields
+        setTitle(post.title || '');
+        setContent(post.content || '');
+        setCoverImage(post.coverImageUrl || null);
+        setTagsList(post.tags?.map((t: any) => ({ tag: t.name || t, color: getRandomTagColor() })) || []);
+        if (post.pageId) {
+          setSelectedPageId(post.pageId);
+        }
+        // Set post origin fields
+        setPostOrigin(post.postOrigin || '');
+        setOriginSource(post.originSource || '');
+        setOriginUrl(post.originUrl || '');
+        
+        // Determine content type and set category-specific fields
+        const category = post.category?.toLowerCase();
+        
+        // Set content type first to ensure UI updates correctly
+        const contentTypeValue = (category === 'hackathon' || category === 'event' || category === 'opportunity') 
+          ? category 
+          : 'post';
+        setContentType(contentTypeValue as ContentType);
+        setIsEditMode(true);
+        
+        // Store post ID in ref
+        editDataRef.current = { postId: post.id };
+        
+        // Use preloaded relationships from the post object
+        if (category === 'hackathon' && post.hackathon) {
+          const hackathon = post.hackathon;
+          editDataRef.current = { ...editDataRef.current, hackathonId: hackathon.id };
+          setStartDate(hackathon.startDate ? new Date(hackathon.startDate).toISOString().split('T')[0] : '');
+          setEndDate(hackathon.endDate ? new Date(hackathon.endDate).toISOString().split('T')[0] : '');
+          setPrize(hackathon.prize || hackathon.prizePool?.toString() || '');
+          setHackathonCategory(hackathon.category || '');
+          setDifficulty(hackathon.difficulty || 'intermediate');
+          setMaxParticipants(hackathon.maxParticipants?.toString() || '');
+          setOrganizerName(hackathon.organizerName || '');
+          setOrganizerLogoUrl(hackathon.organizerLogoUrl || '');
+          setRegistrationUrl(hackathon.registrationUrl || '');
+          setCtaButtonText(hackathon.ctaButtonText || '');
+          setImportantDates(hackathon.importantDates || []);
+          setRequirements(hackathon.requirements || []);
+        } else if (category === 'event' && post.event) {
+          const event = post.event;
+          editDataRef.current = { ...editDataRef.current, eventId: event.id };
+          const eventDateTime = new Date(event.date);
+          setEventDate(eventDateTime.toISOString().split('T')[0] || '');
+          setEventTime(event.time || '');
+          setLocation(event.location || '');
+          setEventType(event.type || 'online');
+          setEventCategory(event.category || '');
+          setMaxAttendees(event.maxAttendees?.toString() || '');
+          setTicketPrice(event.price || 'Free');
+          setRegistrationUrl(event.registrationUrl || '');
+          setCtaButtonText(event.ctaButtonText || '');
+        } else if (category === 'opportunity' && post.opportunity) {
+          const opportunity = post.opportunity;
+          editDataRef.current = { ...editDataRef.current, opportunityId: opportunity.id };
+          setCompany(opportunity.companyName || '');
+          setLocation(opportunity.location || '');
+          setOpportunityCategory(opportunity.category || '');
+          setJobType(opportunity.type || 'full-time');
+          setSalary(opportunity.salary || '');
+          setExperience(opportunity.experience || '');
+          setRemote(opportunity.remote !== undefined ? opportunity.remote : true);
+          setApplicationUrl(opportunity.applicationUrl || '');
+          setCtaButtonTextOpportunity(opportunity.ctaButtonText || '');
+        }
+      } catch (error) {
+        console.error('Failed to load post data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadPostData();
+  }, [editPostId]);
 
+  // Get filtered tags from suggestions or fallback to available tags
+  const getFilteredTags = () => {
+    if (tagInput.trim()) {
+      // Use API suggestions if available, otherwise fallback to local filtering
+      if (tagSuggestions.length > 0) {
+        return tagSuggestions
+          .map((t: Tag) => t.name)
+          .filter(tag => !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase()));
+      }
+      // Fallback to local filtering
+      return availableTags.filter(tag =>
+        tag.toLowerCase().includes(tagInput.toLowerCase()) &&
+        !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase())
+      );
+    }
+    return [];
+  };
+
+  const filteredTags = getFilteredTags();
+  
+  // Get popular tags to show when input is empty
+  const getPopularTags = () => {
+    const allPopular = [...trendingTags, ...featuredTags]
+      .filter((tag, index, self) => 
+        index === self.findIndex((t) => t.slug === tag.slug)
+      )
+      .slice(0, 12);
+    
+    return allPopular
+      .map((t: Tag) => t.name)
+      .filter(tag => !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase()));
+  };
+
+  const popularTags = !tagInput.trim() ? getPopularTags() : [];
+
+  // Hackathon fields
   const [prize, setPrize] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [difficulty, setDifficulty] = useState('intermediate');
+  const [hackathonCategory, setHackathonCategory] = useState('');
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [organizerName, setOrganizerName] = useState('');
+  const [organizerLogoUrl, setOrganizerLogoUrl] = useState('');
+  const [organizerLogoImage, setOrganizerLogoImage] = useState<string | null>(null);
+  const [organizerLogoError, setOrganizerLogoError] = useState<string | null>(null);
+  const [importantDates, setImportantDates] = useState<Array<{ label: string; date: string }>>([]);
+  const [importantDateLabel, setImportantDateLabel] = useState('');
+  const [importantDateDate, setImportantDateDate] = useState('');
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [requirementInput, setRequirementInput] = useState('');
+  const [registrationUrl, setRegistrationUrl] = useState('');
+  const [ctaButtonText, setCtaButtonText] = useState('');
 
+  // Event fields
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [location, setLocation] = useState('');
   const [eventType, setEventType] = useState('online');
   const [maxAttendees, setMaxAttendees] = useState('');
   const [ticketPrice, setTicketPrice] = useState('');
+  const [eventCategory, setEventCategory] = useState('');
 
+  // Opportunity fields
+  const [applicationUrl, setApplicationUrl] = useState('');
+  const [ctaButtonTextOpportunity, setCtaButtonTextOpportunity] = useState('');
   const [company, setCompany] = useState('');
   const [salary, setSalary] = useState('');
   const [jobType, setJobType] = useState('full-time');
   const [experience, setExperience] = useState('');
   const [remote, setRemote] = useState(true);
+  const [opportunityCategory, setOpportunityCategory] = useState('');
 
   // Filter pages where user can post (owner, moderator, or admin only)
-  const canPostPages = userPagesData.filter(page => 
-    page.role === 'owner' || page.role === 'moderator' || page.role === 'admin'
-  );
+  // Filter pages where user can post and remove duplicates by page ID
+  const canPostPages = userPagesData
+    .filter(page => 
+      page.role === 'owner' || page.role === 'moderator' || page.role === 'admin'
+    )
+    .filter((page, index, self) => 
+      // Keep only first occurrence of each page ID
+      index === self.findIndex((p) => p.id === page.id)
+    );
 
   const contentTypes = [
     { id: 'post' as ContentType, name: 'Post', icon: FileText, color: 'from-blue-500 to-cyan-500' },
@@ -145,6 +382,66 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
     setImageError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCompanyLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setCompanyLogoError('Image size must be less than 5MB');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setCompanyLogoError('Please upload a valid image file');
+      return;
+    }
+
+    setCompanyLogoError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCompanyLogoImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveCompanyLogo = () => {
+    setCompanyLogoImage(null);
+    setCompanyLogoError(null);
+    if (companyLogoInputRef.current) {
+      companyLogoInputRef.current.value = '';
+    }
+  };
+
+  const handleOrganizerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setOrganizerLogoError('Image size must be less than 5MB');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setOrganizerLogoError('Please upload a valid image file');
+      return;
+    }
+
+    setOrganizerLogoError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setOrganizerLogoImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveOrganizerLogo = () => {
+    setOrganizerLogoImage(null);
+    setOrganizerLogoError(null);
+    if (organizerLogoInputRef.current) {
+      organizerLogoInputRef.current.value = '';
     }
   };
 
@@ -203,71 +500,212 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
     }
   };
 
+  const handleAddImportantDate = () => {
+    if (importantDateLabel.trim() && importantDateDate) {
+      setImportantDates([...importantDates, { label: importantDateLabel.trim(), date: importantDateDate }]);
+      setImportantDateLabel('');
+      setImportantDateDate('');
+    }
+  };
+
+  const handleRemoveImportantDate = (index: number) => {
+    setImportantDates(importantDates.filter((_, i) => i !== index));
+  };
+
+  const handleAddRequirement = () => {
+    if (requirementInput.trim() && !requirements.includes(requirementInput.trim())) {
+      setRequirements([...requirements, requirementInput.trim()]);
+      setRequirementInput('');
+    }
+  };
+
+  const handleRemoveRequirement = (index: number) => {
+    setRequirements(requirements.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
+    // Prevent duplicate submissions (especially in React StrictMode)
+    if (isSubmittingRef.current || isSubmitting) {
+      return;
+    }
+
+    setSubmitError(null);
+    setReputationError(null);
+
+    // Check reputation requirement for non-post content types
+    if (contentType !== 'post' && user) {
+      const requiredReputation = reputationRequirements[contentType] || 0;
+      if (requiredReputation > 0 && user.reputation < requiredReputation) {
+        setReputationError(
+          `You need at least ${requiredReputation} reputation points to create a ${contentType}. Your current reputation: ${user.reputation}`
+        );
+        isSubmittingRef.current = false;
+        return;
+      }
+    }
+
+    // Validation
     if (!title.trim()) {
       setSubmitError('Title is required');
+      isSubmittingRef.current = false;
       return;
     }
 
     if (!content.trim()) {
       setSubmitError('Content is required');
+      isSubmittingRef.current = false;
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
+    setReputationError(null);
 
     try {
-      const baseData: any = { 
-        title, 
-        content, 
-        category: contentType,
-        tags: tagsList.map(t => t.tag), // Extract just tag names for submission
-        coverImageUrl: coverImage || null,
-        pageId: selectedPageId || null,
-        status: 'published',
-        postOrigin: postOrigin || null,
-        originSource: postOrigin ? originSource : null,
-        originUrl: postOrigin ? originUrl : null
-      };
+      if (contentType === 'post') {
+        // Create or update regular post
+        const postData = { 
+          title, 
+          content, 
+          category: contentType,
+          tags: tagsList.map(t => t.tag),
+          coverImageUrl: coverImage || null,
+          pageId: selectedPageId || undefined,
+          status: 'published',
+          postOrigin: postOrigin || null,
+          originSource: postOrigin ? originSource : null,
+          originUrl: postOrigin ? originUrl : null
+        };
 
-      // Add contentType-specific fields
-      if (contentType === 'hackathon') {
-        baseData.prize = prize;
-        baseData.startDate = startDate;
-        baseData.endDate = endDate;
-        baseData.difficulty = difficulty;
+        if (isEditMode && editDataRef.current?.postId) {
+          const updatedPost = await postsService.updatePost(editDataRef.current.postId, postData);
+          navigate(`/post/${updatedPost.slug}`, { replace: true, state: { post: updatedPost } });
+        } else {
+          const createdPost = await postsService.createPost(postData);
+          navigate(`/post/${createdPost.slug}`, { replace: true, state: { post: createdPost } });
+        }
+      } else if (contentType === 'hackathon') {
+        // Create or update hackathon
+        if (!startDate || !endDate) {
+          setSubmitError('Start date and end date are required');
+          setIsSubmitting(false);
+          isSubmittingRef.current = false;
+          return;
+        }
+
+        const hackathonData = {
+          title,
+          description: content,
+          imageUrl: coverImage || undefined,
+          organizerName: organizerName || user?.username || user?.pseudo || undefined,
+          organizerLogoUrl: organizerLogoImage || organizerLogoUrl || undefined,
+          startDate,
+          endDate,
+          importantDates: importantDates.length > 0 ? importantDates : undefined,
+          prize: prize || undefined,
+          maxParticipants: maxParticipants ? parseInt(maxParticipants) : undefined,
+          category: hackathonCategory || 'general',
+          difficulty: difficulty as 'beginner' | 'intermediate' | 'advanced',
+          requirements: requirements.length > 0 ? requirements : undefined,
+          registrationUrl: registrationUrl || undefined,
+          ctaButtonText: ctaButtonText || undefined,
+          postOrigin: postOrigin || null,
+          originSource: postOrigin ? originSource : null,
+          originUrl: postOrigin ? originUrl : null,
+        };
+
+        if (isEditMode && editDataRef.current?.hackathonId) {
+          const result = await hackathonsService.updateHackathon(editDataRef.current.hackathonId, hackathonData);
+          const hackathon = result.hackathon || result;
+          navigate(`/hackathons/${hackathon.slug}`, { replace: true });
+        } else {
+          const result = await hackathonsService.createHackathon(hackathonData);
+          const hackathon = result.hackathon || result;
+          navigate(`/hackathons/${hackathon.slug}`, { replace: true });
+        }
       } else if (contentType === 'event') {
-        baseData.eventDate = eventDate;
-        baseData.eventTime = eventTime;
-        baseData.location = location;
-        baseData.eventType = eventType;
-        baseData.maxAttendees = maxAttendees;
-        baseData.ticketPrice = ticketPrice;
-      } else if (contentType === 'opportunity') {
-        baseData.company = company;
-        baseData.salary = salary;
-        baseData.jobType = jobType;
-        baseData.experience = experience;
-        baseData.remote = remote;
-      }
+        // Create or update event
+        if (!eventDate || !eventTime || !location) {
+          setSubmitError('Date, time, and location are required');
+          setIsSubmitting(false);
+          isSubmittingRef.current = false;
+          return;
+        }
 
-      const createdPost = await postsService.createPost(baseData);
-      
-      // Navigate to the created post (replace to remove create-post from history)
-      // Pass post data via state for instant loading
-      navigate(`/post/${createdPost.slug}`, { 
-        replace: true,
-        state: { post: createdPost }
-      });
+        const eventData = {
+          title,
+          description: content,
+          imageUrl: coverImage || undefined,
+          date: eventDate,
+          time: eventTime,
+          location,
+          type: eventType as 'online' | 'in-person' | 'hybrid',
+          category: eventCategory || 'general',
+          maxAttendees: maxAttendees ? parseInt(maxAttendees) : undefined,
+          price: ticketPrice || 'Free',
+          registrationUrl: registrationUrl || undefined,
+          ctaButtonText: ctaButtonText || undefined,
+          postOrigin: postOrigin || null,
+          originSource: postOrigin ? originSource : null,
+          originUrl: postOrigin ? originUrl : null,
+        };
+
+        if (isEditMode && editDataRef.current?.eventId) {
+          const result = await eventsService.updateEvent(editDataRef.current.eventId, eventData);
+          const event = result.event || result;
+          navigate(`/events/${event.slug}`, { replace: true });
+        } else {
+          const result = await eventsService.createEvent(eventData);
+          const event = result.event || result;
+          navigate(`/events/${event.slug}`, { replace: true });
+        }
+      } else if (contentType === 'opportunity') {
+        // Create or update opportunity
+        if (!company || !location) {
+          setSubmitError('Company name and location are required');
+          setIsSubmitting(false);
+          isSubmittingRef.current = false;
+          return;
+        }
+
+        const opportunityData = {
+          title,
+          description: content,
+          companyName: company,
+          logoUrl: companyLogoImage || undefined,
+          location,
+          type: jobType as 'full-time' | 'part-time' | 'contract' | 'internship',
+          category: opportunityCategory || 'general',
+          salary: salary || undefined,
+          experience: experience || 'Not specified',
+          remote,
+          applicationUrl: applicationUrl || undefined,
+          ctaButtonText: ctaButtonTextOpportunity || undefined,
+          postOrigin: postOrigin || null,
+          originSource: postOrigin ? originSource : null,
+          originUrl: postOrigin ? originUrl : null,
+        };
+
+        if (isEditMode && editDataRef.current?.opportunityId) {
+          const result = await opportunitiesService.updateOpportunity(editDataRef.current.opportunityId, opportunityData);
+          const opportunity = result.opportunity || result;
+          navigate(`/opportunities/${opportunity.slug}`, { replace: true });
+        } else {
+          const result = await opportunitiesService.createOpportunity(opportunityData);
+          const opportunity = result.opportunity || result;
+          navigate(`/opportunities/${opportunity.slug}`, { replace: true });
+        }
+      }
       
       // Scroll to top for better UX
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
-      console.error('Failed to create post:', error);
-      setSubmitError(error.response?.data?.message || 'Failed to create post. Please try again.');
+      console.error('Failed to create/update content:', error);
+      setSubmitError(error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} ${contentType}. Please try again.`);
     } finally {
       setIsSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -275,6 +713,16 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 animate-fade-in pt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="relative">
+          {/* Title */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {isEditMode ? `Edit ${contentType.charAt(0).toUpperCase() + contentType.slice(1)}` : `Create ${contentType.charAt(0).toUpperCase() + contentType.slice(1)}`}
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              {isEditMode ? 'Make your changes and update your content' : 'Share your thoughts and connect with the community'}
+            </p>
+          </div>
+          
           {/* Main Content Area - Responsive Width */}
             <div className="lg:mr-80 space-y-6">
 
@@ -292,8 +740,8 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                       }`}
                     >
                       <Avatar
-                        src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
-                        alt="Your Profile"
+                        src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'user'}`}
+                        alt={user?.username || 'Your Profile'}
                         size="sm"
                         className="w-8 h-8 ring-2 ring-white/30"
                       />
@@ -311,8 +759,29 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                             : 'border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-lg overflow-hidden ring-2 ring-white/30">
-                          <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+                        <div className={`w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 ${
+                          selectedPageId === page.id
+                            ? 'ring-2 ring-white/50 shadow-lg'
+                            : 'ring-1 ring-gray-200 dark:ring-gray-700'
+                        } bg-white dark:bg-gray-800`}>
+                          {page.logo || page.logoUrl ? (
+                            <img 
+                              src={page.logo || page.logoUrl}
+                              alt={page.name} 
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
+                              <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                                {page.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <span className="font-semibold flex-1 text-left">{page.name}</span>
                         {selectedPageId === page.id && <Check size={18} strokeWidth={2.5} />}
@@ -343,14 +812,16 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
             {/* Hackathon Specific Fields */}
             {contentType === 'hackathon' && (
               <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Hackathon Details</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Prize Amount</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Category <span className="text-red-500">*</span></label>
                     <input
                       type="text"
-                      value={prize}
-                      onChange={(e) => setPrize(e.target.value)}
-                      placeholder="$100,000"
+                      value={hackathonCategory}
+                      onChange={(e) => setHackathonCategory(e.target.value)}
+                      placeholder="e.g., Blockchain, DeFi, NFT"
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
@@ -367,22 +838,203 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Start Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Start Date <span className="text-red-500">*</span></label>
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
+                      required
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">End Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">End Date <span className="text-red-500">*</span></label>
                     <input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Prize Amount</label>
+                    <input
+                      type="text"
+                      value={prize}
+                      onChange={(e) => setPrize(e.target.value)}
+                      placeholder="$100,000"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Max Participants</label>
+                    <input
+                      type="number"
+                      value={maxParticipants}
+                      onChange={(e) => setMaxParticipants(e.target.value)}
+                      placeholder="100"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Organizer Name</label>
+                    <input
+                      type="text"
+                      value={organizerName}
+                      onChange={(e) => setOrganizerName(e.target.value)}
+                      placeholder={user?.username || user?.pseudo || "Organizer name"}
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
+                      Organizer Logo
+                      <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 5MB)</span>
+                    </label>
+{!organizerLogoImage && !organizerLogoUrl ? (
+                      <div
+                        onClick={() => organizerLogoInputRef.current?.click()}
+                        className="w-full h-32 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-2"
+                      >
+                        <Upload size={24} className="text-gray-400" />
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">Click to upload logo</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 5MB</p>
+                        </div>
+                        <input
+                          ref={organizerLogoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleOrganizerLogoUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative w-full h-32 rounded-xl overflow-hidden">
+                        <img
+                          src={organizerLogoImage || organizerLogoUrl || ''}
+                          alt="Organizer Logo"
+                          className="w-full h-full object-contain bg-gray-50 dark:bg-gray-800"
+                        />
+                        <button
+                          onClick={handleRemoveOrganizerLogo}
+                          className="absolute top-2 right-2 p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg transition-all duration-300"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {organizerLogoError && (
+                      <p className="text-red-500 text-xs mt-2 font-medium">{organizerLogoError}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Important Dates */}
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Important Dates</label>
+                  <div className="space-y-2">
+                    {importantDates.map((date, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span className="flex-1 text-sm font-medium">{date.label}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">{date.date}</span>
+                        <button
+                          onClick={() => handleRemoveImportantDate(index)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={importantDateLabel}
+                        onChange={(e) => setImportantDateLabel(e.target.value)}
+                        placeholder="e.g., Registration Deadline"
+                        className="flex-1 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                      <input
+                        type="date"
+                        value={importantDateDate}
+                        onChange={(e) => setImportantDateDate(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                      <button
+                        onClick={handleAddImportantDate}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all flex items-center gap-1.5"
+                      >
+                        <Plus size={16} />
+                        <span className="text-sm">Add</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Requirements */}
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Requirements</label>
+                  <div className="space-y-2">
+                    {requirements.map((req, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span className="flex-1 text-sm">{req}</span>
+                        <button
+                          onClick={() => handleRemoveRequirement(index)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={requirementInput}
+                        onChange={(e) => setRequirementInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddRequirement()}
+                        placeholder="e.g., Team size: 2-4 members"
+                        className="flex-1 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                      <button
+                        onClick={handleAddRequirement}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all flex items-center gap-1.5"
+                      >
+                        <Plus size={16} />
+                        <span className="text-sm">Add</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Registration URL and CTA Button */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Registration URL</label>
+                    <input
+                      type="url"
+                      value={registrationUrl}
+                      onChange={(e) => setRegistrationUrl(e.target.value)}
+                      placeholder="https://example.com/register"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Button Text</label>
+                    <input
+                      type="text"
+                      value={ctaButtonText}
+                      onChange={(e) => setCtaButtonText(e.target.value)}
+                      placeholder="e.g., Register Now"
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
@@ -393,37 +1045,53 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
             {/* Event Specific Fields */}
             {contentType === 'event' && (
               <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Event Details</h3>
+                
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Category <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={eventCategory}
+                    onChange={(e) => setEventCategory(e.target.value)}
+                    placeholder="e.g., Conference, Workshop, Meetup"
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Date</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Date <span className="text-red-500">*</span></label>
                     <input
                       type="date"
                       value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
+                      required
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Time</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Time <span className="text-red-500">*</span></label>
                     <input
                       type="time"
                       value={eventTime}
                       onChange={(e) => setEventTime(e.target.value)}
+                      required
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location</label>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="San Francisco, CA or Virtual Event"
+                    required
                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Event Type</label>
                     <select
@@ -457,23 +1125,63 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                   />
                 </div>
+
+                {/* Registration URL and CTA Button */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Registration URL</label>
+                    <input
+                      type="url"
+                      value={registrationUrl}
+                      onChange={(e) => setRegistrationUrl(e.target.value)}
+                      placeholder="https://example.com/register"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Button Text</label>
+                    <input
+                      type="text"
+                      value={ctaButtonText}
+                      onChange={(e) => setCtaButtonText(e.target.value)}
+                      placeholder="e.g., Get Tickets"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Opportunity Specific Fields */}
             {contentType === 'opportunity' && (
               <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Job Details</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
                       placeholder="Company Name"
+                      required
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Category <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={opportunityCategory}
+                      onChange={(e) => setOpportunityCategory(e.target.value)}
+                      placeholder="e.g., Engineering, Marketing, Design"
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Salary Range</label>
                     <input
@@ -484,8 +1192,52 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                       className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
+                      Company Logo
+                      <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 5MB)</span>
+                    </label>
+                    {!companyLogoImage ? (
+                      <div
+                        onClick={() => companyLogoInputRef.current?.click()}
+                        className="w-full h-32 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-2"
+                      >
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+                          <Upload size={20} className="text-white" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-semibold text-gray-900 dark:text-white">Click to upload logo</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">PNG, JPG up to 5MB</p>
+                        </div>
+                        <input
+                          ref={companyLogoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleCompanyLogoUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+                        <img
+                          src={companyLogoImage}
+                          alt="Company Logo"
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          onClick={handleRemoveCompanyLogo}
+                          className="absolute top-2 right-2 p-2 rounded-lg bg-red-500 hover:bg-red-600 text-white shadow-lg transition-all duration-300"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                    {companyLogoError && (
+                      <p className="text-red-500 text-xs mt-2 font-medium">{companyLogoError}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Job Type</label>
                     <select
@@ -511,12 +1263,13 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location</label>
+                  <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Location <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="San Francisco, CA or Remote"
+                    required
                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
                   />
                 </div>
@@ -530,6 +1283,30 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                     />
                     <span className="text-sm font-bold text-gray-900 dark:text-white">Remote Position</span>
                   </label>
+                </div>
+
+                {/* Application URL and CTA Button */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Application URL</label>
+                    <input
+                      type="url"
+                      value={applicationUrl}
+                      onChange={(e) => setApplicationUrl(e.target.value)}
+                      placeholder="https://example.com/apply"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Button Text</label>
+                    <input
+                      type="text"
+                      value={ctaButtonTextOpportunity}
+                      onChange={(e) => setCtaButtonTextOpportunity(e.target.value)}
+                      placeholder="e.g., Apply Now"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -610,17 +1387,98 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                 disabled={tagsList.length >= MAX_TAGS}
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base"
               />
-              {showTagSuggestions && filteredTags.length > 0 && tagsList.length < MAX_TAGS && (
-                <div className="absolute z-10 left-4 right-4 mt-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl max-h-48 overflow-y-auto">
-                  {filteredTags.slice(0, 10).map(tag => (
-                    <button
-                      key={tag}
-                      onClick={() => handleAddTag(tag)}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 text-sm font-medium border-b border-gray-100 dark:border-gray-700 last:border-0"
-                    >
-                      #{tag}
-                    </button>
-                  ))}
+              {showTagSuggestions && tagsList.length < MAX_TAGS && (
+                <div className="absolute z-50 left-4 right-4 mt-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl max-h-80 overflow-y-auto">
+                  {loadingTags ? (
+                    <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+                      Loading suggestions...
+                    </div>
+                  ) : tagInput.trim() ? (
+                    // Show search results when typing
+                    filteredTags.length > 0 ? (
+                      <>
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                          <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Search Results</p>
+                        </div>
+                        {filteredTags.slice(0, 15).map(tagName => {
+                          const tag = tagSuggestions.find((t: Tag) => t.name === tagName) || 
+                                     trendingTags.find((t: Tag) => t.name === tagName) ||
+                                     featuredTags.find((t: Tag) => t.name === tagName);
+                          const usageCount = tag?.usageCount || 0;
+                          const isFeatured = tag?.featured || false;
+                          
+                          return (
+                            <button
+                              key={tagName}
+                              onClick={() => handleAddTag(tagName)}
+                              className="w-full px-4 py-3 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 text-sm border-b border-gray-100 dark:border-gray-700 last:border-0 group"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <Hash size={16} className="text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors flex-shrink-0" />
+                                  <span className="font-medium text-gray-900 dark:text-white truncate">#{tagName}</span>
+                                  {isFeatured && (
+                                    <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                                  )}
+                                </div>
+                                {usageCount > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                                    <TrendingUp size={12} />
+                                    <span>{usageCount.toLocaleString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        No tags found. Press Enter to create "{tagInput.trim()}"
+                      </div>
+                    )
+                  ) : (
+                    // Show popular tags when input is empty
+                    popularTags.length > 0 && (
+                      <>
+                        <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp size={14} className="text-blue-500 dark:text-blue-400" />
+                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Popular Tags</p>
+                          </div>
+                        </div>
+                        <div className="p-3">
+                          <div className="flex flex-wrap gap-2">
+                            {popularTags.map(tagName => {
+                              const tag = trendingTags.find((t: Tag) => t.name === tagName) ||
+                                         featuredTags.find((t: Tag) => t.name === tagName);
+                              const usageCount = tag?.usageCount || 0;
+                              const isFeatured = tag?.featured || false;
+                              
+                              return (
+                                <button
+                                  key={tagName}
+                                  onClick={() => handleAddTag(tagName)}
+                                  className="group px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white dark:hover:from-blue-600 dark:hover:to-purple-600 transition-all duration-200 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5"
+                                >
+                                  <Hash size={14} className="group-hover:text-white transition-colors" />
+                                  <span>{tagName}</span>
+                                  {isFeatured && (
+                                    <Star size={12} className="text-yellow-500 fill-yellow-500 group-hover:text-white group-hover:fill-white transition-colors" />
+                                  )}
+                                  {usageCount > 0 && (
+                                    <span className="text-xs opacity-70 group-hover:text-white">
+                                      {usageCount > 1000 ? `${(usageCount / 1000).toFixed(1)}k` : usageCount}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )
+                  )}
                 </div>
               )}
               {tagsList.length > 0 && (
@@ -656,11 +1514,14 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                       return (
                         <button
                           key={type.id}
-                          onClick={() => setContentType(type.id)}
+                          onClick={() => !isEditMode && setContentType(type.id)}
+                          disabled={isEditMode}
                           className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg text-xs transition-all ${
                             isActive
                               ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
                               : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                          } ${
+                            isEditMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                           }`}
                         >
                           <Icon size={18} strokeWidth={2} />
@@ -670,6 +1531,21 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                     })}
                   </div>
                 </div>
+
+                {/* Reputation Warning - Right Sidebar */}
+                {contentType !== 'post' && user && reputationRequirements[contentType] > 0 && user.reputation < reputationRequirements[contentType] && (
+                  <div className="border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 bg-yellow-50 dark:bg-yellow-900/20">
+                    <div className="flex items-start gap-2">
+                      <Award size={16} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-100 mb-1">Reputation Required</p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                          You need <strong>{reputationRequirements[contentType]}</strong> reputation points to create a {contentType}. Your current: <strong>{user.reputation}</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Post Origin - Right Sidebar */}
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -719,8 +1595,8 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                         }`}
                       >
                         <Avatar
-                          src="https://api.dicebear.com/7.x/avataaars/svg?seed=Emma"
-                          alt="Your Profile"
+                          src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'user'}`}
+                          alt={user?.username || 'Your Profile'}
                           size="sm"
                           className="w-6 h-6"
                         />
@@ -737,8 +1613,29 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
                               : 'border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300'
                           }`}
                         >
-                          <div className="w-6 h-6 rounded overflow-hidden">
-                            <img src={page.logo} alt={page.name} className="w-full h-full object-cover" />
+                          <div className={`w-6 h-6 rounded overflow-hidden flex-shrink-0 ${
+                            selectedPageId === page.id
+                              ? 'ring-1 ring-blue-400 dark:ring-blue-500 shadow-md'
+                              : 'ring-1 ring-gray-200 dark:ring-gray-700'
+                          } bg-white dark:bg-gray-800`}>
+                            {page.logo || page.logoUrl ? (
+                              <img 
+                                src={page.logo || page.logoUrl}
+                                alt={page.name} 
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
+                                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                                  {page.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <span className="flex-1 text-left">{page.name}</span>
                         </button>
@@ -778,6 +1675,18 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
       {/* Footer Actions */}
       <div className="border-t border-gray-200 dark:border-gray-800 py-6 mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {reputationError && (
+            <div className="mb-4 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 flex items-start gap-3">
+              <AlertCircle size={20} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">Reputation Required</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">{reputationError}</p>
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                  Gain reputation by posting quality content, getting upvotes, and engaging with the community.
+                </p>
+              </div>
+            </div>
+          )}
           {submitError && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
               {submitError}
@@ -793,10 +1702,15 @@ export function CreatePost({ onBack, pageId }: CreatePostProps) {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !title.trim() || !content.trim()}
+              disabled={
+                isSubmitting || 
+                !title.trim() || 
+                !content.trim() || 
+                !!(contentType !== 'post' && user && reputationRequirements[contentType] > 0 && user.reputation < reputationRequirements[contentType])
+              }
               className="flex-1 py-3 px-6 rounded-xl font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Publishing...' : 'Publish'}
+{isSubmitting ? (isEditMode ? 'Updating...' : 'Publishing...') : (isEditMode ? 'Update' : 'Publish')}
             </button>
           </div>
         </div>

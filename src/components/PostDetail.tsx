@@ -1,23 +1,23 @@
-import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, AlertTriangle, Flag, Smile } from 'lucide-react';
-import { Post, Comment as CommentType } from '../types';
+import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile } from 'lucide-react';
+import { Post, Comment as CommentType, Page } from '../types';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Comment } from './Comment';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Tooltip } from './Tooltip';
-import { EmojiReactions } from './EmojiReactions';
-import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 import { ShareDropdown } from './ShareDropdown';
 import { ReportModal } from './ReportModal';
 import { MentionTextarea } from './MentionTextarea';
+import { PostOriginDisplay } from './PostOriginDisplay';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
-import bookmarksService from '../services/api/bookmarks.service';
+import { useNavigate } from 'react-router-dom';
 import commentsService from '../services/api/comments.service';
-import postsService from '../services/api/posts.service';
 import reactionsService from '../services/api/reactions.service';
+import pagesService from '../services/api/pages.service';
+import bookmarksService from '../services/api/bookmarks.service';
 
 interface PostDetailProps {
   post: Post;
@@ -25,72 +25,38 @@ interface PostDetailProps {
   onLoginRequired?: () => void;
 }
 
-const mockComments: CommentType[] = [
-  {
-    id: '1',
-    author: {
-      id: '5',
-      username: 'SmartContractAuditor',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SmartContractAuditor',
-      walletAddress: '0x321f...88a2',
-      reputation: 4200,
-      isVerified: true
-    },
-    content: 'Great analysis! I\'d also add that liquid staking derivatives introduce systemic risks that need careful consideration. The recursive staking problem is particularly concerning.',
-    upvotes: 89,
-    downvotes: 3,
-    timestamp: new Date(Date.now() - 3600000),
-    hasUpvoted: true,
-    replies: [
-      {
-        id: '2',
-        author: {
-          id: '6',
-          username: 'DeFiResearcher',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DeFiResearcher',
-          walletAddress: '0x789d...23c4',
-          reputation: 3100,
-          isVerified: false
-        },
-        content: 'Absolutely! The concentration of LSDs in DeFi protocols could create cascading liquidation events. We saw this play out with stETH during the Terra collapse.',
-        upvotes: 45,
-        downvotes: 2,
-        timestamp: new Date(Date.now() - 3000000),
-        hasUpvoted: false
-      }
-    ]
-  },
-  {
-    id: '3',
-    author: {
-      id: '7',
-      username: 'ValidatorNode',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ValidatorNode',
-      walletAddress: '0x456b...91d3',
-      reputation: 2800,
-      isVerified: true
-    },
-    content: 'As someone running validator nodes, I think LSDs are a net positive for network security. They lower the barrier to entry for staking and increase participation rates.',
-    upvotes: 67,
-    downvotes: 8,
-    timestamp: new Date(Date.now() - 7200000),
-    hasUpvoted: false
-  }
-];
-
 export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) {
   const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState<CommentType[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
+  const [pageData, setPageData] = useState<Page | null>(post.page || null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch full page data if post has a page
+  useEffect(() => {
+    const fetchPageData = async () => {
+      if (post.page) {
+        // If page data is already in post, use it
+        setPageData(post.page);
+      } else if (post.pageId) {
+        try {
+          const page = await pagesService.getPage(post.pageId);
+          setPageData(page.page || page);
+        } catch (error) {
+          console.error('Failed to fetch page data:', error);
+        }
+      }
+    };
+    fetchPageData();
+  }, [post.pageId, post.page]);
   
   // Load emoji reactions on mount
   useEffect(() => {
@@ -126,15 +92,21 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     };
   }, [showEmojiPicker]);
 
-  // Load bookmark status and comments on mount
+  // Load bookmark status (only for authenticated users) and comments (always) on mount
   useEffect(() => {
-    if (isAuthenticated && post?.id) {
-      checkBookmarkStatus();
+    if (post?.id) {
+      // Always load comments (public endpoint)
       fetchComments();
+      
+      // Only check bookmark status if authenticated
+      if (isAuthenticated) {
+        checkBookmarkStatus();
+      }
     }
   }, [isAuthenticated, post?.id]);
 
   const checkBookmarkStatus = async () => {
+    if (!isAuthenticated) return;
     try {
       const response = await bookmarksService.checkBookmark(post.id);
       setBookmarked(response.isBookmarked);
@@ -144,6 +116,7 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
   };
 
   const fetchComments = async () => {
+    if (!post?.id) return;
     try {
       setLoadingComments(true);
       const response = await commentsService.getComments(post.id);
@@ -210,16 +183,39 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
       return;
     }
     
+    // Optimistically update UI
+    const previousBookmarked = bookmarked;
+    setBookmarked(!bookmarked);
+    
     try {
-      if (bookmarked) {
+      if (previousBookmarked) {
         await bookmarksService.removeBookmark(post.id);
-        setBookmarked(false);
       } else {
         await bookmarksService.addBookmark(post.id);
-        setBookmarked(true);
       }
-    } catch (error) {
-      console.error('Failed to toggle bookmark:', error);
+    } catch (error: any) {
+      // Revert optimistic update on error
+      setBookmarked(previousBookmarked);
+      
+      // If error says already bookmarked, check actual status and update accordingly
+      if (error?.message?.includes('already bookmarked') || error?.data?.message?.includes('already bookmarked')) {
+        try {
+          const response = await bookmarksService.checkBookmark(post.id);
+          setBookmarked(response.isBookmarked);
+        } catch (checkError) {
+          console.error('Failed to check bookmark status after error:', checkError);
+        }
+      } else if (error?.message?.includes('not found') || error?.data?.message?.includes('not found')) {
+        // If bookmark not found when trying to remove, check actual status
+        try {
+          const response = await bookmarksService.checkBookmark(post.id);
+          setBookmarked(response.isBookmarked);
+        } catch (checkError) {
+          console.error('Failed to check bookmark status after error:', checkError);
+        }
+      } else {
+        console.error('Failed to toggle bookmark:', error);
+      }
     }
   };
 
@@ -267,30 +263,79 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     <>
       <button
         onClick={onClose}
-        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors group mb-6"
+        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors group mb-4 sm:mb-6"
       >
         <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
         <span className="text-sm sm:text-base font-medium">Back to Feed</span>
       </button>
 
-      <GlassCard className="p-6 mb-6">
-        <div className="flex gap-6">
-          <div className="flex-1 space-y-5 min-w-0">
-            <div>
+      <div className="space-y-4 sm:space-y-6">
+        {/* Main Content */}
+        <div className="space-y-4 sm:space-y-6 min-w-0">
+          <GlassCard className="p-4 sm:p-6 lg:p-8">
+            <div className="space-y-5 min-w-0">
               <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <Tooltip content={`@${post.author.username}`}>
-                    <Avatar src={(post.author.avatar || post.author.avatarUrl) || ''} alt={post.author.username} size="md" className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700" />
-                  </Tooltip>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm sm:text-base">
-                        {post.author.username}
-                      </span>
-                      {post.author.isVerified && (
-                        <VerifiedBadge size={16} />
-                      )}
-                    </div>
+                <div className="flex items-center gap-2.5 sm:gap-3 flex-1">
+                  {/* User Avatar and Page Logo */}
+                  <div className="relative flex-shrink-0">
+                    {post.author && (
+                      <Tooltip content={`@${post.author.username || post.author.pseudo || 'unknown'}`}>
+                        <div 
+                          onClick={() => navigate(`/profile/${post.author.username || post.author.pseudo || ''}`)}
+                          className="relative cursor-pointer hover:scale-105 transition-transform"
+                        >
+                          <Avatar src={(post.author.avatar || post.author.avatarUrl) || ''} alt={post.author.username || post.author.pseudo || 'Unknown'} size="md" className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all" />
+                        {/* Page Logo under avatar if post is for a page */}
+                        {pageData && (
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (pageData.slug) {
+                                navigate(`/pages/${pageData.slug}`);
+                              }
+                            }}
+                            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg cursor-pointer hover:scale-110 transition-transform"
+                          >
+                            <img 
+                              src={pageData.logo || pageData.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`}
+                              alt={pageData.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`;
+                              }}
+                            />
+                          </div>
+                        )}
+                        </div>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {post.author && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span 
+                          onClick={() => navigate(`/profile/${post.author.username || post.author.pseudo || ''}`)}
+                          className="font-bold text-sm sm:text-base cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {post.author.username || post.author.pseudo || 'Unknown'}
+                        </span>
+                        {post.author.isVerified && (
+                          <VerifiedBadge size={16} />
+                        )}
+                        {pageData && (
+                          <>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">posted for</span>
+                            <button
+                              onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
+                              className="font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer"
+                            >
+                              {pageData.name}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       <span>{timeAgo(post.publishedAt || post.createdAt || post.timestamp)}</span>
                       <span>•</span>
@@ -303,31 +348,76 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                 </button>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-bold mb-4 leading-tight">{post.title}</h1>
+              {/* Post Origin Display - Under Author Card */}
+              {post.postOrigin || post.originSource || post.originUrl ? (
+                <div className="mb-4 sm:mb-6">
+                  <PostOriginDisplay 
+                    postOrigin={post.postOrigin}
+                    originSource={post.originSource}
+                    originUrl={post.originUrl}
+                  />
+                </div>
+              ) : null}
 
-              {/* Cover Image */}
-              {(post.coverImage || post.coverImageUrl) && (
-                <div className="relative w-full h-64 sm:h-80 lg:h-96 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-6 shadow-lg">
+              <div>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6 leading-tight">{post.title}</h1>
+
+              {/* Cover Image - Show post cover first, only fallback to page cover if post has none */}
+              {(post.coverImage || post.coverImageUrl) ? (
+                <div className="relative w-full h-48 sm:h-64 md:h-80 lg:h-96 xl:h-[28rem] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 sm:mb-6 shadow-lg">
                   <img
                     src={post.coverImage || post.coverImageUrl}
                     alt={post.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      // Hide image on error
-                      (e.target as HTMLImageElement).style.display = 'none';
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
                     }}
                   />
                 </div>
-              )}
+              ) : pageData && (pageData.coverImage || pageData.coverImageUrl) ? (
+                <div className="relative w-full h-64 sm:h-80 lg:h-96 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 mb-6 shadow-lg">
+                  <img
+                    src={pageData.coverImage || pageData.coverImageUrl}
+                    alt={`${pageData.name} cover`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                </div>
+              ) : null}
+
 
               {post.tags && post.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-5">
                   {post.tags.map((tag: any) => {
                     const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
                     const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
+                    const tagLogoUrl = typeof tag === 'string' ? null : (tag?.logoUrl || tag?.logo_url);
                     return (
-                      <span key={tagKey} className="px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer">
-                        #{tagName}
+                      <span
+                        key={tagKey}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                      >
+                        {tagLogoUrl ? (
+                          <>
+                            <img
+                              src={tagLogoUrl}
+                              alt={tagName}
+                              className="w-4 h-4 rounded object-cover flex-shrink-0"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                            <span>#{tagName}</span>
+                          </>
+                        ) : (
+                          <span>#{tagName}</span>
+                        )}
                       </span>
                     );
                   })}
@@ -360,7 +450,7 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                 [&_code]:!leading-normal">
                 <MarkdownRenderer content={post.content} />
               </div>
-            </div>
+              </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-4 sm:pt-5 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center flex-wrap gap-2">
@@ -444,6 +534,9 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                 <ShareDropdown
                   url={window.location.href}
                   title={post.title}
+                  type="post"
+                  hashtags={post.tags || []}
+                  description={post.content?.substring(0, 150)}
                   trigger={
                     <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300">
                       <Share2 size={16} />
@@ -474,11 +567,11 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </GlassCard>
+            </div>
+          </GlassCard>
 
-      <GlassCard className="p-4 sm:p-6 mb-6">
+          {isAuthenticated ? (
+          <GlassCard className="p-4 sm:p-6">
         <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center gap-2">
           <MessageCircle size={20} className="text-blue-500" />
           Add a Comment
@@ -502,6 +595,23 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
           </div>
         </div>
       </GlassCard>
+          ) : (
+            <GlassCard className="p-4 sm:p-6">
+              <div className="text-center py-4">
+                <MessageCircle size={24} className="text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                <p className="text-gray-600 dark:text-gray-400 mb-3">
+                  Please log in to leave a comment
+                </p>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  onClick={() => onLoginRequired?.()}
+                >
+                  Log In to Comment
+                </Button>
+              </div>
+            </GlassCard>
+          )}
 
       <div className="space-y-4 mb-6">
         <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2">
@@ -533,6 +643,8 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
             />
           ))
         )}
+      </div>
+        </div>
       </div>
 
       {/* Report Modal */}

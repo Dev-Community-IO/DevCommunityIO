@@ -1,0 +1,70 @@
+{
+    "name": "Dev Community IO",
+    "short_name": "Dev Community",
+    "description": "Where Developers Build the Future",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#6366f1",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/icon.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": [
+        "social",
+        "developer",
+        "community"
+    ],
+    "screenshots": [],
+    "prefer_related_applications": false,
+    "shortcuts": [
+        {
+            "name": "Create Post",
+            "short_name": "Create",
+            "description": "Create a new post",
+            "url": "/create-post",
+            "icons": [
+                {
+                    "src": "/icon.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Notifications",
+            "short_name": "Notifications",
+            "description": "View your notifications",
+            "url": "/notifications",
+            "icons": [
+                {
+                    "src": "/icon.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ]
+}

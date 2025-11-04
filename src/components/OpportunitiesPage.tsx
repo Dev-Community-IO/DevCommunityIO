@@ -2,16 +2,21 @@ import { Briefcase, MapPin, DollarSign, Clock, ArrowLeft, Search, Filter, Extern
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { opportunitiesService, Opportunity as APIOpportunity } from '../services/api/opportunities.service';
 import { ContentGridSkeletonList } from './skeletons';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 
 interface OpportunitiesPageProps {
   onBack?: () => void;
+  onViewOpportunityDetail?: (id: string) => void;
 }
 
 interface Opportunity {
   id: string;
+  slug?: string;
   title: string;
   company: string;
   description: string;
@@ -27,12 +32,27 @@ interface Opportunity {
   remote: boolean;
 }
 
-export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
+export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: OpportunitiesPageProps) {
+  const navigate = useNavigate();
+  const { user, isAdmin, canModerate } = useAuth();
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [opportunities, setOpportunities] = useState<APIOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [togglingFeatured, setTogglingFeatured] = useState<string | null>(null);
+  const canManageFeatured = isAdmin() || canModerate();
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchOpportunities = async () => {
@@ -41,11 +61,15 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
         setError(null);
         
         const params: any = {};
-        if (searchQuery) params.search = searchQuery;
-        if (selectedFilter !== 'all' && ['full-time', 'part-time', 'contract', 'internship'].includes(selectedFilter)) {
-          params.type = selectedFilter;
-        } else if (selectedFilter !== 'all') {
-          params.category = selectedFilter;
+        if (debouncedSearchQuery.trim()) params.search = debouncedSearchQuery.trim();
+        if (selectedFilter !== 'all') {
+          // Check if it's a type filter
+          if (['full-time', 'part-time', 'contract', 'internship'].includes(selectedFilter)) {
+            params.type = selectedFilter;
+          } else {
+            // Otherwise it's a category filter
+            params.category = selectedFilter;
+          }
         }
         
         const response = await opportunitiesService.getOpportunities(params);
@@ -59,10 +83,11 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
     };
 
     fetchOpportunities();
-  }, [searchQuery, selectedFilter]);
+  }, [debouncedSearchQuery, selectedFilter]);
 
   const opportunitiesData: Opportunity[] = opportunities.map(o => ({
     id: o.id,
+    slug: o.slug,
     title: o.title,
     company: o.companyName,
     description: o.description,
@@ -78,7 +103,45 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
     remote: o.remote
   }));
 
-  const categories = ['all', ...Array.from(new Set(opportunitiesData.map(o => o.category)))];
+  const handleOpportunityClick = (opportunity: Opportunity) => {
+    if (opportunity.slug) {
+      navigate(`/opportunities/${opportunity.slug}`);
+    } else if (onViewOpportunityDetail) {
+      onViewOpportunityDetail(opportunity.id);
+    } else {
+      navigate(`/opportunities/${opportunity.id}`);
+    }
+  };
+
+  const handleToggleFeatured = async (e: React.MouseEvent, opportunity: Opportunity) => {
+    e.stopPropagation();
+    if (!canManageFeatured) return;
+
+    try {
+      setTogglingFeatured(opportunity.id);
+      const newFeaturedStatus = !opportunity.featured;
+      await opportunitiesService.updateOpportunity(opportunity.id, { featured: newFeaturedStatus });
+      
+      // Update local state
+      setOpportunities(prev => prev.map(o => 
+        o.id === opportunity.id ? { ...o, featured: newFeaturedStatus } : o
+      ));
+      
+      toast.success(newFeaturedStatus ? 'Opportunity featured successfully' : 'Opportunity removed from featured');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update featured status');
+      console.error('Error toggling featured:', err);
+    } finally {
+      setTogglingFeatured(null);
+    }
+  };
+
+  // Separate type filters and category filters
+  const typeFilters = ['all', 'full-time', 'part-time', 'contract', 'internship'];
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(new Set(opportunitiesData.map(o => o.category).filter(Boolean)));
+    return uniqueCategories.sort();
+  }, [opportunitiesData]);
 
   const filteredOpportunities = opportunitiesData;
 
@@ -137,9 +200,18 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
               onChange={(e) => setSelectedFilter(e.target.value)}
               className="px-4 py-2 bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all capitalize"
             >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
+              <optgroup label="Type">
+                {typeFilters.map(filter => (
+                  <option key={filter} value={filter}>{filter === 'all' ? 'All' : filter.replace('-', ' ')}</option>
+                ))}
+              </optgroup>
+              {categories.length > 0 && (
+                <optgroup label="Category">
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
@@ -167,7 +239,7 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
       )}
 
       {/* Featured Opportunities */}
-      {!loading && !error && filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+      {!loading && !error && filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Star size={20} className="text-yellow-500" />
@@ -175,7 +247,11 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredOpportunities.filter(o => o.featured).map(opp => (
-              <GlassCard key={opp.id} className="p-4 hover:shadow-xl transition-all duration-300 group">
+              <GlassCard 
+                key={opp.id} 
+                className="p-4 hover:shadow-xl transition-all duration-300 group cursor-pointer"
+                onClick={() => handleOpportunityClick(opp)}
+              >
                 <div className="flex items-start gap-4">
                   <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 flex-shrink-0 border border-gray-200 dark:border-gray-700">
                     <img
@@ -204,6 +280,20 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                         <Star size={10} className="inline mr-1" />
                         Featured
                       </Badge>
+                      {canManageFeatured && (
+                        <button
+                          onClick={(e) => handleToggleFeatured(e, opp)}
+                          disabled={togglingFeatured === opp.id}
+                          className="p-1.5 rounded-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 transition-all shadow-md"
+                          title="Remove from featured"
+                        >
+                          {togglingFeatured === opp.id ? (
+                            <Loader2 size={12} className="animate-spin text-red-500" />
+                          ) : (
+                            <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
                       {opp.description}
@@ -241,7 +331,14 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                         })}
                     </div>
                     )}
-                    <Button variant="primary" className="w-full text-sm py-2">
+                    <Button 
+                      variant="primary" 
+                      className="w-full text-sm py-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpportunityClick(opp);
+                      }}
+                    >
                       <ExternalLink size={14} className="mr-2" />
                       Apply Now
                     </Button>
@@ -256,12 +353,16 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
       {/* All Opportunities */}
       {!loading && !error && (
       <div>
-        {filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !searchQuery && (
+        {filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
           <h2 className="text-lg font-bold mb-3">All Opportunities</h2>
         )}
         <div className="space-y-3">
-          {filteredOpportunities.filter(o => selectedFilter !== 'all' || searchQuery || !o.featured).map(opp => (
-            <GlassCard key={opp.id} className="p-4 hover:shadow-lg transition-all duration-300 group">
+          {filteredOpportunities.filter(o => selectedFilter !== 'all' || debouncedSearchQuery || !o.featured).map(opp => (
+            <GlassCard 
+              key={opp.id} 
+              className="p-4 hover:shadow-lg transition-all duration-300 group cursor-pointer"
+              onClick={() => handleOpportunityClick(opp)}
+            >
               <div className="flex items-start gap-3">
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 flex-shrink-0 border border-gray-200 dark:border-gray-700">
                   <img
@@ -285,9 +386,25 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                         )}
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-[9px] px-2 py-0.5 flex-shrink-0">
-                      {opp.category}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {canManageFeatured && (
+                        <button
+                          onClick={(e) => handleToggleFeatured(e, opp)}
+                          disabled={togglingFeatured === opp.id}
+                          className="p-1.5 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
+                          title={opp.featured ? "Remove from featured" : "Add to featured"}
+                        >
+                          {togglingFeatured === opp.id ? (
+                            <Loader2 size={12} className="animate-spin text-blue-500" />
+                          ) : (
+                            <Star size={12} className={opp.featured ? "text-yellow-500 fill-yellow-500" : "text-gray-400 hover:text-yellow-500"} />
+                          )}
+                        </button>
+                      )}
+                      <Badge variant="secondary" className="text-[9px] px-2 py-0.5 flex-shrink-0">
+                        {opp.category}
+                      </Badge>
+                    </div>
                   </div>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400 line-clamp-1 mb-2">
                     {opp.description}
@@ -323,7 +440,14 @@ export function OpportunitiesPage({ onBack }: OpportunitiesPageProps) {
                         })}
                     </div>
                     )}
-                    <Button variant="primary" className="text-xs py-1 px-3 ml-2">
+                    <Button 
+                      variant="primary" 
+                      className="text-xs py-1 px-3 ml-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpportunityClick(opp);
+                      }}
+                    >
                       Apply
                     </Button>
                   </div>
