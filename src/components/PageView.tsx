@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
@@ -223,30 +223,35 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
             <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
           )}
           
-          {/* Back Button */}
-                  <button
-            onClick={onBack}
-            className="absolute top-4 left-4 z-20 flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 transition-all shadow-lg"
-          >
-            <ArrowLeft size={18} />
-            <span className="hidden sm:inline">Back</span>
-                  </button>
+          {/* Back Button - with consistent margin */}
+          <div className="absolute top-4 left-0 right-0 z-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
+            <div className="max-w-7xl mx-auto">
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 transition-all shadow-lg"
+              >
+                <ArrowLeft size={18} />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            </div>
+          </div>
 
-          {/* Action Buttons - Top Right */}
-          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-            {user && !canManage && (
-                  <button
-                    onClick={handleNotificationToggle}
-                className={`p-2.5 rounded-xl backdrop-blur-xl border transition-all ${
-                      notificationsEnabled
-                    ? 'bg-blue-500/90 text-white border-blue-400/50 shadow-lg shadow-blue-500/25'
-                    : 'bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800'
-                    }`}
-                    title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
-                  >
-                    {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
-                  </button>
-            )}
+          {/* Action Buttons - Top Right - with consistent margin */}
+          <div className="absolute top-4 right-0 z-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
+            <div className="max-w-7xl mx-auto flex justify-end">
+              {user && !canManage && (
+                <button
+                  onClick={handleNotificationToggle}
+                  className={`p-2.5 rounded-xl backdrop-blur-xl border transition-all ${
+                    notificationsEnabled
+                      ? 'bg-blue-500/90 text-white border-blue-400/50 shadow-lg shadow-blue-500/25'
+                      : 'bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800'
+                  }`}
+                  title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
+                >
+                  {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
+                </button>
+              )}
 
                   <ShareDropdown
                     url={window.location.href}
@@ -262,11 +267,12 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                       </button>
                     }
                   />
-          </div>
             </div>
+          </div>
+        </div>
             
-        {/* Profile Section */}
-        <div className="relative px-4 sm:px-6 lg:px-8 -mt-20 z-10">
+        {/* Profile Section - with consistent margin */}
+        <div className="relative px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 -mt-20 z-10">
           <div className="max-w-7xl mx-auto">
             <GlassCard className="p-6 sm:p-8 shadow-2xl border-2 border-gray-200/50 dark:border-gray-700/50">
               <div className="flex flex-col md:flex-row md:items-end gap-6">
@@ -403,9 +409,9 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         </div>
       </div>
 
-      {/* Tabs Navigation */}
+      {/* Tabs Navigation - with consistent margin */}
       <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
           <div className="flex items-center justify-between gap-4 overflow-x-auto hide-scrollbar">
             <div className="flex gap-1 min-w-0">
             {tabs.map(tab => {
@@ -443,8 +449,8 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Content - with consistent margin */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 py-8">
         {activeTab === 'posts' && (
           <div>
             {pagePosts.length > 0 ? (
@@ -519,120 +525,120 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 // About Tab Component
 function AboutTab({ pageData, pageTeamMembers }: any) {
   return (
-          <div className="space-y-6">
+    <div className="space-y-6">
       <GlassCard className="p-6 md:p-8">
         <div className="flex items-start justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <FileText size={24} className="text-blue-500" />
-                  About
-                </h2>
-              </div>
+            About
+          </h2>
+        </div>
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-lg">
-                {pageData.description || pageData.shortBio || 'No description available.'}
-              </p>
-            </GlassCard>
+          {pageData.description || pageData.shortBio || 'No description available.'}
+        </p>
+      </GlassCard>
 
-            {/* Page Details Grid */}
+      {/* Page Details Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <GlassCard className="p-6 hover:shadow-xl transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/20">
               <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
             </div>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</p>
-                </div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</p>
+          </div>
           <p className="font-bold text-xl text-gray-900 dark:text-white">
-                  {pageData.category || 'General'}
-                </p>
-              </GlassCard>
+            {pageData.category || 'General'}
+          </p>
+        </GlassCard>
 
         <GlassCard className="p-6 hover:shadow-xl transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/20">
               <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
             </div>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
-                </div>
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
+          </div>
           <p className="font-bold text-xl text-gray-900 dark:text-white">
-                  {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
-                </p>
-              </GlassCard>
+            {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
+          </p>
+        </GlassCard>
 
-              {pageData.url && (
+        {pageData.url && (
           <GlassCard className="p-6 hover:shadow-xl transition-all">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/20">
                 <Globe size={20} className="text-green-600 dark:text-green-400" />
               </div>
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Website</p>
-                  </div>
-                  <a 
-                    href={pageData.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Website</p>
+            </div>
+            <a 
+              href={pageData.url} 
+              target="_blank" 
+              rel="noopener noreferrer"
               className="font-semibold text-blue-600 dark:text-blue-400 hover:underline break-all flex items-center gap-1 group"
-                  >
+            >
               <span className="truncate">{pageData.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
               <ExternalLink size={14} className="flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                  </a>
-                </GlassCard>
-              )}
-            </div>
+            </a>
+          </GlassCard>
+        )}
+      </div>
 
-            {/* Team Members - Only visible to admins */}
-            {pageTeamMembers && pageTeamMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
+      {/* Team Members - Only visible to admins */}
+      {pageTeamMembers && pageTeamMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
         <GlassCard className="p-6 md:p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Shield size={24} className="text-blue-500" />
-                    Team
-                  </h2>
-                </div>
+              Team
+            </h2>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pageTeamMembers
-                    .filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role))
-                    .map((member: any) => (
-              <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-lg transition-all border border-gray-200 dark:border-gray-700">
-                      <img
-                        src={member.avatarUrl || member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
-                        alt={member.username}
-                  className="w-14 h-14 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700"
-                      />
-                      <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                          <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
-                          {member.is_verified && (
-                            <Badge variant="gradient" className="text-xs px-1.5 py-0.5">
-                              ✓
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge 
-                    variant={member.role === 'owner' ? 'gradient' : 'default'}
-                    className="text-xs"
-                        >
-                          {member.role === 'owner' ? 'Owner' : member.role === 'admin' ? 'Admin' : 'Moderator'}
+            {pageTeamMembers
+              .filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role))
+              .map((member: any) => (
+                <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-lg transition-all border border-gray-200 dark:border-gray-700">
+                  <img
+                    src={member.avatarUrl || member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+                    alt={member.username}
+                    className="w-14 h-14 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
+                      {member.is_verified && (
+                        <Badge variant="gradient" className="text-xs px-1.5 py-0.5">
+                          ✓
                         </Badge>
-                      </div>
+                      )}
                     </div>
-                  ))}
+                    <Badge 
+                      variant={member.role === 'owner' ? 'gradient' : 'default'}
+                      className="text-xs"
+                    >
+                      {member.role === 'owner' ? 'Owner' : member.role === 'admin' ? 'Admin' : 'Moderator'}
+                    </Badge>
+                  </div>
                 </div>
-              </GlassCard>
-            )}
+              ))}
+          </div>
+        </GlassCard>
+      )}
 
-            {/* Social Links */}
-            {pageData.socialLinks && Object.keys(pageData.socialLinks).length > 0 && (
+      {/* Social Links */}
+      {pageData.socialLinks && Object.keys(pageData.socialLinks).length > 0 && (
         <GlassCard className="p-6 md:p-8">
           <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
             <Globe size={24} className="text-blue-500" />
             Social Links
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {pageData.socialLinks.twitter && (
-                    <a
-                      href={pageData.socialLinks.twitter}
-                      target="_blank"
-                      rel="noopener noreferrer"
+            {pageData.socialLinks.twitter && (
+              <a
+                href={pageData.socialLinks.twitter}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
@@ -640,13 +646,13 @@ function AboutTab({ pageData, pageTeamMembers }: any) {
                 </div>
                 <span className="font-semibold">Twitter</span>
                 <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  )}
-                  {pageData.socialLinks.linkedin && (
-                    <a
-                      href={pageData.socialLinks.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
+              </a>
+            )}
+            {pageData.socialLinks.linkedin && (
+              <a
+                href={pageData.socialLinks.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
               >
                 <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -654,13 +660,13 @@ function AboutTab({ pageData, pageTeamMembers }: any) {
                 </div>
                 <span className="font-semibold">LinkedIn</span>
                 <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  )}
-                  {pageData.socialLinks.github && (
-                    <a
-                      href={pageData.socialLinks.github}
-                      target="_blank"
-                      rel="noopener noreferrer"
+              </a>
+            )}
+            {pageData.socialLinks.github && (
+              <a
+                href={pageData.socialLinks.github}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 group"
               >
                 <div className="w-10 h-10 rounded-lg bg-gray-900 dark:bg-gray-100 flex items-center justify-center">
@@ -668,13 +674,13 @@ function AboutTab({ pageData, pageTeamMembers }: any) {
                 </div>
                 <span className="font-semibold">GitHub</span>
                 <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  )}
-                  {pageData.socialLinks.website && (
-                    <a
-                      href={pageData.socialLinks.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
+              </a>
+            )}
+            {pageData.socialLinks.website && (
+              <a
+                href={pageData.socialLinks.website}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-3 px-5 py-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all border border-purple-200 dark:border-purple-800 group"
               >
                 <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
@@ -682,12 +688,12 @@ function AboutTab({ pageData, pageTeamMembers }: any) {
                 </div>
                 <span className="font-semibold">Website</span>
                 <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  )}
-                </div>
-              </GlassCard>
+              </a>
             )}
           </div>
+        </GlassCard>
+      )}
+    </div>
   );
 }
 

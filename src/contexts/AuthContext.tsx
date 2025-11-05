@@ -118,25 +118,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check onboarding status if user is authenticated
       if (normalizedUser) {
+        // First check localStorage for skip flag (most reliable)
+        const skippedInLocalStorage = localStorage.getItem('onboarding_skipped') === 'true';
+        
         try {
           const onboardingStatus = await onboardingService.getStatus();
           // Show onboarding if not completed (check both completed and isComplete for compatibility)
-          const isCompleted = onboardingStatus.completed || onboardingStatus.isComplete || normalizedUser.onboardingCompleted;
+          // Also respect localStorage skip flag
+          const isCompleted = skippedInLocalStorage || 
+                             onboardingStatus.completed || 
+                             onboardingStatus.isComplete || 
+                             normalizedUser.onboardingCompleted;
           if (!isCompleted) {
             setShowOnboarding(true);
           } else {
-            // Ensure onboarding is hidden if completed
+            // Ensure onboarding is hidden if completed or skipped
             setShowOnboarding(false);
             // Update user object with completion status
             if (!normalizedUser.onboardingCompleted) {
               updateUser({ onboardingCompleted: true });
             }
+            // Ensure skip flag is set in localStorage
+            if (!skippedInLocalStorage && (onboardingStatus.completed || onboardingStatus.skipped)) {
+              localStorage.setItem('onboarding_skipped', 'true');
+            }
           }
         } catch (error) {
           console.error('Failed to check onboarding status:', error);
           // Don't block auth if onboarding check fails
-          // If user has onboardingCompleted flag, don't show onboarding
-          if (normalizedUser.onboardingCompleted) {
+          // If user has onboardingCompleted flag or skip flag in localStorage, don't show onboarding
+          if (skippedInLocalStorage || normalizedUser.onboardingCompleted) {
             setShowOnboarding(false);
           }
         }
@@ -181,10 +192,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorageCache.set(CacheKeys.USER_SESSION, { timestamp: Date.now() }, 5 * 60 * 1000);
     
     // Check onboarding status after login
+    // First check localStorage for skip flag (most reliable)
+    const skippedInLocalStorage = localStorage.getItem('onboarding_skipped') === 'true';
+    
     try {
       const onboardingStatus = await onboardingService.getStatus();
       // Check both completed and isComplete for compatibility
-      const isCompleted = onboardingStatus.completed || onboardingStatus.isComplete || userData.onboardingCompleted;
+      // Also respect localStorage skip flag
+      const isCompleted = skippedInLocalStorage || 
+                         onboardingStatus.completed || 
+                         onboardingStatus.isComplete || 
+                         userData.onboardingCompleted;
       if (!isCompleted) {
         setShowOnboarding(true);
       } else {
@@ -193,12 +211,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!userData.onboardingCompleted) {
           updateUser({ onboardingCompleted: true });
         }
+        // Ensure skip flag is set in localStorage
+        if (!skippedInLocalStorage && (onboardingStatus.completed || onboardingStatus.skipped)) {
+          localStorage.setItem('onboarding_skipped', 'true');
+        }
       }
     } catch (error) {
       console.error('Failed to check onboarding status after login:', error);
       // Don't block login if onboarding check fails
-      // If userData has onboardingCompleted flag, don't show onboarding
-      if (userData.onboardingCompleted) {
+      // If userData has onboardingCompleted flag or skip flag in localStorage, don't show onboarding
+      if (skippedInLocalStorage || userData.onboardingCompleted) {
         setShowOnboarding(false);
       }
     }
@@ -229,9 +251,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Update cache
       localStorageCache.set(CacheKeys.USER, updatedUser, 5 * 60 * 1000);
       
-      // Hide onboarding if user completed it
+      // Hide onboarding if user completed it or skipped it
       if (userData.onboardingCompleted) {
         setShowOnboarding(false);
+        // Also set skip flag in localStorage as backup
+        localStorage.setItem('onboarding_skipped', 'true');
       }
     }
   };

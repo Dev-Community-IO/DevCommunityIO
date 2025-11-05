@@ -159,8 +159,10 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
       await onboardingService.skip();
       // Update user with onboardingCompleted flag - this persists in localStorage
       updateUser({ onboardingCompleted: true });
-      // Hide onboarding immediately
+      // Hide onboarding immediately and permanently
       setShowOnboarding(false);
+      // Also store in localStorage as a backup to ensure it never shows again
+      localStorage.setItem('onboarding_skipped', 'true');
       // Refresh auth state to ensure onboarding status is updated
       await checkAuth();
       onComplete();
@@ -170,6 +172,8 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
       // Even if API call fails, close the modal and mark as completed locally
       updateUser({ onboardingCompleted: true });
       setShowOnboarding(false);
+      // Store in localStorage as backup
+      localStorage.setItem('onboarding_skipped', 'true');
       onComplete();
       onClose();
     } finally {

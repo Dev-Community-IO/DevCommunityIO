@@ -45,6 +45,7 @@ import { getApiBaseUrl } from './utils/apiUrl';
 import { FeedItem } from './components/PostFeed';
 import { Post } from './types';
 import { isNetworkError } from './services/api/config';
+import { SEOHead } from './components/SEOHead';
 
 function App() {
   const navigate = useNavigate();
@@ -127,6 +128,7 @@ function App() {
 
   return (
     <>
+      <SEOHead />
       {/* Global Onboarding Wizard */}
       <OnboardingWizard 
         isOpen={showOnboarding}

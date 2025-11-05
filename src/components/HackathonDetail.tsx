@@ -252,8 +252,8 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-16 sm:pt-20 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-24 animate-fade-in">
-        <div className="max-w-[1600px] mx-auto">
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12 sm:py-20">
             <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-purple-500" />
           </div>
@@ -264,8 +264,8 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
 
   if (error || !hackathon) {
     return (
-      <div className="min-h-screen pt-16 sm:pt-20 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-24 animate-fade-in">
-        <div className="max-w-[1600px] mx-auto">
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+        <div className="max-w-7xl mx-auto">
           <GlassCard className="p-6 sm:p-8 md:p-12 text-center">
             <p className="text-red-500 dark:text-red-400 text-sm sm:text-base">{error || 'Hackathon not found'}</p>
             <Button variant="primary" onClick={onClose} className="mt-4 sm:mt-6 text-sm sm:text-base">
@@ -280,8 +280,8 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
   const daysUntilStart = getDaysUntil(hackathon.startDate);
 
   return (
-    <div className="min-h-screen pt-16 sm:pt-20 px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-24 animate-fade-in">
-      <div className="max-w-[1600px] mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
+    <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
         {/* Header */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <button

@@ -1,130 +1,47 @@
-import { useEffect } from 'react';
-import { SEOMetadata, seoService } from '../services/api/seo.service';
-import { updateMetaTags, resetMetaTags } from '../utils/seo';
+import { useLocation } from 'react-router-dom';
+import { useSeoMetadata } from './useSeoMetadata';
 
-interface UseSEOOptions {
-    type: 'post' | 'page' | 'hackathon' | 'event' | 'opportunity';
-    slug: string;
-    enabled?: boolean;
+interface SEOProps {
+    title?: string;
+    description?: string;
+    image?: string;
+    url?: string;
+    type?: 'website' | 'article';
+    author?: string;
+    publishedTime?: string;
+    modifiedTime?: string;
 }
 
-export function useSEO({ type, slug, enabled = true }: UseSEOOptions) {
-    useEffect(() => {
-        if (!enabled || !slug) {
-            resetMetaTags().catch(console.error);
-            return;
-        }
+export function useSEO(props: SEOProps) {
+    const location = useLocation();
+    const { metadata, loading } = useSeoMetadata(location.pathname);
 
-        let cancelled = false;
+    // Handle nested API response structure (meta.openGraph, meta.twitter, etc.)
+    const apiMeta = metadata?.meta || metadata;
+    const apiOpenGraph = metadata?.openGraph || {};
+    const apiTwitter = metadata?.twitter || {};
 
-        const fetchSEO = async () => {
-            try {
-                let metadata: any;
+    // Use provided props or fallback to metadata from API
+    const title = props.title || apiMeta?.title || apiOpenGraph['og:title'] || metadata?.title || 'DevCommunity';
+    const description = props.description || apiMeta?.description || apiOpenGraph['og:description'] || metadata?.description || 'Where Developers Build the Future';
+    const image = props.image || metadata?.image || apiOpenGraph['og:image'] || apiTwitter['twitter:image'] || undefined;
+    const url = props.url || apiOpenGraph['og:url'] || metadata?.url || `${window.location.origin}${location.pathname}`;
+    const type = props.type || apiOpenGraph['og:type'] || metadata?.type || 'website';
+    const author = props.author || metadata?.author;
+    const publishedTime = props.publishedTime || metadata?.publishedTime;
+    const modifiedTime = props.modifiedTime || metadata?.modifiedTime;
 
-                switch (type) {
-                    case 'post':
-                        metadata = await seoService.getPostSEO(slug);
-                        break;
-                    case 'page':
-                        metadata = await seoService.getPageSEO(slug);
-                        break;
-                    case 'hackathon':
-                        metadata = await seoService.getHackathonSEO(slug);
-                        break;
-                    case 'event':
-                        metadata = await seoService.getEventSEO(slug);
-                        break;
-                    case 'opportunity':
-                        metadata = await seoService.getOpportunitySEO(slug);
-                        break;
-                    default:
-                        await resetMetaTags();
-                        return;
-                }
-
-                if (cancelled) return;
-
-                // Extract metadata from backend response
-                const meta = metadata.meta || {};
-                const openGraph = metadata.openGraph || {};
-                const twitter = metadata.twitter || {};
-                const jsonLd = metadata.jsonLd || {};
-
-                // Update meta tags
-                const baseUrl = window.location.origin;
-                const seoMeta = {
-                    title: meta.title || openGraph['og:title'] || 'DevCommunity',
-                    description: meta.description || openGraph['og:description'] || '',
-                    ogImage: openGraph['og:image'] || `${baseUrl}/devcommunity-new_LOG (1).png`,
-                    ogType: openGraph['og:type'] || 'website',
-                    ogUrl: openGraph['og:url'] || window.location.href,
-                    jsonLd: jsonLd
-                };
-
-                updateMetaTags(seoMeta);
-
-                // Update additional OpenGraph tags
-                Object.entries(openGraph).forEach(([key, value]) => {
-                    if (value) {
-                        const selector = `meta[property="${key}"]`;
-                        let element = document.querySelector(selector) as HTMLMetaElement;
-                        if (!element) {
-                            element = document.createElement('meta');
-                            element.setAttribute('property', key);
-                            document.head.appendChild(element);
-                        }
-                        element.setAttribute('content', String(value));
-                    }
-                });
-
-                // Update Twitter Card tags
-                Object.entries(twitter).forEach(([key, value]) => {
-                    if (value) {
-                        const selector = `meta[name="${key}"]`;
-                        let element = document.querySelector(selector) as HTMLMetaElement;
-                        if (!element) {
-                            element = document.createElement('meta');
-                            element.setAttribute('name', key);
-                            document.head.appendChild(element);
-                        }
-                        element.setAttribute('content', String(value));
-                    }
-                });
-
-                // Update canonical URL
-                const canonicalUrl = openGraph['og:url'] || window.location.href;
-                let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
-                if (!canonical) {
-                    canonical = document.createElement('link');
-                    canonical.setAttribute('rel', 'canonical');
-                    document.head.appendChild(canonical);
-                }
-                canonical.setAttribute('href', canonicalUrl);
-
-                // Update JSON-LD structured data
-                if (jsonLd && Object.keys(jsonLd).length > 0) {
-                    let jsonLdScript = document.querySelector('script[type="application/ld+json"]') as HTMLScriptElement;
-                    if (!jsonLdScript) {
-                        jsonLdScript = document.createElement('script');
-                        jsonLdScript.setAttribute('type', 'application/ld+json');
-                        document.head.appendChild(jsonLdScript);
-                    }
-                    jsonLdScript.textContent = JSON.stringify(jsonLd);
-                }
-
-            } catch (error) {
-                console.error('Failed to load SEO metadata:', error);
-                if (!cancelled) {
-                    await resetMetaTags();
-                }
-            }
-        };
-
-        fetchSEO();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [type, slug, enabled]);
+    return {
+        loading,
+        metadata: {
+            title,
+            description,
+            image,
+            url,
+            type,
+            author,
+            publishedTime,
+            modifiedTime,
+        },
+    };
 }
-
