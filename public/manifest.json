@@ -1,6 +1,6 @@
 {
-    "name": "Dev Community IO",
-    "short_name": "Dev Community",
+    "name": "DevCommunity",
+    "short_name": "DevCommunity",
     "description": "Where Developers Build the Future",
     "start_url": "/",
     "display": "standalone",

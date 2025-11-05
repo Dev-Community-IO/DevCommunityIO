@@ -469,9 +469,12 @@ export function AdminApp() {
       setTimeout(() => setSaveSuccessAssets(false), 3000);
       toast.success('Asset settings saved successfully!');
       
-      // Reload dynamic assets to apply changes immediately
+      // Invalidate cache and reload dynamic assets to apply changes immediately
       if (typeof window !== 'undefined') {
         const { loadAndApplyDynamicAssets } = await import('../../utils/dynamicAssets');
+        const { localStorageCache, CacheKeys } = await import('../../utils/cache');
+        // Invalidate dynamic assets cache to force fresh load
+        localStorageCache.remove(CacheKeys.DYNAMIC_ASSETS);
         loadAndApplyDynamicAssets().catch(console.error);
       }
     } catch (error: any) {

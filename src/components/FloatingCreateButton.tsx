@@ -44,13 +44,8 @@ export function FloatingCreateButton({ onLoginRequired }: FloatingCreateButtonPr
     setIsOpen(false);
     
     // Navigate to create post page with type parameter
-    // You can modify this based on your routing structure
-    if (type === 'post') {
-      navigate('/create-post');
-    } else {
-      // For now, navigate to create-post with query param, or you can create separate routes
+    // Always include type parameter for consistency, even for 'post'
       navigate(`/create-post?type=${type}`);
-    }
   };
 
   return (

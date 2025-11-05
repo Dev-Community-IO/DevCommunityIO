@@ -20,9 +20,12 @@ import { AdminContents } from './admin/AdminContents';
 import { AdminUsers } from './admin/AdminUsers';
 import { AdminPages } from './admin/AdminPages';
 import { AdminTags } from './admin/AdminTags';
+import { AdminAchievements } from './admin/AdminAchievements';
+import { AdminRequests } from './admin/AdminRequests';
 import { AdminApp } from './admin/AdminApp';
 import { AdminConfigs } from './admin/AdminConfigs';
 import { AdminStaticPages } from './admin/AdminStaticPages';
+import siteSettingsService from '../services/api/siteSettings.service';
 
 type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages';
 

@@ -7,4 +7,7 @@ export { PageCardSkeleton, PageCardSkeletonList } from './PageCardSkeleton';
 export { ProfileHeaderSkeleton } from './ProfileHeaderSkeleton';
 export { ProfileTabsSkeleton } from './ProfileTabsSkeleton';
 export { ContentGridSkeleton, ContentGridSkeletonList } from './ContentGridSkeleton';
+export { PageViewSkeleton } from './PageViewSkeleton';
+export { PostDetailSkeleton } from './PostDetailSkeleton';
+export { CommentSkeleton, CommentSkeletonList } from './CommentSkeleton';
 

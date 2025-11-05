@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import authService from '../services/api/auth.service';
 import onboardingService from '../services/api/onboarding.service';
 import { isNetworkError } from '../services/api/config';
+import { localStorageCache, CacheKeys } from '../utils/cache';
 
 export interface User {
   id: string;
@@ -65,13 +66,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user;
 
-  // Check authentication on mount
+  // Load user from cache immediately on mount
   useEffect(() => {
+    // Try to load from cache first for instant UI
+    const cachedUser = localStorageCache.get<User>(CacheKeys.USER);
+    const cachedSession = localStorageCache.get<{ timestamp: number }>(CacheKeys.USER_SESSION);
+    
+    if (cachedUser && cachedSession) {
+      // Normalize avatar field
+      const normalizedUser = {
+        ...cachedUser,
+        avatarUrl: cachedUser.avatarUrl || cachedUser.avatar_url || cachedUser.avatar,
+        avatar: cachedUser.avatar || cachedUser.avatarUrl || cachedUser.avatar_url,
+      };
+      setUser(normalizedUser);
+      setIsLoading(false);
+    }
+    
+    // Then validate with API in background
     checkAuth();
     
     // Listen for logout events
     const handleLogout = () => {
       setUser(null);
+      localStorageCache.remove(CacheKeys.USER);
+      localStorageCache.remove(CacheKeys.USER_SESSION);
     };
     
     window.addEventListener('auth:logout', handleLogout);
@@ -93,17 +112,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       setUser(normalizedUser);
       
+      // Cache user data (5 minutes expiry for session validation)
+      localStorageCache.set(CacheKeys.USER, normalizedUser, 5 * 60 * 1000);
+      localStorageCache.set(CacheKeys.USER_SESSION, { timestamp: Date.now() }, 5 * 60 * 1000);
+      
       // Check onboarding status if user is authenticated
       if (normalizedUser) {
         try {
           const onboardingStatus = await onboardingService.getStatus();
-          // Show onboarding if not completed and user doesn't have onboardingCompleted flag
-          if (!onboardingStatus.completed && !normalizedUser.onboardingCompleted) {
+          // Show onboarding if not completed (check both completed and isComplete for compatibility)
+          const isCompleted = onboardingStatus.completed || onboardingStatus.isComplete || normalizedUser.onboardingCompleted;
+          if (!isCompleted) {
             setShowOnboarding(true);
+          } else {
+            // Ensure onboarding is hidden if completed
+            setShowOnboarding(false);
+            // Update user object with completion status
+            if (!normalizedUser.onboardingCompleted) {
+              updateUser({ onboardingCompleted: true });
+            }
           }
         } catch (error) {
           console.error('Failed to check onboarding status:', error);
           // Don't block auth if onboarding check fails
+          // If user has onboardingCompleted flag, don't show onboarding
+          if (normalizedUser.onboardingCompleted) {
+            setShowOnboarding(false);
+          }
         }
       }
       
@@ -118,6 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error?.response?.status !== 401 && !isNetworkError(error)) {
       console.error('Auth check failed:', error);
       }
+      // Clear cache on auth failure
+      localStorageCache.remove(CacheKeys.USER);
+      localStorageCache.remove(CacheKeys.USER_SESSION);
       // Only clear localStorage if we have a token (wallet auth)
       const token = localStorage.getItem('auth_token');
       if (token) {
@@ -138,15 +176,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.setItem('user', JSON.stringify(userData));
     
+    // Cache user data
+    localStorageCache.set(CacheKeys.USER, userData, 5 * 60 * 1000);
+    localStorageCache.set(CacheKeys.USER_SESSION, { timestamp: Date.now() }, 5 * 60 * 1000);
+    
     // Check onboarding status after login
     try {
       const onboardingStatus = await onboardingService.getStatus();
-      if (!onboardingStatus.completed && !userData.onboardingCompleted) {
+      // Check both completed and isComplete for compatibility
+      const isCompleted = onboardingStatus.completed || onboardingStatus.isComplete || userData.onboardingCompleted;
+      if (!isCompleted) {
         setShowOnboarding(true);
+      } else {
+        setShowOnboarding(false);
+        // Ensure userData has onboardingCompleted flag
+        if (!userData.onboardingCompleted) {
+          updateUser({ onboardingCompleted: true });
+        }
       }
     } catch (error) {
       console.error('Failed to check onboarding status after login:', error);
       // Don't block login if onboarding check fails
+      // If userData has onboardingCompleted flag, don't show onboarding
+      if (userData.onboardingCompleted) {
+        setShowOnboarding(false);
+      }
     }
   };
 
@@ -160,6 +214,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setShowOnboarding(false);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
+      // Clear cache
+      localStorageCache.remove(CacheKeys.USER);
+      localStorageCache.remove(CacheKeys.USER_SESSION);
     }
   };
 
@@ -168,6 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const updatedUser = { ...user, ...userData };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      // Update cache
+      localStorageCache.set(CacheKeys.USER, updatedUser, 5 * 60 * 1000);
       
       // Hide onboarding if user completed it
       if (userData.onboardingCompleted) {

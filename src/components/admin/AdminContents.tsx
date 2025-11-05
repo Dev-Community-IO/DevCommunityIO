@@ -90,9 +90,30 @@ export function AdminContents() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setContents([]);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, authorFilter]);
+
+  // Load data on mount and when filters change
   useEffect(() => {
     loadContents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter, statusFilter, searchQuery, authorFilter, dateFrom, dateTo, page]);
+
+  // Ensure data loads on initial mount (safety net)
+  useEffect(() => {
+    // Load on mount if no data exists yet
+    if (contents.length === 0) {
+      loadContents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -139,13 +160,13 @@ export function AdminContents() {
     setConfirmDialog({
       isOpen: true,
       title: 'Unpublish Content',
-      message: 'Are you sure you want to unpublish this content? It will no longer be visible to users.',
+      message: 'Are you sure you want to unpublish this content? It will be hidden from public view but can be restored later.',
       variant: 'warning',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.unpublishContent(type, id, 'Unpublished by admin');
-          toast.success('Content unpublished successfully');
+          toast.success('Content has been unpublished and hidden from public view');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           loadContents();
         } catch (error: any) {
@@ -161,7 +182,7 @@ export function AdminContents() {
   const handleRepublish = async (type: string, id: string) => {
     try {
       await adminService.republishContent(type, id);
-      toast.success('Content republished successfully');
+      toast.success('Content has been restored and is now publicly visible');
       loadContents();
     } catch (error: any) {
       console.error('Failed to republish content:', error);
@@ -172,14 +193,14 @@ export function AdminContents() {
   const handleDelete = (type: string, id: string) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Delete Content',
-      message: 'Are you sure you want to delete this content? This action cannot be undone.',
+      title: 'Permanently Delete Content',
+      message: 'Are you sure you want to permanently delete this content? This action cannot be undone and all associated data will be removed.',
       variant: 'danger',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.removeContent(type, id, 'Deleted by admin');
-          toast.success('Content deleted successfully');
+          toast.success('Content has been permanently deleted');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           loadContents();
         } catch (error: any) {
@@ -196,12 +217,12 @@ export function AdminContents() {
     if (selectedItems.size === 0) return;
     
     const confirmMessage = action === 'delete' 
-      ? `Are you sure you want to delete ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}? This cannot be undone.`
-      : `Are you sure you want to unpublish ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}?`;
+      ? `Are you sure you want to permanently delete ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}? This action cannot be undone and all associated data will be permanently removed.`
+      : `Are you sure you want to unpublish ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}? These items will be hidden from public view but can be restored later.`;
     
     setConfirmDialog({
       isOpen: true,
-      title: action === 'delete' ? 'Delete Multiple Items' : 'Unpublish Multiple Items',
+      title: action === 'delete' ? 'Permanently Delete Multiple Items' : 'Unpublish Multiple Items',
       message: confirmMessage,
       variant: action === 'delete' ? 'danger' : 'warning',
       onConfirm: async () => {
@@ -303,14 +324,14 @@ export function AdminContents() {
   const handleBanAuthor = (authorId: string) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Ban Author',
-      message: 'Are you sure you want to ban this author? This is a permanent action.',
+      title: 'Permanently Ban Author',
+      message: 'Are you sure you want to permanently ban this author? This action cannot be undone and the author will lose all access to the platform.',
       variant: 'danger',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.banUser(authorId, 'Banned due to content violation');
-          toast.success('Author banned successfully');
+          toast.success('Author has been permanently banned from the platform');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadContents();
@@ -327,14 +348,14 @@ export function AdminContents() {
   const handleSuspendAuthor = (authorId: string) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Suspend Author',
-      message: 'Are you sure you want to suspend this author for 7 days?',
+      title: 'Temporarily Suspend Author',
+      message: 'Are you sure you want to temporarily suspend this author for 7 days? The author will lose access to the platform during this period.',
       variant: 'warning',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.suspendUser(authorId, 'Suspended due to content violation', 7);
-          toast.success('Author suspended successfully');
+          toast.success('Author has been temporarily suspended for 7 days');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadContents();
@@ -351,14 +372,14 @@ export function AdminContents() {
   const handleUnpublishAllAuthorPosts = (authorId: string) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Unpublish All Author Posts',
-      message: 'Are you sure you want to unpublish all posts from this author?',
+      title: 'Unpublish All Author Content',
+      message: 'Are you sure you want to unpublish all content from this author? All posts will be hidden from public view but can be restored later.',
       variant: 'warning',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.unpublishUserPosts(authorId, 'All posts unpublished by admin');
-          toast.success('All author posts unpublished successfully');
+          toast.success('All author content has been unpublished and hidden from public view');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadContents();
@@ -398,7 +419,10 @@ export function AdminContents() {
             {/* Type Filter */}
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as ContentType)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as ContentType);
+                setPage(1);
+              }}
               className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Types</option>
@@ -412,7 +436,10 @@ export function AdminContents() {
             {/* Status Filter */}
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as ContentStatus)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as ContentStatus);
+                setPage(1);
+              }}
               className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
@@ -438,7 +465,10 @@ export function AdminContents() {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
@@ -447,7 +477,10 @@ export function AdminContents() {
               <input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
@@ -468,14 +501,14 @@ export function AdminContents() {
                 className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 <EyeOff size={16} />
-                Unpublish
+                Unpublish Selected
               </button>
               <button
                 onClick={() => handleBulkAction('delete')}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 <Trash2 size={16} />
-                Delete
+                Delete Selected
               </button>
               <button
                 onClick={() => setSelectedItems(new Set())}
@@ -639,7 +672,7 @@ export function AdminContents() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300 transition-colors"
                                 >
                                   <Eye size={16} />
-                                  View Content
+                                  Open Content
                                 </button>
                                 
                                 <button
@@ -664,7 +697,7 @@ export function AdminContents() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
                                   >
                                     <EyeOff size={16} />
-                                    Unpublish
+                                    Unpublish Content
                                   </button>
                                 ) : (
                                   <button
@@ -675,7 +708,7 @@ export function AdminContents() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400 transition-colors"
                                   >
                                     <CheckCircle2 size={16} />
-                                    Republish
+                                    Restore Publication
                                   </button>
                                 )}
 
@@ -687,7 +720,7 @@ export function AdminContents() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
                                 >
                                   <Archive size={16} />
-                                  Unpublish All Author Posts
+                                  Unpublish All Author Content
                                 </button>
 
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
@@ -700,7 +733,7 @@ export function AdminContents() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
                                   >
                                     <AlertTriangle size={16} />
-                                    View Reports
+                                    Review Content Reports
                                     {(item.reportsCount || 0) > 0 && (
                                       <Badge className="ml-auto bg-red-500/10 text-red-600 dark:text-red-400">
                                         {item.reportsCount}
@@ -717,7 +750,7 @@ export function AdminContents() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
                                 >
                                   <Clock size={16} />
-                                  Suspend Author (7d)
+                                  Temporarily Suspend Author (7 days)
                                 </button>
 
                                 <button
@@ -728,7 +761,7 @@ export function AdminContents() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400 transition-colors"
                                 >
                                   <Ban size={16} />
-                                  Ban Author
+                                  Permanently Ban Author
                                 </button>
 
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
@@ -741,7 +774,7 @@ export function AdminContents() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400 transition-colors"
                                 >
                                   <Trash2 size={16} />
-                                  Delete Content
+                                  Permanently Delete Content
                                 </button>
                               </div>
                             )}

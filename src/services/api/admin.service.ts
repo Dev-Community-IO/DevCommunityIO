@@ -305,6 +305,24 @@ class AdminService {
         return response.data;
     }
 
+    // Page member management
+    async getPageMembers(pageId: string): Promise<any> {
+        const response = await apiClient.get(`/pages/${pageId}/members`);
+        return response.data;
+    }
+
+    async addPageMember(pageId: string, userId: string, role: 'admin' | 'moderator' | 'member'): Promise<void> {
+        await apiClient.post(`/pages/${pageId}/team`, { userId, role });
+    }
+
+    async updatePageMemberRole(pageId: string, userId: string, role: 'admin' | 'moderator' | 'member'): Promise<void> {
+        await apiClient.patch(`/pages/${pageId}/team/${userId}`, { role });
+    }
+
+    async removePageMember(pageId: string, userId: string): Promise<void> {
+        await apiClient.delete(`/pages/${pageId}/team/${userId}`);
+    }
+
     // Static Pages management
     async getStaticPage(slug: string): Promise<any> {
         const response = await apiClient.get(`/static-pages/${slug}`);

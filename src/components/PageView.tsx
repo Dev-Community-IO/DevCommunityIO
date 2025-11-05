@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Loader, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { CompactPostCard } from './CompactPostCard';
 import { VerifiedBadge } from './VerifiedBadge';
+import { ShareDropdown } from './ShareDropdown';
 import { Post } from '../types';
 import pagesService from '../services/api/pages.service';
 import { useAuth } from '../contexts/AuthContext';
 import { useSEO } from '../hooks/useSEO';
 import { useNavigate } from 'react-router-dom';
+import { PageViewSkeleton } from './skeletons';
 
 interface PageViewProps {
   pageId?: string;
@@ -18,15 +20,16 @@ interface PageViewProps {
   onLoginRequired?: () => void;
 }
 
-type TabType = 'posts' | 'about' | 'members' | 'manage' | 'stats';
+type TabType = 'posts' | 'about' | 'followers' | 'manage' | 'stats';
 
 export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequired }: PageViewProps) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [pageData, setPageData] = useState<any>(null);
   const [pagePosts, setPagePosts] = useState<Post[]>([]);
-  const [pageMembers, setPageMembers] = useState<any[]>([]);
+  const [pageTeamMembers, setPageTeamMembers] = useState<any[]>([]);
   const [pageFollowers, setPageFollowers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
     enabled: !!pageData?.slug || !!pageSlug
   });
 
-  // Fetch page data
+  // Fetch page data - REBUILT FROM SCRATCH
   useEffect(() => {
     const fetchPageData = async () => {
       try {
@@ -64,55 +67,49 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           throw new Error('Page identifier is required');
         }
         
+        // Fetch page data from API
         const pageResponse = await pagesService.getPage(identifier);
-        console.log('[PageView] Raw API response:', pageResponse);
         
-        // Extract page object - handle both nested and direct response
-        const page = pageResponse.page || pageResponse;
-        setPageData(page);
+        // API returns: { page: { ...pageData, isFollowing: boolean } }
+        const pageDataFromApi = pageResponse.page || pageResponse;
         
-        // Set following status - check multiple possible locations
-        let followingStatus = false;
-        if (page.isFollowing !== undefined && page.isFollowing !== null) {
-          followingStatus = page.isFollowing;
-        } else if (page.is_following !== undefined && page.is_following !== null) {
-          followingStatus = page.is_following;
-        } else if (pageResponse.isFollowing !== undefined && pageResponse.isFollowing !== null) {
-          followingStatus = pageResponse.isFollowing;
-        }
+        // Extract isFollowing - MUST be boolean, default to false
+        // API returns correct isFollowing based on authenticated user
+        const isFollowingFromApi = pageDataFromApi?.isFollowing === true;
         
-        setIsFollowing(followingStatus);
+        // Set state immediately
+        setIsFollowing(isFollowingFromApi);
         
-        console.log('[PageView] Page loaded:', { 
-          pageResponse,
-          page,
-          isFollowing: followingStatus, 
-          pageIsFollowing: page.isFollowing,
-          pageResponseIsFollowing: pageResponse.isFollowing,
-          pageIs_following: page.is_following 
-        });
+        // Store complete page data with isFollowing explicitly set
+        const completePageData = {
+          ...pageDataFromApi,
+          isFollowing: isFollowingFromApi, // Explicitly set to ensure it's always boolean
+          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0
+        };
         
-        const postsResponse = await pagesService.getPagePosts(page.slug || identifier);
+        setPageData(completePageData);
+        
+        // Fetch posts
+        const postsResponse = await pagesService.getPagePosts(pageDataFromApi.slug || identifier);
         const posts = postsResponse.posts || postsResponse.data || postsResponse || [];
-        // Deduplicate posts by ID to prevent duplicates
         const uniquePosts = Array.isArray(posts) ? posts.filter((post: Post, index: number, self: Post[]) => 
           index === self.findIndex((p: Post) => p.id === post.id)
         ) : [];
         setPagePosts(uniquePosts);
         
-        if (page.id) {
+        // Fetch team members and followers
+        if (pageDataFromApi.id) {
           try {
-            // Fetch team members and followers separately
             const [teamResponse, followersResponse] = await Promise.all([
-              pagesService.getMembers(page.id, { type: 'team' }),
-              pagesService.getMembers(page.id, { type: 'followers' })
+              pagesService.getMembers(pageDataFromApi.id, { type: 'team' }),
+              pagesService.getMembers(pageDataFromApi.id, { type: 'followers' })
             ]);
             
-            setPageMembers(teamResponse.members || teamResponse.data || teamResponse || []);
+            setPageTeamMembers(teamResponse.members || teamResponse.data || teamResponse || []);
             setPageFollowers(followersResponse.followers || followersResponse.data || followersResponse || []);
           } catch (err) {
-            console.warn('Could not fetch members:', err);
-            setPageMembers([]);
+            console.warn('Could not fetch team members or followers:', err);
+            setPageTeamMembers([]);
             setPageFollowers([]);
           }
         }
@@ -125,49 +122,47 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
     };
 
     fetchPageData();
-  }, [pageId, pageSlug]);
+  }, [pageId, pageSlug, user?.id]); // Re-fetch when user changes (login/logout)
 
+  // Handle follow toggle - REBUILT FROM SCRATCH
   const handleFollowToggle = async () => {
     if (!pageData || !pageData.id) return;
     
-    // Optimistic update
-    const previousFollowing = isFollowing;
-    const previousFollowerCount = pageData.followerCount || pageData.follower_count || 0;
-    
-    // Don't do optimistic update if already following - just check status
-    if (!previousFollowing) {
-      setIsFollowing(true);
-    }
+    const currentFollowing = isFollowing;
+    const previousFollowerCount = pageData.followerCount || 0;
     
     try {
-      if (previousFollowing) {
-        const response = await pagesService.leavePage(pageData.id);
-        // Update following status from response
-        setIsFollowing(response?.isFollowing !== undefined ? response.isFollowing : false);
-        // Update follower count from response
-        if (response?.followerCount !== undefined) {
-          setPageData({ ...pageData, followerCount: response.followerCount });
-        } else {
-          setPageData({ ...pageData, followerCount: Math.max(0, previousFollowerCount - 1) });
-        }
-      } else {
-        const response = await pagesService.joinPage(pageData.id);
-        // Update following status from response (handles both new follow and already following)
-        setIsFollowing(response?.isFollowing !== undefined ? response.isFollowing : true);
-        // Update follower count from response
-        if (response?.followerCount !== undefined) {
-          setPageData({ ...pageData, followerCount: response.followerCount });
-        } else {
-          setPageData({ ...pageData, followerCount: previousFollowerCount + 1 });
-        }
-      }
-    } catch (err: any) {
-      // Revert optimistic update on error
-      setIsFollowing(previousFollowing);
+      let response;
       
-      const errorMessage = err?.response?.data?.message || err?.message || '';
+      if (currentFollowing) {
+        // User is following, so unfollow
+        response = await pagesService.leavePage(pageData.id);
+      } else {
+        // User is not following, so follow
+        response = await pagesService.joinPage(pageData.id);
+      }
+      
+      // API response: { message: "...", isFollowing: boolean, followerCount: number }
+      const newIsFollowing = response?.isFollowing === true;
+      const newFollowerCount = response?.followerCount ?? previousFollowerCount;
+      
+      // Update state immediately
+      setIsFollowing(newIsFollowing);
+        
+      // Update pageData to persist the change
+        setPageData({ 
+          ...pageData, 
+        isFollowing: newIsFollowing,
+        followerCount: newFollowerCount
+        });
+      
+    } catch (err: any) {
+      // Revert on error
+      setIsFollowing(currentFollowing);
+      
+      const errorMessage = err?.response?.data?.message || err?.message || 'Failed to update follow status';
       console.error('Error toggling follow:', err);
-      alert(errorMessage || 'Failed to update follow status');
+      alert(errorMessage);
     }
   };
 
@@ -176,14 +171,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="text-center">
-          <Loader className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading page...</p>
-        </div>
-      </div>
-    );
+    return <PageViewSkeleton />;
   }
 
   if (error || !pageData) {
@@ -209,7 +197,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   const tabs = [
     { id: 'posts', label: 'Posts', icon: MessageSquare, count: pagePosts.length },
     { id: 'about', label: 'About', icon: FileText },
-    { id: 'members', label: 'Members', icon: Users, count: pageData.followerCount || pageData.follower_count || 0 },
+    { id: 'followers', label: 'Followers', icon: Users, count: pageData.followerCount || pageData.follower_count || 0 },
   ];
 
   return (
@@ -260,12 +248,20 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                   </button>
             )}
 
-                  <button
-              className="p-2.5 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all"
-                    title="Share page"
-                  >
-                    <Share2 size={20} />
-                  </button>
+                  <ShareDropdown
+                    url={window.location.href}
+                    title={pageData.name}
+                    hashtags={pageData.category ? [pageData.category] : []}
+                    description={pageData.description?.substring(0, 150)}
+                    trigger={
+                      <button
+                        className="p-2.5 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all"
+                        title="Share page"
+                      >
+                        <Share2 size={20} />
+                      </button>
+                    }
+                  />
           </div>
             </div>
             
@@ -453,14 +449,45 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           <div>
             {pagePosts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pagePosts.map(post => (
-                  <CompactPostCard
-                    key={post.id}
-                    post={post}
-                    onClick={() => onPostClick?.(post)}
-                    onLoginRequired={onLoginRequired}
-                  />
-                ))}
+                {pagePosts.map(post => {
+                  const handlePostClick = () => {
+                    // Check if post is linked to a hackathon, event, or opportunity
+                    const postAny = post as any;
+                    
+                    // Check by category first, then by attached objects
+                    if (post.category === 'hackathon' && postAny.hackathon) {
+                      const hackathon = postAny.hackathon;
+                      navigate(`/hackathons/${hackathon.slug || hackathon.id}`);
+                    } else if (post.category === 'event' && postAny.event) {
+                      const event = postAny.event;
+                      navigate(`/events/${event.slug || event.id}`);
+                    } else if (post.category === 'opportunity' && postAny.opportunity) {
+                      const opportunity = postAny.opportunity;
+                      navigate(`/opportunities/${opportunity.slug || opportunity.id}`);
+                    } else if (postAny.hackathonId || postAny.hackathon_id) {
+                      const hackathonId = postAny.hackathonId || postAny.hackathon_id;
+                      navigate(`/hackathons/${hackathonId}`);
+                    } else if (postAny.eventId || postAny.event_id) {
+                      const eventId = postAny.eventId || postAny.event_id;
+                      navigate(`/events/${eventId}`);
+                    } else if (postAny.opportunityId || postAny.opportunity_id) {
+                      const opportunityId = postAny.opportunityId || postAny.opportunity_id;
+                      navigate(`/opportunities/${opportunityId}`);
+                    } else {
+                      // Regular post - navigate to post detail
+                      navigate(`/post/${post.slug || post.id}`);
+                    }
+                  };
+                  
+                  return (
+                    <CompactPostCard
+                      key={post.id}
+                      post={post}
+                      onClick={handlePostClick}
+                      onLoginRequired={onLoginRequired}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <GlassCard className="p-12 text-center">
@@ -475,12 +502,11 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         )}
 
         {activeTab === 'about' && (
-          <AboutTab pageData={pageData} pageMembers={pageMembers} />
+          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} />
         )}
 
-        {activeTab === 'members' && (
-          <MembersTab 
-            pageMembers={pageMembers} 
+        {activeTab === 'followers' && (
+          <FollowersTab 
             pageFollowers={pageFollowers}
             pageData={pageData}
           />
@@ -491,7 +517,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 }
 
 // About Tab Component
-function AboutTab({ pageData, pageMembers }: any) {
+function AboutTab({ pageData, pageTeamMembers }: any) {
   return (
           <div className="space-y-6">
       <GlassCard className="p-6 md:p-8">
@@ -553,8 +579,8 @@ function AboutTab({ pageData, pageMembers }: any) {
               )}
             </div>
 
-            {/* Team Members */}
-            {pageMembers && pageMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
+            {/* Team Members - Only visible to admins */}
+            {pageTeamMembers && pageTeamMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
         <GlassCard className="p-6 md:p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -563,7 +589,7 @@ function AboutTab({ pageData, pageMembers }: any) {
                   </h2>
                 </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pageMembers
+                  {pageTeamMembers
                     .filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role))
                     .map((member: any) => (
               <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-lg transition-all border border-gray-200 dark:border-gray-700">
@@ -665,120 +691,14 @@ function AboutTab({ pageData, pageMembers }: any) {
   );
 }
 
-// Members Tab Component
-function MembersTab({ pageMembers, pageFollowers }: any) {
+// Followers Tab Component - Shows followers (not team members)
+// Team members are only visible in About tab or Manage section for admins
+function FollowersTab({ pageFollowers }: any) {
   const navigate = useNavigate();
-  
-  const teamMembers = pageMembers || [];
   const followers = pageFollowers || [];
-  
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return 'gradient';
-      case 'admin':
-        return 'default';
-      case 'moderator':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white';
-      case 'admin':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
-      case 'moderator':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
-      default:
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
-    }
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return 'Owner';
-      case 'admin':
-        return 'Admin';
-      case 'moderator':
-        return 'Moderator';
-      default:
-        return 'Member';
-    }
-  };
 
   return (
     <div className="space-y-6">
-      {/* Team Members Section */}
-      {teamMembers.length > 0 && (
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <Shield size={24} className="text-blue-600 dark:text-blue-400" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Team</h2>
-            <Badge variant="default" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-              {teamMembers.length}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teamMembers.map((member: any) => (
-              <GlassCard 
-                key={member.id} 
-                className="p-5 hover:shadow-xl transition-all cursor-pointer group"
-                onClick={() => navigate(`/profile/${member.username}`)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={member.avatar_url || member.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
-                      alt={member.username}
-                      className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 dark:group-hover:border-blue-400 transition-all"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`;
-                      }}
-                    />
-                    {member.is_verified && (
-                      <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                        <VerifiedBadge size={14} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                        {member.username}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge 
-                        variant={getRoleBadgeVariant(member.role)}
-                        className={`text-xs font-semibold ${getRoleBadgeColor(member.role)}`}
-                      >
-                        {getRoleLabel(member.role)}
-                      </Badge>
-                      {member.reputation !== undefined && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {member.reputation} rep
-                        </span>
-                      )}
-                    </div>
-                    {member.bio && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
-                        {member.bio}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Followers Section */}
       <div>
         <div className="flex items-center gap-3 mb-4">

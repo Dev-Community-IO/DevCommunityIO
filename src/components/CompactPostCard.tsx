@@ -231,7 +231,7 @@ export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = fal
             {/* Emoji Reactions */}
             {emojis.length > 0 && (
               <div className="flex items-center gap-1 flex-wrap">
-                {emojis.slice(0, 3).map(({ emoji, count }) => (
+                {emojis.map(({ emoji, count }) => (
                   <button
                     key={emoji}
                     onClick={(e) => {

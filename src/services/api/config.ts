@@ -172,14 +172,19 @@ apiClient.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // Log error details for debugging (non-401 errors)
-        console.error('❌ API Error:', {
-            url,
-            method: originalRequest?.method,
-            status,
-            message: error.message,
-            baseURL: apiClient.defaults.baseURL,
-        });
+        // Suppress console errors for 404s on user pages endpoint (expected for users without pages)
+        const isExpected404 = url?.includes('/users/') && url?.includes('/pages');
+        
+        // Log error details for debugging (non-401, non-expected-404 errors)
+        if (!isExpected404) {
+            console.error('❌ API Error:', {
+                url,
+                method: originalRequest?.method,
+                status,
+                message: error.message,
+                baseURL: apiClient.defaults.baseURL,
+            });
+        }
 
         // Handle other errors
         const errorMessage = error.response?.data?.message || error.message || 'An error occurred';

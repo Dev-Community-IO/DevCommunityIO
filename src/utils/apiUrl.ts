@@ -22,8 +22,10 @@ export function getApiBaseUrl(): string {
 
 /**
  * Get API URL (without /api suffix)
+ * Production-aware: Uses HTTPS for production domains
  */
 export function getApiUrl(): string {
+    // Use environment variable if set (highest priority)
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
@@ -36,13 +38,31 @@ export function getApiUrl(): string {
     // Detect API URL based on current location
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+        
+        // Production domains
+        const productionDomains = [
+            'devcommunity.io',
+            'www.devcommunity.io',
+            'www.devcommunity.com',
+        ];
+        
+        const isProductionDomain = productionDomains.includes(hostname);
         
         if (isLocalhost) {
             return 'http://localhost:3333';
+        } else if (isProductionDomain) {
+            // Use API subdomain for production
+            if (hostname.startsWith('www.')) {
+                const baseDomain = hostname.replace('www.', '');
+                return `${protocol}//api.${baseDomain}`;
+            } else {
+                return `${protocol}//api.${hostname}`;
+            }
         } else {
             // For IP addresses or other hostnames, use same hostname with port 3333
-            return `http://${hostname}:3333`;
+            return `${protocol}//${hostname}:3333`;
         }
     }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
+import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
@@ -9,7 +9,7 @@ import { Post } from '../types';
 import { useNavigate } from 'react-router-dom';
 import usersService from '../services/api/users.service';
 import pagesService from '../services/api/pages.service';
-import { PageCardSkeletonList } from './skeletons';
+import { PageCardSkeletonList, PostSkeletonList } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { CreatePageModal } from './CreatePageModal';
 
@@ -34,7 +34,12 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   const [selectedPageForTeam, setSelectedPageForTeam] = useState<string | null>(null);
   const [teamMemberSearchQuery, setTeamMemberSearchQuery] = useState('');
   const [teamMemberSearchResults, setTeamMemberSearchResults] = useState<any[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [selectedUserIndex, setSelectedUserIndex] = useState(-1);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedTeamRole, setSelectedTeamRole] = useState<'admin' | 'moderator'>('moderator');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchResultsRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<FilterType>('all');
 
   // Settings form state
@@ -179,31 +184,82 @@ export function ProfilePages({ username }: ProfilePagesProps) {
     }
   };
 
-  const handleSearchTeamMembers = async (query: string) => {
-    if (query.length < 2) {
+  // Debounced search effect
+  useEffect(() => {
+    if (teamMemberSearchQuery.trim().length < 2) {
       setTeamMemberSearchResults([]);
+      setIsSearchingUsers(false);
+      setSearchError(null);
+      setSelectedUserIndex(-1);
       return;
     }
 
+    setIsSearchingUsers(true);
+    setSearchError(null);
+    setSelectedUserIndex(-1);
+
+    const timeoutId = setTimeout(async () => {
     try {
-      const users = await pagesService.searchUsers(query);
-      setTeamMemberSearchResults(users);
-    } catch (err) {
+        const users = await pagesService.searchUsers(teamMemberSearchQuery.trim());
+        setTeamMemberSearchResults(users || []);
+      } catch (err: any) {
       console.error('Error searching users:', err);
+        setSearchError(err?.response?.data?.message || 'Failed to search users');
       setTeamMemberSearchResults([]);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [teamMemberSearchQuery]);
+
+  // Reset selected index when results change
+  useEffect(() => {
+    setSelectedUserIndex(-1);
+  }, [teamMemberSearchResults]);
+
+  // Scroll selected item into view when using keyboard navigation
+  useEffect(() => {
+    if (selectedUserIndex >= 0 && searchResultsRef.current) {
+      const selectedElement = searchResultsRef.current.children[selectedUserIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
-  };
+  }, [selectedUserIndex]);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (showAddTeamMemberModal && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    } else {
+      setTeamMemberSearchQuery('');
+      setTeamMemberSearchResults([]);
+      setSelectedUserIndex(-1);
+      setSearchError(null);
+    }
+  }, [showAddTeamMemberModal]);
 
   const handleAddTeamMember = async (pageId: string, username: string) => {
+    if (!pageId || !username) return;
+    
     try {
       await pagesService.addTeamMember(pageId, username, selectedTeamRole);
       setShowAddTeamMemberModal(false);
       setTeamMemberSearchQuery('');
       setTeamMemberSearchResults([]);
       setSelectedPageForTeam(null);
+      setSelectedUserIndex(-1);
+      setSearchError(null);
       
-      // Show success notification (user will be notified via backend)
-      alert(`Team member ${username} added successfully! They will receive a notification.`);
+      // Refresh page members if we're in the members tab
+      if (selectedPageId === pageId) {
+        const members = await pagesService.getMembers(selectedPageId);
+        setPageMembers(members.members || members || []);
+      }
       
       // Refresh pages list
       if (username) {
@@ -212,7 +268,32 @@ export function ProfilePages({ username }: ProfilePagesProps) {
         setUserPages(pagesWithRoles);
       }
     } catch (err: any) {
-      alert(err?.message || 'Failed to add team member');
+      setSearchError(err?.response?.data?.message || err?.message || 'Failed to add team member');
+    }
+  };
+
+  // Keyboard navigation handler
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedUserIndex(prev => 
+        prev < teamMemberSearchResults.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedUserIndex(prev => prev > 0 ? prev - 1 : -1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedUserIndex >= 0 && selectedUserIndex < teamMemberSearchResults.length && selectedPageForTeam) {
+        const selectedUser = teamMemberSearchResults[selectedUserIndex];
+        handleAddTeamMember(selectedPageForTeam, selectedUser.username);
+      }
+    } else if (e.key === 'Escape') {
+      setShowAddTeamMemberModal(false);
+      setTeamMemberSearchQuery('');
+      setTeamMemberSearchResults([]);
+      setSelectedPageForTeam(null);
+      setSelectedUserIndex(-1);
     }
   };
 
@@ -466,26 +547,26 @@ export function ProfilePages({ username }: ProfilePagesProps) {
           </GlassCard>
         ) : (
           /* Pages Grid */
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Pages You Manage */}
             {ownerPages.length > 0 && (
               <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
-                    <Crown size={20} className="text-white" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
+                    <Crown size={16} className="text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                     Pages You Manage
                   </h3>
-                  <Badge variant="default" className="px-2.5 py-1">
+                  <Badge variant="default" className="px-2 py-0.5 text-xs">
                     {ownerPages.length}
                   </Badge>
                 </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {ownerPages.map(page => (
-                    <GlassCard key={`page-${page.id}`} className="hover:shadow-xl transition-all duration-300 group relative overflow-visible">
+                    <GlassCard key={`page-${page.id}`} className="hover:shadow-lg transition-all duration-300 group cursor-pointer relative overflow-hidden">
               {/* Cover Image Banner */}
-                      <div className="relative h-40 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
+                      <div className="relative h-20 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
                 {page.coverImageUrl ? (
                   <img 
                     src={page.coverImageUrl} 
@@ -497,32 +578,25 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                     }}
                   />
                 ) : null}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent"></div>
                 
                 {/* Role Badge */}
-                        <div className="absolute top-4 right-4 z-10">
+                        <div className="absolute top-2 right-2 z-10">
                   <Badge
                             variant="gradient"
-                            className="flex items-center gap-1.5 backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 px-3 py-1.5"
+                            className="flex items-center gap-1 backdrop-blur-md bg-white/95 dark:bg-gray-900/95 px-2 py-0.5 text-xs"
                           >
                             {page.role === 'owner' || page.role === 'Owner' ? (
-                              <>
-                                <Crown size={14} />
-                                <span className="font-semibold">Owner</span>
-                              </>
+                              <Crown size={10} />
                             ) : (
-                              <>
-                                <Shield size={14} />
-                                <span className="font-semibold">Admin</span>
-                              </>
+                              <Shield size={10} />
                             )}
                   </Badge>
                 </div>
-              </div>
 
-              {/* Logo positioned overlapping cover and content */}
-                        <div className="absolute -bottom-10 left-6 z-30">
-                          <div className="w-24 h-24 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-2xl relative">
+              {/* Logo positioned overlapping cover */}
+                        <div className="absolute -bottom-6 left-3 z-20">
+                          <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg relative">
                     <img 
                       src={page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
                       alt={`${page.name} logo`} 
@@ -533,81 +607,82 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                       }}
                     />
                     {page.isVerified && (
-                      <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
-                        <VerifiedBadge size={16} />
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-900">
+                        <VerifiedBadge size={10} />
                   </div>
                     )}
                 </div>
               </div>
+              </div>
 
               {/* Content Section */}
-              <div className="p-6 pt-20 space-y-4">
+              <div className="p-4 pt-10 space-y-3">
                 {/* Page Header */}
                 <div>
-                          <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
                   <h3 
-                              onClick={() => navigate(`/pages/${page.slug}`)}
-                              className="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/pages/${page.slug}`);
+                              }}
+                              className="text-base font-bold hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors flex-1 line-clamp-1"
                   >
                     {page.name}
                   </h3>
                             {page.isVerified && (
-                              <VerifiedBadge size={18} />
+                              <VerifiedBadge size={14} />
                             )}
                           </div>
                   {page.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-snug">
                       {page.description}
                     </p>
                   )}
                 </div>
 
-                {/* Page Stats */}
-                        <div className="grid grid-cols-3 gap-4 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 mb-1">
-                              <Users size={16} className="text-blue-500" />
-                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                {/* Page Stats - Compact Inline */}
+                        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-1">
+                              <Users size={12} className="text-blue-500" />
+                              <span className="font-semibold text-gray-900 dark:text-white">
                                 {page.memberCount || page.members || 0}
                               </span>
                   </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Members</span>
-                  </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 mb-1">
-                              <FileText size={16} className="text-purple-500" />
-                              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          <div className="flex items-center gap-1">
+                              <FileText size={12} className="text-purple-500" />
+                              <span className="font-semibold text-gray-900 dark:text-white">
                                 {page.postCount || page.posts || 0}
                               </span>
                             </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Posts</span>
-                  </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 mb-1">
-                              <Hash size={16} className="text-green-500" />
-                              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                                {page.category || 'N/A'}
-                              </span>
-                  </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Category</span>
-                  </div>
+                          {page.category && (
+                            <div className="flex items-center gap-1 ml-auto">
+                              <Hash size={12} className="text-green-500" />
+                              <span className="truncate max-w-[80px]">{page.category}</span>
+                            </div>
+                          )}
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 pt-2">
                       <button
-                            onClick={() => navigate(`/pages/${page.slug}`)}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg hover:shadow-xl hover:scale-105"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/pages/${page.slug}`);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all text-xs font-semibold shadow-sm hover:shadow-md"
                       >
-                            <Layout size={18} />
-                            View Page
+                            <Layout size={14} />
+                            View
                       </button>
                       <button
-                        onClick={() => handleManagePage(page.id)}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all font-semibold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleManagePage(page.id);
+                        }}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-xs font-semibold"
                             title="Manage Page"
                       >
-                            <Settings size={18} />
+                            <Settings size={14} />
                       </button>
                 </div>
               </div>
@@ -620,26 +695,26 @@ export function ProfilePages({ username }: ProfilePagesProps) {
             {/* Pages You're a Member Of */}
             {memberPages.length > 0 && (
               <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-                    <Users size={20} className="text-white" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500">
+                    <Users size={16} className="text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                     Pages You're a Member Of
                   </h3>
-                  <Badge variant="default" className="px-2.5 py-1">
+                  <Badge variant="default" className="px-2 py-0.5 text-xs">
                     {memberPages.length}
                   </Badge>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {memberPages.map(page => (
                     <GlassCard 
                       key={`page-${page.id}`} 
-                      className="hover:shadow-xl transition-all duration-300 group cursor-pointer relative overflow-visible"
+                      className="hover:shadow-lg transition-all duration-300 group cursor-pointer relative overflow-hidden"
                       onClick={() => navigate(`/pages/${page.slug}`)}
                     >
                       {/* Cover Image Banner */}
-                      <div className="relative h-32 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden rounded-t-2xl">
+                      <div className="relative h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
                         {page.coverImageUrl ? (
                           <img 
                             src={page.coverImageUrl} 
@@ -651,12 +726,12 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                             }}
                           />
                         ) : null}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/5 to-transparent"></div>
                       </div>
                       
-                      {/* Logo - positioned outside cover container */}
-                      <div className="absolute -bottom-8 left-4 z-30">
-                        <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl relative">
+                      {/* Logo - positioned overlapping cover */}
+                      <div className="absolute -bottom-5 left-3 z-20">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-md relative">
                           <img 
                             src={page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
                             alt={`${page.name} logo`} 
@@ -667,38 +742,42 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                             }}
                           />
                           {page.isVerified && (
-                            <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                              <VerifiedBadge size={12} />
+                            <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-sm border border-white dark:border-gray-900">
+                              <VerifiedBadge size={9} />
                             </div>
                           )}
                         </div>
                       </div>
 
                       {/* Content */}
-                      <div className="p-5 pt-16 space-y-3">
+                      <div className="p-3 pt-8 space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-lg font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex-1">
+                          <h3 className="text-sm font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex-1 line-clamp-1">
                             {page.name}
                           </h3>
                           {page.isVerified && (
-                            <VerifiedBadge size={16} />
+                            <VerifiedBadge size={12} />
                           )}
                         </div>
                         
                         {page.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-snug">
                             {page.description}
                           </p>
                         )}
 
-                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 pt-1.5 border-t border-gray-100 dark:border-gray-800">
                           <span className="flex items-center gap-1">
-                            <Users size={12} />
-                            {page.memberCount || page.members || 0}
+                            <Users size={11} className="text-blue-500" />
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                              {page.memberCount || page.members || 0}
+                            </span>
                           </span>
                           <span className="flex items-center gap-1">
-                            <FileText size={12} />
-                            {page.postCount || page.posts || 0}
+                            <FileText size={11} className="text-purple-500" />
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                              {page.postCount || page.posts || 0}
+                            </span>
                           </span>
                 </div>
               </div>
@@ -712,8 +791,20 @@ export function ProfilePages({ username }: ProfilePagesProps) {
 
         {/* Add Team Member Modal */}
         {showAddTeamMemberModal && selectedPageForTeam && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <GlassCard className="w-full max-w-md p-6 space-y-4 animate-slide-up">
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowAddTeamMemberModal(false);
+                setTeamMemberSearchQuery('');
+                setTeamMemberSearchResults([]);
+                setSelectedPageForTeam(null);
+                setSelectedUserIndex(-1);
+                setSearchError(null);
+              }
+            }}
+          >
+            <GlassCard className="w-full max-w-md p-6 space-y-4 animate-slide-up max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">Add Team Member</h3>
                 <button
@@ -722,8 +813,11 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                     setTeamMemberSearchQuery('');
                     setTeamMemberSearchResults([]);
                     setSelectedPageForTeam(null);
+                    setSelectedUserIndex(-1);
+                    setSearchError(null);
                   }}
                   className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Close modal"
                 >
                   <X size={20} className="text-gray-600 dark:text-gray-400" />
                 </button>
@@ -734,26 +828,58 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                   <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                     Search by Username
                   </label>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                   <input
+                      ref={searchInputRef}
                     type="text"
                     value={teamMemberSearchQuery}
-                    onChange={(e) => {
-                      setTeamMemberSearchQuery(e.target.value);
-                      handleSearchTeamMembers(e.target.value);
-                    }}
-                    placeholder="Type username..."
-                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
-                    autoFocus
-                  />
+                      onChange={(e) => setTeamMemberSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                      placeholder="Type username to search..."
+                      className="w-full pl-11 pr-10 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
+                    />
+                    {isSearchingUsers && (
+                      <Loader2 className="absolute right-4 top-1/2 transform -translate-y-1/2 text-blue-500 animate-spin" size={18} />
+                    )}
+                    {teamMemberSearchQuery && !isSearchingUsers && (
+                      <button
+                        onClick={() => setTeamMemberSearchQuery('')}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <X size={16} className="text-gray-400 dark:text-gray-500" />
+                      </button>
+                    )}
+                  </div>
+                  {teamMemberSearchQuery.trim().length > 0 && teamMemberSearchQuery.trim().length < 2 && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Type at least 2 characters</p>
+                  )}
                 </div>
 
-                {teamMemberSearchResults.length > 0 && (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {teamMemberSearchResults.map((user: any) => (
+                {searchError && (
+                  <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={16} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+                      <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {teamMemberSearchQuery.trim().length >= 2 && !isSearchingUsers && teamMemberSearchResults.length > 0 && (
+                  <div 
+                    ref={searchResultsRef}
+                    className="space-y-1 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl p-2 bg-white dark:bg-gray-900"
+                  >
+                    {teamMemberSearchResults.map((user: any, index: number) => (
                       <button
                         key={user.id}
-                        onClick={() => handleAddTeamMember(selectedPageForTeam, user.username)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                        onClick={() => handleAddTeamMember(selectedPageForTeam!, user.username)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+                          selectedUserIndex === index
+                            ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 dark:border-blue-400'
+                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent'
+                        }`}
+                        onMouseEnter={() => setSelectedUserIndex(index)}
                       >
                         <Avatar
                           src={user.avatarUrl || user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
@@ -761,9 +887,15 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                           size="md"
                         />
                         <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
                           <p className="font-bold text-gray-900 dark:text-white truncate">{user.username}</p>
-                          {user.name && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.name}</p>
+                            {user.isVerified && <VerifiedBadge size={14} />}
+                          </div>
+                          {user.pseudo && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.pseudo}</p>
+                          )}
+                          {user.bio && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{user.bio}</p>
                           )}
                         </div>
                       </button>
@@ -771,10 +903,19 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                   </div>
                 )}
 
-                {teamMemberSearchQuery.length >= 2 && teamMemberSearchResults.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                    No users found
-                  </p>
+                {teamMemberSearchQuery.trim().length >= 2 && !isSearchingUsers && teamMemberSearchResults.length === 0 && !searchError && (
+                  <div className="p-8 text-center border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800">
+                    <Users size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No users found</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Try a different username</p>
+                  </div>
+                )}
+
+                {teamMemberSearchQuery.trim().length >= 2 && isSearchingUsers && (
+                  <div className="p-8 text-center border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800">
+                    <Loader2 className="mx-auto text-blue-500 animate-spin mb-2" size={24} />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Searching...</p>
+                  </div>
                 )}
 
                 <div>
@@ -790,6 +931,14 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                     <option value="admin">Admin</option>
                   </select>
                 </div>
+
+                {teamMemberSearchResults.length > 0 && (
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                      Use <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono">↑</kbd> <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono">↓</kbd> to navigate, <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono">Enter</kbd> to select
+                    </p>
+                  </div>
+                )}
               </div>
             </GlassCard>
           </div>
@@ -1004,10 +1153,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
             {activeTab === 'posts' && (
               <div className="space-y-6">
                 {loadingPosts ? (
-                  <GlassCard className="p-12 text-center">
-                    <Loader className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400">Loading posts...</p>
-                  </GlassCard>
+                  <PostSkeletonList count={6} />
                 ) : pagePosts.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {pagePosts.map((post) => (

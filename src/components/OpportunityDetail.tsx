@@ -17,6 +17,7 @@ import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import { useSEO } from '../hooks/useSEO';
 import { MentionTextarea } from './MentionTextarea';
+import { CommentSkeletonList } from './skeletons';
 
 interface OpportunityDetailProps {
   opportunityId: string;
@@ -633,10 +634,7 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
                 Comments ({comments.length})
               </h3>
               {loadingComments ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  Loading comments...
-                </div>
+                <CommentSkeletonList count={3} />
               ) : comments.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   No comments yet. Be the first to comment!

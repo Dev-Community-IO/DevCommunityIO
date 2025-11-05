@@ -1,4 +1,4 @@
-import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Star, Code2 } from 'lucide-react';
+import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Star, Code2, Twitter, Github, Linkedin, Facebook, Instagram, Youtube } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Tooltip } from './Tooltip';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,7 @@ import tagsService, { Tag } from '../services/api/tags.service';
 import { useNavigate } from 'react-router-dom';
 import siteSettingsService from '../services/api/siteSettings.service';
 import { isNetworkError } from '../services/api/config';
+import { getVersion, getGitTag, getCommitHash } from '../utils/version';
 
 interface SidebarProps {
   activeCategory: string;
@@ -46,6 +47,20 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   const [featuredTags, setFeaturedTags] = useState<Tag[]>([]);
   const [trendingTags, setTrendingTags] = useState<Tag[]>([]);
   const [githubContributeUrl, setGithubContributeUrl] = useState<string | null>(null);
+  const [siteSettings, setSiteSettings] = useState<{
+    siteName?: string | null;
+    emailFooterHtml?: string | null;
+    emailFooterTagline?: string | null;
+    emailFooterCopyright?: string | null;
+    emailFooterMadeWithText?: string | null;
+    emailFooterSocialTwitter?: string | null;
+    emailFooterSocialGithub?: string | null;
+    emailFooterSocialDiscord?: string | null;
+    emailFooterSocialLinkedin?: string | null;
+    emailFooterSocialFacebook?: string | null;
+    emailFooterSocialInstagram?: string | null;
+    emailFooterSocialYoutube?: string | null;
+  }>({});
   
   // Fetch bookmark count when authenticated
   useEffect(() => {
@@ -89,21 +104,53 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
     fetchTags();
   }, []);
 
-  // Fetch GitHub contribute URL
+  // Fetch GitHub contribute URL and email footer settings
   useEffect(() => {
-    const fetchGithubContribute = async () => {
+    const fetchSettings = async () => {
       try {
-        const url = await siteSettingsService.getSetting('github_contribute_url');
+        const [url, settings] = await Promise.all([
+          siteSettingsService.getSetting('github_contribute_url').catch(() => null),
+          siteSettingsService.getSettings([
+            'site_name',
+            'email_footer_html',
+            'email_footer_tagline',
+            'email_footer_copyright',
+            'email_footer_made_with_text',
+            'email_footer_social_twitter',
+            'email_footer_social_github',
+            'email_footer_social_discord',
+            'email_footer_social_linkedin',
+            'email_footer_social_facebook',
+            'email_footer_social_instagram',
+            'email_footer_social_youtube'
+          ]).catch(() => ({} as Record<string, string | null>))
+        ]);
         setGithubContributeUrl(url);
+        const settingsRecord = settings as Record<string, string | null>;
+        
+        setSiteSettings({
+          siteName: settingsRecord.site_name || null,
+          emailFooterHtml: settingsRecord.email_footer_html || null,
+          emailFooterTagline: settingsRecord.email_footer_tagline || null,
+          emailFooterCopyright: settingsRecord.email_footer_copyright || null,
+          emailFooterMadeWithText: settingsRecord.email_footer_made_with_text || null,
+          emailFooterSocialTwitter: settingsRecord.email_footer_social_twitter || null,
+          emailFooterSocialGithub: settingsRecord.email_footer_social_github || null,
+          emailFooterSocialDiscord: settingsRecord.email_footer_social_discord || null,
+          emailFooterSocialLinkedin: settingsRecord.email_footer_social_linkedin || null,
+          emailFooterSocialFacebook: settingsRecord.email_footer_social_facebook || null,
+          emailFooterSocialInstagram: settingsRecord.email_footer_social_instagram || null,
+          emailFooterSocialYoutube: settingsRecord.email_footer_social_youtube || null,
+        });
       } catch (err: any) {
         // Don't log network errors (server offline) - already handled by interceptor
         if (!isNetworkError(err)) {
-        console.error('Error fetching GitHub contribute URL:', err);
+        console.error('Error fetching settings:', err);
         }
       }
     };
 
-    fetchGithubContribute();
+    fetchSettings();
   }, []);
 
   const handleTagClick = (tag: Tag) => {
@@ -333,22 +380,156 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
       {/* Copyright and Version */}
       {showText && (
         <GlassCard className={`p-3 xl:p-4 ${isMobileSidebar ? 'block' : 'hidden xl:block'}`}>
-          <div className="space-y-2 text-center">
-            <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
-              <p className="font-semibold">DevCommunity Platform</p>
-              <p>Version 1.0.0</p>
+          {siteSettings.emailFooterHtml ? (
+            // Use custom HTML footer from email footer settings
+            <div 
+              className="space-y-2 text-center text-[10px] text-gray-500 dark:text-gray-400"
+              dangerouslySetInnerHTML={{ 
+                __html: siteSettings.emailFooterHtml
+                  .replace(/\{\{siteName\}\}/g, siteSettings.siteName || 'DevCommunity')
+                  .replace(/\{\{year\}\}/g, new Date().getFullYear().toString())
+                  .replace(/\{\{version\}\}/g, (() => {
+                    const tag = getGitTag();
+                    const commit = getCommitHash();
+                    if (tag) {
+                      return `${tag} (${commit.substring(0, 7)})`;
+                    }
+                    return `${getVersion()} (${commit.substring(0, 7)})`;
+                  })())
+                  .replace(/\{\{madeWithText\}\}/g, siteSettings.emailFooterMadeWithText || 'by developers')
+                  .replace(/\{\{copyright\}\}/g, siteSettings.emailFooterCopyright || `© ${new Date().getFullYear()} ${siteSettings.siteName || 'DevCommunity'}. All rights reserved.`)
+              }} 
+            />
+          ) : (
+            // Default footer layout
+            <div className="space-y-2 text-center">
+              <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
+                <p className="font-semibold">{siteSettings.siteName || 'DevCommunity Platform'}</p>
+                <p>
+                  {(() => {
+                    const tag = getGitTag();
+                    const commit = getCommitHash();
+                    if (tag) {
+                      return `Version ${tag} (${commit.substring(0, 7)})`;
+                    }
+                    return `Version ${getVersion()} (${commit.substring(0, 7)})`;
+                  })()}
+                </p>
+              </div>
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent"></div>
+              <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
+                {siteSettings.emailFooterCopyright ? (
+                  <p dangerouslySetInnerHTML={{ __html: siteSettings.emailFooterCopyright.replace(/\{year\}/g, new Date().getFullYear().toString()) }} />
+                ) : (
+                  <>
+                    <p>&copy; {new Date().getFullYear()} {siteSettings.siteName || 'DevCommunity'}</p>
+                    <p>All rights reserved</p>
+                  </>
+                )}
+              </div>
+              {siteSettings.emailFooterTagline ? (
+                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+                  <span dangerouslySetInnerHTML={{ __html: siteSettings.emailFooterTagline }} />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+                  <span>Made with</span>
+                  <span className="text-red-500 animate-pulse">♥</span>
+                  <span>{siteSettings.emailFooterMadeWithText || 'by developers'}</span>
+                </div>
+              )}
+              {/* Social Media Links */}
+              {(siteSettings.emailFooterSocialTwitter || 
+                siteSettings.emailFooterSocialGithub || 
+                siteSettings.emailFooterSocialDiscord || 
+                siteSettings.emailFooterSocialLinkedin || 
+                siteSettings.emailFooterSocialFacebook || 
+                siteSettings.emailFooterSocialInstagram || 
+                siteSettings.emailFooterSocialYoutube) && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  {siteSettings.emailFooterSocialTwitter && (
+                    <a
+                      href={siteSettings.emailFooterSocialTwitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
+                      aria-label="Twitter"
+                    >
+                      <Twitter size={14} />
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialGithub && (
+                    <a
+                      href={siteSettings.emailFooterSocialGithub}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all"
+                      aria-label="GitHub"
+                    >
+                      <Github size={14} />
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialDiscord && (
+                    <a
+                      href={siteSettings.emailFooterSocialDiscord}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 active:scale-95 transition-all"
+                      aria-label="Discord"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                      </svg>
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialLinkedin && (
+                    <a
+                      href={siteSettings.emailFooterSocialLinkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
+                      aria-label="LinkedIn"
+                    >
+                      <Linkedin size={14} />
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialFacebook && (
+                    <a
+                      href={siteSettings.emailFooterSocialFacebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
+                      aria-label="Facebook"
+                    >
+                      <Facebook size={14} />
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialInstagram && (
+                    <a
+                      href={siteSettings.emailFooterSocialInstagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all"
+                      aria-label="Instagram"
+                    >
+                      <Instagram size={14} />
+                    </a>
+                  )}
+                  {siteSettings.emailFooterSocialYoutube && (
+                    <a
+                      href={siteSettings.emailFooterSocialYoutube}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all"
+                      aria-label="YouTube"
+                    >
+                      <Youtube size={14} />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent"></div>
-            <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
-              <p>&copy; {new Date().getFullYear()} DevCommunity</p>
-              <p>All rights reserved</p>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
-              <span>Made with</span>
-              <span className="text-red-500 animate-pulse">♥</span>
-              <span>by developers</span>
-            </div>
-          </div>
+          )}
         </GlassCard>
       )}
       </div>

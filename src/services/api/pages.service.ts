@@ -135,7 +135,7 @@ export const pagesService = {
         logoUrl?: string;
         coverImageUrl?: string;
     }) => {
-        const response = await apiClient.put(`/pages/${pageId}`, pageData);
+        const response = await apiClient.patch(`/pages/${pageId}`, pageData);
         return response.data;
     },
 

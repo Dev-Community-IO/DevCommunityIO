@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { useState, useEffect, useMemo } from 'react';
 import { pagesService, Page } from '../services/api/pages.service';
 import { useNavigate } from 'react-router-dom';
+import { PageCardSkeletonList } from './skeletons';
 
 interface PagesListingProps {
   onPageClick?: (pageId: string) => void;
@@ -61,7 +62,13 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         const pagesData = response.data || [];
         const meta = response.meta || {};
         
-        setPages(pagesData);
+        // REBUILT: Ensure isFollowing is properly extracted - MUST be boolean
+        const pagesWithFollowing = pagesData.map((page: any) => ({
+          ...page,
+          isFollowing: page?.isFollowing === true // Explicitly check for true
+        }));
+        
+        setPages(pagesWithFollowing);
         setHasMore(meta.currentPage < meta.lastPage);
         setTotal(meta.total || 0);
       } catch (err: any) {
@@ -98,7 +105,13 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
       const pagesData = response.data || [];
       const meta = response.meta || {};
       
-      setPages(prev => [...prev, ...pagesData]);
+      // REBUILT: Ensure isFollowing is properly extracted - MUST be boolean
+      const pagesWithFollowing = pagesData.map((page: any) => ({
+        ...page,
+        isFollowing: page?.isFollowing === true // Explicitly check for true
+      }));
+      
+      setPages(prev => [...prev, ...pagesWithFollowing]);
       setCurrentPage(nextPage);
       setHasMore(meta.currentPage < meta.lastPage);
     } catch (err: any) {
@@ -133,12 +146,29 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
   if (loading && pages.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">Loading communities...</p>
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+            <div>
+              <div className="h-8 w-48 bg-gray-300 dark:bg-gray-600 rounded-lg mb-2 animate-pulse" />
+              <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            </div>
           </div>
         </div>
+
+        {/* Search and Filters Skeleton */}
+        <GlassCard className="p-5 animate-pulse">
+          <div className="h-12 w-full bg-gray-200 dark:bg-gray-700 rounded-xl mb-4" />
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+            ))}
+          </div>
+        </GlassCard>
+
+        {/* Pages Grid Skeleton */}
+        <PageCardSkeletonList count={9} />
       </div>
     );
   }
@@ -290,8 +320,8 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
                           <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                               <Users size={13} className="flex-shrink-0" />
-                              <span className="font-medium">{page.memberCount?.toLocaleString() || 0}</span>
-                              <span className="hidden sm:inline">members</span>
+                              <span className="font-medium">{(page.followerCount || page.follower_count || 0).toLocaleString()}</span>
+                              <span className="hidden sm:inline">followers</span>
                             </div>
                             {page.category && (
                               <Badge className="bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 text-xs capitalize px-2 py-0.5 border border-gray-200 dark:border-gray-700">

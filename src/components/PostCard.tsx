@@ -522,7 +522,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
               {/* Emoji Reactions - Inline and Compact - Mobile Optimized */}
               {emojis.length > 0 && (
                 <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
-                  {emojis.slice(0, 3).map(({ emoji, count }) => (
+                  {emojis.map(({ emoji, count }) => (
                     <button
                       key={emoji}
                       onClick={(e) => {

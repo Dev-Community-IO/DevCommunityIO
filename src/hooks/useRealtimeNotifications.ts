@@ -3,7 +3,6 @@ import notificationsService, { type Notification } from '../services/api/notific
 import { useAuth } from '../contexts/AuthContext';
 import { pushNotificationService } from '../services/pushNotification';
 import { isNetworkError } from '../services/api/config';
-import { faviconBadgeService } from '../services/faviconBadge';
 
 interface UseRealtimeNotificationsOptions {
     pollInterval?: number;
@@ -97,8 +96,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
             const count = await notificationsService.getUnreadCount();
             if (isMountedRef.current) {
                 setUnreadCount(count);
-                // Update favicon badge with unread count
-                faviconBadgeService.updateBadge(count);
             }
         } catch (err: any) {
             // Suppress network errors - they're handled gracefully
@@ -106,18 +103,12 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
                 console.error('Failed to get unread count:', err);
             }
             // Network errors are silently ignored - unread count stays at 0
-            if (isMountedRef.current) {
-                faviconBadgeService.updateBadge(0);
-            }
         }
     }, [isAuthenticated]);
 
     // Initial fetch and polling setup
     useEffect(() => {
         isMountedRef.current = true;
-
-        // Initialize favicon badge service
-        faviconBadgeService.init();
 
         if (isAuthenticated && autoFetch) {
             fetchNotifications(true);
@@ -144,8 +135,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
             setNotifications([]);
             setUnreadCount(0);
             setLoading(false);
-            // Remove badge when user logs out
-            faviconBadgeService.updateBadge(0);
         }
 
         return () => {
@@ -154,8 +143,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
             }
-            // Clean up badge when component unmounts
-            faviconBadgeService.updateBadge(0);
         };
     }, [isAuthenticated, autoFetch, pollInterval, fetchNotifications, fetchUnreadCount]);
 
@@ -168,8 +155,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
             );
             const newCount = Math.max(0, unreadCount - 1);
             setUnreadCount(newCount);
-            // Update favicon badge
-            faviconBadgeService.updateBadge(newCount);
         } catch (err) {
             console.error('Failed to mark notification as read:', err);
             throw err;
@@ -182,8 +167,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
             await notificationsService.markAllAsRead();
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
-            // Update favicon badge
-            faviconBadgeService.updateBadge(0);
         } catch (err) {
             console.error('Failed to mark all as read:', err);
             throw err;
@@ -200,8 +183,6 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
             if (notification && !notification.isRead) {
                 const newCount = Math.max(0, unreadCount - 1);
                 setUnreadCount(newCount);
-                // Update favicon badge
-                faviconBadgeService.updateBadge(newCount);
             }
         } catch (err) {
             console.error('Failed to delete notification:', err);

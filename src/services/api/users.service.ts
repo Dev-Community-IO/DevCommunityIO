@@ -211,6 +211,10 @@ class UsersService {
             const response = await apiClient.get(`/users/${username}/pages`);
             return response.data.pages || response.data || [];
         } catch (error: any) {
+            // Return empty array for 404 (user has no pages) - don't log as error
+            if (error?.response?.status === 404) {
+                return [];
+            }
             // Fallback: try to get postable pages if viewing own profile
             try {
                 const response = await apiClient.get('/pages/my/postable');

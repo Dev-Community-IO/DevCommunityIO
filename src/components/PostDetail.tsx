@@ -18,6 +18,7 @@ import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import pagesService from '../services/api/pages.service';
 import bookmarksService from '../services/api/bookmarks.service';
+import { PostDetailSkeleton, CommentSkeletonList } from './skeletons';
 
 interface PostDetailProps {
   post: Post;
@@ -40,23 +41,54 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
   const [pageData, setPageData] = useState<Page | null>(post.page || null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch full page data if post has a page
+  // REBUILT: Fetch full page data if post has a page - same pattern as PageView
   useEffect(() => {
     const fetchPageData = async () => {
       if (post.page) {
         // If page data is already in post, use it
-        setPageData(post.page);
+        const page = post.page as any;
+        // Extract isFollowing - MUST be boolean, default to false
+        const isFollowingFromApi = page?.isFollowing === true;
+        setPageData({
+          ...page,
+          isFollowing: isFollowingFromApi // Explicitly set to ensure it's always boolean
+        } as Page);
       } else if (post.pageId) {
         try {
-          const page = await pagesService.getPage(post.pageId);
-          setPageData(page.page || page);
+          // Fetch page data from API
+          const pageResponse = await pagesService.getPage(post.pageId);
+          
+          // API returns: { page: { ...pageData, isFollowing: boolean } }
+          const pageDataFromApi = pageResponse.page || pageResponse;
+          
+          // Extract isFollowing - MUST be boolean, default to false
+          const isFollowingFromApi = pageDataFromApi?.isFollowing === true;
+          
+          // Store complete page data with isFollowing explicitly set
+          setPageData({
+            ...pageDataFromApi,
+            isFollowing: isFollowingFromApi // Explicitly set to ensure it's always boolean
+          });
         } catch (error) {
           console.error('Failed to fetch page data:', error);
         }
       }
     };
     fetchPageData();
-  }, [post.pageId, post.page]);
+  }, [post.pageId, post.page, user?.id]); // Re-fetch when user changes
+
+  // Sync pageData when post.page changes (e.g., from PageSidebar follow action)
+  useEffect(() => {
+    if (post.page) {
+      const page = post.page as any;
+      // Extract isFollowing - MUST be boolean, default to false
+      const isFollowingFromPost = page?.isFollowing === true;
+      setPageData({
+        ...page,
+        isFollowing: isFollowingFromPost // Explicitly set to ensure it's always boolean
+      });
+    }
+  }, [post.page?.isFollowing, post.page?.followerCount]); // Sync when follow status or follower count changes
   
   // Load emoji reactions on mount
   useEffect(() => {
@@ -130,13 +162,7 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
 
   // Show loading or error if post is not available
   if (!post) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Loading post...</p>
-        </div>
-      </div>
-    );
+    return <PostDetailSkeleton />;
   }
 
   
@@ -263,19 +289,19 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     <>
       <button
         onClick={onClose}
-        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors group mb-4 sm:mb-6"
+        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 active:text-gray-900 dark:active:text-gray-100 transition-colors group mb-3 sm:mb-4 md:mb-6 min-h-[44px] touch-manipulation -ml-1 pl-1"
       >
-        <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-        <span className="text-sm sm:text-base font-medium">Back to Feed</span>
+        <ArrowLeft size={18} className="sm:w-5 sm:h-5 group-active:-translate-x-1 transition-transform" />
+        <span className="text-xs sm:text-sm md:text-base font-medium">Back to Feed</span>
       </button>
 
       <div className="space-y-4 sm:space-y-6">
         {/* Main Content */}
         <div className="space-y-4 sm:space-y-6 min-w-0">
-          <GlassCard className="p-4 sm:p-6 lg:p-8">
-            <div className="space-y-5 min-w-0">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2.5 sm:gap-3 flex-1">
+          <GlassCard className="p-3 sm:p-4 md:p-6 lg:p-8">
+            <div className="space-y-4 sm:space-y-5 min-w-0">
+              <div className="flex items-start justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 flex-1 min-w-0">
                   {/* User Avatar and Page Logo */}
                   <div className="relative flex-shrink-0">
                     {post.author && (
@@ -619,7 +645,7 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
           Comments ({comments.length})
         </h3>
         {loadingComments ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading comments...</div>
+          <CommentSkeletonList count={3} />
         ) : comments.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             No comments yet. Be the first to comment!

@@ -76,9 +76,30 @@ export function AdminUsers() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setUsers([]);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load data on mount and when filters change
   useEffect(() => {
     loadUsers();
-  }, [filterRole, filterStatus, filterVerified, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterRole, filterStatus, filterVerified, page, searchQuery]);
+
+  // Ensure data loads on initial mount (safety net)
+  useEffect(() => {
+    // Load on mount if no data exists yet
+    if (users.length === 0) {
+      loadUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -102,14 +123,14 @@ export function AdminUsers() {
       const data = await adminService.getUsers({
         page,
         limit: 50,
-        search: searchQuery || undefined,
+        search: searchQuery.trim() || undefined,
         role: filterRole !== 'all' ? filterRole : undefined,
         status: filterStatus !== 'all' ? filterStatus : undefined,
       });
       
       let filteredUsers = data.users || data.data || [];
       
-      // Filter by verified status
+      // Filter by verified status (client-side as backend may not support it)
       if (filterVerified !== 'all') {
         filteredUsers = filteredUsers.filter((user: User) => 
           filterVerified === 'verified' ? user.isVerified : !user.isVerified
@@ -135,7 +156,7 @@ export function AdminUsers() {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
       await adminService.suspendUser(userId, reason, duration);
-      toast.success(`User suspended for ${duration} day${duration > 1 ? 's' : ''}`);
+      toast.success(`User has been temporarily suspended for ${duration} day${duration > 1 ? 's' : ''}`);
       setShowModal(null);
       setModalReason('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -151,14 +172,14 @@ export function AdminUsers() {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Unsuspend User',
-      message: `Are you sure you want to unsuspend ${user?.username}? They will regain full access to the platform.`,
+      title: 'Restore User Access',
+      message: `Are you sure you want to restore access for ${user?.username}? They will regain full access to the platform.`,
       variant: 'info',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.unsuspendUser(userId);
-          toast.success('User unsuspended successfully');
+          toast.success('User access has been restored and suspension lifted');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -176,7 +197,7 @@ export function AdminUsers() {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
       await adminService.banUser(userId, reason);
-      toast.success('User banned successfully');
+      toast.success('User has been permanently banned from the platform');
       setShowModal(null);
       setModalReason('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -192,7 +213,7 @@ export function AdminUsers() {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
       await adminService.deleteUser(userId, reason);
-      toast.success('User deleted successfully');
+      toast.success('User account has been permanently deleted');
       setShowModal(null);
       setModalReason('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -217,7 +238,7 @@ export function AdminUsers() {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
       await adminService.updateUserRole(userId, newRole);
-      toast.success(`User role updated from ${oldRole?.replace('_', ' ')} to ${newRole.replace('_', ' ')}`);
+      toast.success(`User role has been updated from ${oldRole?.replace('_', ' ')} to ${newRole.replace('_', ' ')}`);
       setShowModal(null);
       setModalRole('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -233,14 +254,14 @@ export function AdminUsers() {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Activate User',
-      message: `Are you sure you want to activate ${user?.username}? They will regain access to the platform.`,
+      title: 'Activate User Account',
+      message: `Are you sure you want to activate ${user?.username}? They will regain full access to the platform.`,
       variant: 'info',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.activateUser(userId);
-          toast.success('User activated successfully');
+          toast.success('User account has been activated and access restored');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -258,14 +279,14 @@ export function AdminUsers() {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Deactivate User',
-      message: `Are you sure you want to deactivate ${user?.username}? They will lose access to the platform.`,
+      title: 'Deactivate User Account',
+      message: `Are you sure you want to deactivate ${user?.username}? They will lose all access to the platform until reactivated.`,
       variant: 'warning',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.deactivateUser(userId);
-          toast.success('User deactivated successfully');
+          toast.success('User account has been deactivated and access revoked');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -283,14 +304,14 @@ export function AdminUsers() {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Verify User',
-      message: `Are you sure you want to verify ${user?.username}? They will receive a verified badge.`,
+      title: 'Grant Verification Badge',
+      message: `Are you sure you want to grant a verification badge to ${user?.username}? This badge will be displayed on their profile and content.`,
       variant: 'info',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.verifyUser(userId);
-          toast.success('User verified successfully');
+          toast.success('Verification badge has been granted to the user');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -308,14 +329,14 @@ export function AdminUsers() {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Unverify User',
-      message: `Are you sure you want to remove verification from ${user?.username}? They will lose their verified badge.`,
+      title: 'Revoke Verification Badge',
+      message: `Are you sure you want to revoke the verification badge from ${user?.username}? They will lose their verified status and badge.`,
       variant: 'warning',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.unverifyUser(userId);
-          toast.success('User unverified successfully');
+          toast.success('Verification badge has been revoked from the user');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -333,7 +354,7 @@ export function AdminUsers() {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
       await adminService.unpublishUserPosts(userId, reason);
-      toast.success('All user posts have been unpublished');
+      toast.success('All user content has been unpublished and hidden from public view');
       setShowModal(null);
       setModalReason('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -406,14 +427,16 @@ export function AdminUsers() {
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && loadUsers()}
                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
 
             <select
               value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
+              onChange={(e) => {
+                setFilterRole(e.target.value);
+                setPage(1);
+              }}
               className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Roles</option>
@@ -425,7 +448,10 @@ export function AdminUsers() {
 
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setPage(1);
+              }}
               className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
@@ -438,7 +464,10 @@ export function AdminUsers() {
 
             <select
               value={filterVerified}
-              onChange={(e) => setFilterVerified(e.target.value)}
+              onChange={(e) => {
+                setFilterVerified(e.target.value);
+                setPage(1);
+              }}
               className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Users</option>
@@ -573,7 +602,7 @@ export function AdminUsers() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
                                 >
                                   <Edit size={16} />
-                                  Change Role
+                                  Update User Role
                                 </button>
                                 
                                 {!user.isVerified ? (
@@ -585,7 +614,7 @@ export function AdminUsers() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400"
                                   >
                                     <UserCheck size={16} />
-                                    Verify User
+                                    Grant Verification Badge
                                   </button>
                                 ) : (
                                   <button
@@ -596,7 +625,7 @@ export function AdminUsers() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-600 dark:text-gray-400"
                                   >
                                     <UserX size={16} />
-                                    Unverify User
+                                    Revoke Verification Badge
                                   </button>
                                 )}
 
@@ -611,7 +640,7 @@ export function AdminUsers() {
                                         className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
                                       >
                                         <UserX size={16} />
-                                        Deactivate
+                                        Deactivate User Account
                                       </button>
                                     ) : (
                                       <button
@@ -622,7 +651,7 @@ export function AdminUsers() {
                                         className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400"
                                       >
                                         <UserCheck size={16} />
-                                        Activate
+                                        Activate User Account
                                       </button>
                                     )}
                                     <button
@@ -633,7 +662,7 @@ export function AdminUsers() {
                                       className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
                                     >
                                       <Clock size={16} />
-                                      Suspend
+                                      Temporarily Suspend User
                                     </button>
                                   </>
                                 ) : user.status === 'suspended' ? (
@@ -645,7 +674,7 @@ export function AdminUsers() {
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400"
                                   >
                                     <CheckCircle size={16} />
-                                    Unsuspend
+                                    Restore User Access
                                   </button>
                                 ) : null}
 
@@ -657,7 +686,7 @@ export function AdminUsers() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400"
                                 >
                                   <Ban size={16} />
-                                  Ban User
+                                  Permanently Ban User
                                 </button>
 
                                 <button
@@ -668,7 +697,7 @@ export function AdminUsers() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
                                 >
                                   <EyeOff size={16} />
-                                  Unpublish All Posts
+                                  Unpublish All User Content
                                 </button>
 
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
@@ -681,7 +710,7 @@ export function AdminUsers() {
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400"
                                 >
                                   <Trash2 size={16} />
-                                  Delete User
+                                  Permanently Delete User
                                 </button>
                               </div>
                             )}
@@ -753,8 +782,8 @@ export function AdminUsers() {
                           if (selectedUser && modalRole !== selectedUser.role) {
                             setConfirmDialog({
                               isOpen: true,
-                              title: 'Change User Role',
-                              message: `Are you sure you want to change ${selectedUser.username}'s role from ${selectedUser.role.replace('_', ' ')} to ${modalRole.replace('_', ' ')}?`,
+                              title: 'Update User Role',
+                              message: `Are you sure you want to update ${selectedUser.username}'s role from ${selectedUser.role.replace('_', ' ')} to ${modalRole.replace('_', ' ')}? This will change their permissions and access levels on the platform.`,
                               variant: 'warning',
                               onConfirm: async () => {
                                 await handleChangeRole(selectedUser.id, modalRole);
@@ -788,7 +817,7 @@ export function AdminUsers() {
 
               {showModal === 'suspend' && (
                 <>
-                  <h3 className="text-xl font-bold mb-4">Suspend User</h3>
+                  <h3 className="text-xl font-bold mb-4">Temporarily Suspend User</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Duration (days)</label>
@@ -816,8 +845,8 @@ export function AdminUsers() {
                           if (selectedUser && modalReason.trim()) {
                             setConfirmDialog({
                               isOpen: true,
-                              title: 'Suspend User',
-                              message: `Are you sure you want to suspend ${selectedUser.username} for ${modalDuration} day${modalDuration > 1 ? 's' : ''}?`,
+                              title: 'Temporarily Suspend User',
+                              message: `Are you sure you want to temporarily suspend ${selectedUser.username} for ${modalDuration} day${modalDuration > 1 ? 's' : ''}? The user will lose access to the platform during this period.`,
                               variant: 'warning',
                               onConfirm: async () => {
                                 await handleSuspendUser(selectedUser.id, modalReason, modalDuration);
@@ -832,7 +861,7 @@ export function AdminUsers() {
                         }}
                         className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                       >
-                        Suspend User
+                        Suspend User Account
                       </button>
                       <button
                         onClick={() => {
@@ -850,7 +879,7 @@ export function AdminUsers() {
 
               {showModal === 'ban' && (
                 <>
-                  <h3 className="text-xl font-bold mb-4">Ban User</h3>
+                  <h3 className="text-xl font-bold mb-4">Permanently Ban User</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Reason</label>
@@ -868,8 +897,8 @@ export function AdminUsers() {
                           if (selectedUser && modalReason.trim()) {
                             setConfirmDialog({
                               isOpen: true,
-                              title: 'Ban User',
-                              message: `Are you sure you want to permanently ban ${selectedUser.username}? This action cannot be undone.`,
+                              title: 'Permanently Ban User',
+                              message: `Are you sure you want to permanently ban ${selectedUser.username}? This action cannot be undone and the user will lose all access to the platform permanently.`,
                               variant: 'danger',
                               onConfirm: async () => {
                                 await handleBanUser(selectedUser.id, modalReason);
@@ -884,7 +913,7 @@ export function AdminUsers() {
                         }}
                         className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                       >
-                        Ban User
+                        Permanently Ban User
                       </button>
                       <button
                         onClick={() => {
@@ -902,10 +931,10 @@ export function AdminUsers() {
 
               {showModal === 'delete' && (
                 <>
-                  <h3 className="text-xl font-bold mb-4 text-red-600 dark:text-red-400">Delete User</h3>
+                  <h3 className="text-xl font-bold mb-4 text-red-600 dark:text-red-400">Permanently Delete User</h3>
                   <div className="space-y-4">
                     <p className="text-gray-600 dark:text-gray-400">
-                      This action cannot be undone. All user data will be permanently deleted.
+                      This action cannot be undone. All user data, content, and associated information will be permanently deleted from the platform.
                     </p>
                     <div>
                       <label className="block text-sm font-medium mb-2">Reason</label>
@@ -923,8 +952,8 @@ export function AdminUsers() {
                           if (selectedUser && modalReason.trim()) {
                             setConfirmDialog({
                               isOpen: true,
-                              title: 'Delete User',
-                              message: `Are you sure you want to permanently delete ${selectedUser.username}? This action cannot be undone. All user data will be permanently deleted.`,
+                              title: 'Permanently Delete User',
+                              message: `Are you sure you want to permanently delete ${selectedUser.username}? This action cannot be undone and all user data, content, posts, and associated information will be permanently removed from the platform.`,
                               variant: 'danger',
                               onConfirm: async () => {
                                 await handleDeleteUser(selectedUser.id, modalReason);
@@ -939,7 +968,7 @@ export function AdminUsers() {
                         }}
                         className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
                       >
-                        Delete User
+                        Permanently Delete User
                       </button>
                       <button
                         onClick={() => {
@@ -957,10 +986,10 @@ export function AdminUsers() {
 
               {showModal === 'unpublish' && (
                 <>
-                  <h3 className="text-xl font-bold mb-4">Unpublish All User Posts</h3>
+                  <h3 className="text-xl font-bold mb-4">Unpublish All User Content</h3>
                   <div className="space-y-4">
                     <p className="text-gray-600 dark:text-gray-400">
-                      This will unpublish all posts created by {selectedUser.username}.
+                      This will unpublish all content created by {selectedUser.username}. All posts will be hidden from public view but can be restored later.
                     </p>
                     <div>
                       <label className="block text-sm font-medium mb-2">Reason</label>
@@ -978,8 +1007,8 @@ export function AdminUsers() {
                           if (selectedUser && modalReason.trim()) {
                             setConfirmDialog({
                               isOpen: true,
-                              title: 'Unpublish All User Posts',
-                              message: `Are you sure you want to unpublish all posts created by ${selectedUser.username}?`,
+                              title: 'Unpublish All User Content',
+                              message: `Are you sure you want to unpublish all content created by ${selectedUser.username}? All posts will be hidden from public view but can be restored later.`,
                               variant: 'warning',
                               onConfirm: async () => {
                                 await handleUnpublishUserPosts(selectedUser.id, modalReason);
@@ -994,7 +1023,7 @@ export function AdminUsers() {
                         }}
                         className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                       >
-                        Unpublish All Posts
+                        Unpublish All Content
                       </button>
                       <button
                         onClick={() => {

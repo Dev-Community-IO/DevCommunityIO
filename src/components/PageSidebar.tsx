@@ -12,37 +12,74 @@ import { useAuth } from '../contexts/AuthContext';
 interface PageSidebarProps {
   page: Page | { id: string; slug?: string };
   onLoginRequired?: () => void;
+  onFollowChange?: (isFollowing: boolean, followerCount: number) => void; // Callback when follow status changes
 }
 
-export function PageSidebar({ page: pageProp, onLoginRequired }: PageSidebarProps) {
+export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }: PageSidebarProps) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [pageData, setPageData] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
 
+  // REBUILT FROM SCRATCH: Always fetch from API to get correct isFollowing status (like PageView)
   useEffect(() => {
     const fetchPageData = async () => {
       try {
         setLoading(true);
         
-        // If full page data is already provided, use it
+        // Get identifier - use slug or id
+        const identifier = (pageProp as any).slug || (pageProp as any).id;
+        if (!identifier) {
+          // If no identifier, try to use page data from prop
         if ('name' in pageProp && pageProp.name) {
-          setPageData(pageProp as Page);
-          setIsFollowing((pageProp as Page).isFollowing || false);
-        } else {
-          // Otherwise fetch by id or slug
-          const identifier = (pageProp as any).slug || (pageProp as any).id;
-          if (identifier) {
-            const page = await pagesService.getPage(identifier);
-            const pageObj = page.page || page;
-            setPageData(pageObj);
-            setIsFollowing(pageObj.isFollowing || false);
+          const page = pageProp as Page;
+            const isFollowingFromProp = page?.isFollowing === true;
+            setIsFollowing(isFollowingFromProp);
+            setPageData({ 
+              ...page, 
+              isFollowing: isFollowingFromProp
+            });
+            setLoading(false);
           }
+          return;
         }
+        
+        // IMPORTANT: Always fetch from API to get correct isFollowing status
+        // The API checks authentication and returns proper follow status
+            const pageResponse = await pagesService.getPage(identifier);
+        const pageDataFromApi = pageResponse.page || pageResponse;
+        
+        // Extract isFollowing - MUST be boolean, default to false
+        // API returns correct isFollowing based on authenticated user
+        const isFollowingFromApi = pageDataFromApi?.isFollowing === true;
+        
+        // Set state immediately
+        setIsFollowing(isFollowingFromApi);
+        
+        // Store complete page data with isFollowing explicitly set
+        const completePageData = {
+          ...pageDataFromApi,
+          isFollowing: isFollowingFromApi, // Explicitly set to ensure it's always boolean
+          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0
+        };
+        
+        setPageData(completePageData);
+        
       } catch (error) {
         console.error('Error fetching page data:', error);
+        // Fallback: use page data from prop if available
+        if ('name' in pageProp && pageProp.name) {
+          const page = pageProp as Page;
+          const isFollowingFromProp = page?.isFollowing === true;
+          setIsFollowing(isFollowingFromProp);
+          setPageData({ 
+            ...page, 
+            isFollowing: isFollowingFromProp
+          });
+        } else {
         setPageData(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -51,7 +88,19 @@ export function PageSidebar({ page: pageProp, onLoginRequired }: PageSidebarProp
     if (pageProp) {
       fetchPageData();
     }
-  }, [pageProp]);
+  }, [pageProp, user?.id, isAuthenticated]); // Re-fetch when user changes (login/logout) or auth state changes
+
+  // Sync isFollowing state when pageProp.isFollowing changes (from parent updates)
+  useEffect(() => {
+    if ('name' in pageProp && pageProp.name && (pageProp as Page).isFollowing !== undefined) {
+      const page = pageProp as Page;
+      const isFollowingFromProp = page?.isFollowing === true;
+      if (isFollowingFromProp !== isFollowing) {
+        setIsFollowing(isFollowingFromProp);
+        setPageData(prev => prev ? { ...prev, isFollowing: isFollowingFromProp } : null);
+      }
+    }
+  }, [(pageProp as Page)?.isFollowing]);
 
   // Check if current user owns or can manage the page
   const isOwnerOrAdmin = isAuthenticated && user && pageData && (
@@ -62,6 +111,7 @@ export function PageSidebar({ page: pageProp, onLoginRequired }: PageSidebarProp
     ['owner', 'admin'].includes(pageData.userRole || '')
   );
 
+  // REBUILT: Handle follow toggle
   const handleFollow = async () => {
     if (!isAuthenticated) {
       onLoginRequired?.();
@@ -70,16 +120,39 @@ export function PageSidebar({ page: pageProp, onLoginRequired }: PageSidebarProp
 
     if (!pageData?.id) return;
 
+    const currentFollowing = isFollowing;
+
     try {
-      if (isFollowing) {
-        await pagesService.leavePage(pageData.id);
-        setIsFollowing(false);
+      let response;
+      
+      if (currentFollowing) {
+        response = await pagesService.leavePage(pageData.id);
       } else {
-        await pagesService.joinPage(pageData.id);
-        setIsFollowing(true);
+        response = await pagesService.joinPage(pageData.id);
       }
+      
+      // API response: { message: "...", isFollowing: boolean, followerCount: number }
+      const newIsFollowing = response?.isFollowing === true;
+      const newFollowerCount = response?.followerCount ?? pageData.followerCount;
+      
+      // Update state immediately
+      setIsFollowing(newIsFollowing);
+      
+      // Update pageData
+        if (pageData) {
+          setPageData({ 
+            ...pageData, 
+          isFollowing: newIsFollowing,
+          followerCount: newFollowerCount
+          });
+      }
+      
+      // Notify parent component of follow status change
+      onFollowChange?.(newIsFollowing, newFollowerCount);
     } catch (error) {
       console.error('Error following/unfollowing page:', error);
+      // Revert on error
+      setIsFollowing(currentFollowing);
     }
   };
 
@@ -147,9 +220,9 @@ export function PageSidebar({ page: pageProp, onLoginRequired }: PageSidebarProp
           <div className="flex items-center gap-1.5">
             <Users size={16} className="text-gray-400" />
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
-              {(pageData.memberCount || 0).toLocaleString()}
+              {(pageData.followerCount || pageData.follower_count || 0).toLocaleString()}
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">members</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">followers</span>
           </div>
           <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
           <div className="flex items-center gap-1.5">

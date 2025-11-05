@@ -17,7 +17,7 @@ interface OnboardingWizardProps {
 type Step = 'profile' | 'interests' | 'users' | 'pages' | 'complete';
 
 export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWizardProps) {
-  const { user, updateUser, checkAuth } = useAuth();
+  const { user, updateUser, checkAuth, setShowOnboarding } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('profile');
   const [profileData, setProfileData] = useState({
     username: '',
@@ -106,7 +106,12 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         // Save profile and complete onboarding
         await onboardingService.updateProfile(profileData);
         await onboardingService.complete();
+        // Update user with onboardingCompleted flag - this persists in localStorage
         updateUser({ onboardingCompleted: true, ...profileData });
+        // Hide onboarding immediately
+        setShowOnboarding(false);
+        // Refresh auth state to ensure onboarding status is updated
+        await checkAuth();
         onComplete();
         onClose();
       }
@@ -128,16 +133,19 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     try {
       setIsLoading(true);
       await onboardingService.skip();
-      // Update user with onboardingCompleted flag
+      // Update user with onboardingCompleted flag - this persists in localStorage
       updateUser({ onboardingCompleted: true });
+      // Hide onboarding immediately
+      setShowOnboarding(false);
       // Refresh auth state to ensure onboarding status is updated
       await checkAuth();
       onComplete();
       onClose();
     } catch (error) {
       console.error('Skip onboarding error:', error);
-      // Even if API call fails, close the modal to prevent blocking user
+      // Even if API call fails, close the modal and mark as completed locally
       updateUser({ onboardingCompleted: true });
+      setShowOnboarding(false);
       onComplete();
       onClose();
     } finally {
