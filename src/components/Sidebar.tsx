@@ -67,12 +67,24 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
     if (isAuthenticated) {
       const fetchBookmarkCount = async () => {
         try {
-          const { meta } = await bookmarksService.getBookmarks(1);
-          setBookmarkCount(meta.total);
+          const response = await bookmarksService.getBookmarks(1);
+          if (response && response.meta && typeof response.meta.total === 'number') {
+            setBookmarkCount(response.meta.total);
+          } else {
+            setBookmarkCount(0);
+          }
         } catch (error: any) {
           // Don't log network errors (server offline) - already handled by interceptor
           if (!isNetworkError(error)) {
-          console.error('Failed to fetch bookmark count:', error);
+            // If 401, just set count to 0 (user not authenticated)
+            if (error.response?.status === 401) {
+              setBookmarkCount(0);
+            } else {
+              console.error('Failed to fetch bookmark count:', error);
+              setBookmarkCount(0);
+            }
+          } else {
+            setBookmarkCount(0);
           }
         }
       };
