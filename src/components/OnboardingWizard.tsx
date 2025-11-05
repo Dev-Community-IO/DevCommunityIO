@@ -104,19 +104,43 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         setCurrentStep('complete');
       } else if (currentStep === 'complete') {
         // Save profile and complete onboarding
-        await onboardingService.updateProfile(profileData);
-        await onboardingService.complete();
+        try {
+          await onboardingService.updateProfile(profileData);
+        } catch (error) {
+          console.error('Failed to update profile:', error);
+          // Continue even if profile update fails
+        }
+        
+        try {
+          await onboardingService.complete();
+        } catch (error) {
+          console.error('Failed to complete onboarding:', error);
+          // Continue even if complete fails
+        }
+        
         // Update user with onboardingCompleted flag - this persists in localStorage
         updateUser({ onboardingCompleted: true, ...profileData });
         // Hide onboarding immediately
         setShowOnboarding(false);
-        // Refresh auth state to ensure onboarding status is updated
-        await checkAuth();
+        
+        // Refresh auth state to ensure onboarding status is updated (non-blocking)
+        checkAuth().catch(error => {
+          console.error('Failed to refresh auth:', error);
+        });
+        
+        // Always close the modal, even if API calls failed
         onComplete();
         onClose();
       }
     } catch (error) {
       console.error('Onboarding error:', error);
+      // If we're on the complete step and an error occurs, still close the modal
+      if (currentStep === 'complete') {
+        updateUser({ onboardingCompleted: true, ...profileData });
+        setShowOnboarding(false);
+        onComplete();
+        onClose();
+      }
     } finally {
       setIsLoading(false);
     }
