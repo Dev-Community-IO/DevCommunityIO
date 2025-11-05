@@ -40,7 +40,6 @@ import tagsService from './services/api/tags.service';
 import hackathonsService from './services/api/hackathons.service';
 import eventsService from './services/api/events.service';
 import opportunitiesService from './services/api/opportunities.service';
-import { generatePostMeta, updateMetaTags, resetMetaTags } from './utils/seo';
 import { getApiBaseUrl } from './utils/apiUrl';
 import { FeedItem } from './components/PostFeed';
 import { Post } from './types';
@@ -825,9 +824,6 @@ function PostDetailPage() {
         setLoading(false);
         // Cache the post for future navigation
         postCache.set(slug, locationState);
-        // Update SEO meta tags
-        const seoMeta = await generatePostMeta(locationState);
-        updateMetaTags(seoMeta);
         // Scroll to top for better UX
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -838,9 +834,6 @@ function PostDetailPage() {
         const cachedPost = postCache.get(slug);
         setPost(cachedPost);
         setLoading(false);
-        // Update SEO for cached post
-        const seoMeta = await generatePostMeta(cachedPost);
-        updateMetaTags(seoMeta);
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -854,9 +847,6 @@ function PostDetailPage() {
         setPost(fetchedPost);
         // Cache the post for navigation
         postCache.set(slug, fetchedPost);
-        // Update SEO meta tags
-        const seoMeta = await generatePostMeta(fetchedPost);
-        updateMetaTags(seoMeta);
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err: any) {
@@ -868,11 +858,6 @@ function PostDetailPage() {
     };
     
     fetchPost();
-    
-    // Cleanup: reset meta tags when leaving post page
-    return () => {
-      resetMetaTags().catch(console.error);
-    };
   }, [slug]);
 
   if (loading) {
@@ -959,6 +944,18 @@ function PostDetailPage() {
 
   return (
     <>
+      {post && (
+        <SEOHead
+          title={post.seoTitle || post.title}
+          description={post.seoDescription || post.content?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Post'}
+          image={post.ogImageUrl || post.coverImageUrl || post.coverImage}
+          url={`${window.location.origin}/post/${post.slug}`}
+          type="article"
+          author={post.author?.username}
+          publishedTime={post.publishedAt || post.createdAt}
+          modifiedTime={post.updatedAt || post.publishedAt || post.createdAt}
+        />
+      )}
       <NavbarWrapper />
         <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
         <div className="mx-auto">

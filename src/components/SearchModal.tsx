@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Clock, TrendingUp, X, Users, FileText, Hash, Sparkles, ArrowRight, Loader2, Command } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, Clock, X, Users, FileText, Hash, Sparkles, ArrowRight, Loader2, Command } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -67,23 +68,49 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
   useEffect(() => {
     if (query.trim().length < 2) {
       setResults({ posts: [], users: [], pages: [] });
+      setIsSearching(false);
       return;
     }
 
     const performSearch = async () => {
       try {
         setIsSearching(true);
-        const searchResults = await searchService.search(query, { 
+        console.log('🔍 SearchModal: Performing search:', { query: query.trim(), activeFilter, length: query.trim().length });
+        
+        const searchResults = await searchService.search(query.trim(), { 
           limit: activeFilter === 'all' ? 10 : 20,
           type: activeFilter === 'all' ? 'all' : activeFilter
         });
-        setResults({
+        
+        console.log('✅ SearchModal: Search results received:', {
+          posts: searchResults.posts?.length || 0,
+          users: searchResults.users?.length || 0,
+          pages: searchResults.pages?.length || 0,
+          fullResults: searchResults
+        });
+        
+        const finalResults = {
           posts: searchResults.posts || [],
           users: searchResults.users || [],
           pages: searchResults.pages || []
+        };
+        
+        setResults(finalResults);
+        
+        console.log('📊 SearchModal: Results state set:', {
+          postsCount: finalResults.posts.length,
+          usersCount: finalResults.users.length,
+          pagesCount: finalResults.pages.length,
+          hasResults: finalResults.posts.length > 0 || finalResults.users.length > 0 || (finalResults.pages && finalResults.pages.length > 0)
         });
-      } catch (err) {
-        console.error('Search error:', err);
+      } catch (err: any) {
+        console.error('❌ SearchModal: Search error:', err);
+        console.error('Error details:', {
+          message: err.message,
+          status: err.status,
+          response: err.response?.data,
+          isNetworkError: err.isNetworkError
+        });
         setResults({ posts: [], users: [], pages: [] });
       } finally {
         setIsSearching(false);
@@ -140,12 +167,30 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
     }
   };
 
+  const hasResults = results.posts.length > 0 || results.users.length > 0 || (results.pages && results.pages.length > 0);
+  
+  // Debug logging for mobile - must be before early return to follow Rules of Hooks
+  useEffect(() => {
+    if (isOpen && window.innerWidth < 768 && query.length >= 2) {
+      console.log('📱 SearchModal: Render state:', {
+        query,
+        queryLength: query.length,
+        hasResults,
+        postsCount: results.posts.length,
+        usersCount: results.users.length,
+        pagesCount: results.pages?.length || 0,
+        isSearching,
+        willShowResults: query.length >= 2 && hasResults && !isSearching,
+        willShowNoResults: query.length >= 2 && !hasResults && !isSearching
+      });
+    }
+  }, [isOpen, query, hasResults, results, isSearching]);
+
   if (!isOpen) return null;
 
-  const hasResults = results.posts.length > 0 || results.users.length > 0 || (results.pages && results.pages.length > 0);
-
-  return (
-    <div className="fixed inset-0 z-[100] animate-fade-in">
+  // Render modal via portal to ensure it's above everything, especially on mobile
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] animate-fade-in">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-md"
@@ -153,7 +198,7 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
       />
 
       {/* Modal */}
-      <div className="relative h-full flex flex-col bg-white dark:bg-gray-900 animate-slide-up">
+      <div className="relative h-full w-full flex flex-col bg-white dark:bg-gray-900 animate-slide-up overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0 sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-10 shadow-sm">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
@@ -232,15 +277,23 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 relative">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
             {isSearching ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">Searching...</span>
               </div>
-            ) : query.length === 0 ? (
+            ) : query.length === 0 || query.length === 1 ? (
               /* Recent Searches & Suggestions */
               <div className="space-y-8">
+                {query.length === 1 && (
+                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      💡 Type at least 2 characters to see search results
+                    </p>
+                  </div>
+                )}
                 {recentSearches.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -273,35 +326,19 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                     </div>
                   </div>
                 )}
-                
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <TrendingUp size={16} />
-                    Trending Searches
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {['defi', 'blockchain', 'ethereum', 'web3', 'nft', 'crypto', 'dao', 'staking'].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          setQuery(suggestion);
-                          inputRef.current?.focus();
-                        }}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all group text-left"
-                      >
-                        <TrendingUp size={18} className="text-orange-400 flex-shrink-0" />
-                        <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{suggestion}</span>
-                        <ArrowRight size={16} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
-            ) : hasResults ? (
+            ) : query.length >= 2 && hasResults ? (
               /* Search Results */
               <div className="space-y-8">
+                {/* Debug: Show when results should be visible */}
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 text-sm rounded-xl mb-4 border border-blue-300 dark:border-blue-700">
+                  <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">Search Results Found</p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Posts: {results.posts.length} | Users: {results.users.length} | Pages: {results.pages?.length || 0} | Filter: {activeFilter}
+                  </p>
+                </div>
                 {results.posts.length > 0 && (activeFilter === 'all' || activeFilter === 'posts') && (
-                  <div>
+                  <div className="mb-6">
                     <div className="flex items-center gap-3 mb-4">
                       <FileText size={20} className="text-blue-500" />
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">Posts</h3>
@@ -376,7 +413,7 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                 )}
 
                 {results.users.length > 0 && (activeFilter === 'all' || activeFilter === 'users') && (
-                  <div>
+                  <div className="mb-6">
                     <div className="flex items-center gap-3 mb-4">
                       <Users size={20} className="text-purple-500" />
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">Users</h3>
@@ -428,7 +465,7 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                 )}
 
                 {results.pages && results.pages.length > 0 && (activeFilter === 'all' || activeFilter === 'pages') && (
-                  <div>
+                  <div className="mb-6">
                     <div className="flex items-center gap-3 mb-4">
                       <Hash size={20} className="text-green-500" />
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">Pages</h3>
@@ -475,8 +512,16 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                     </div>
                   </div>
                 )}
+                {/* Fallback: Show message if no results match current filter */}
+                {!results.posts.length && !results.users.length && (!results.pages || !results.pages.length) && activeFilter !== 'all' && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No {activeFilter} found. Try switching filters.
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (
+            ) : query.length >= 2 ? (
               /* No Results */
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-6">
@@ -503,10 +548,13 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
     </div>
   );
+
+  // Use portal to render modal outside navbar hierarchy, especially important on mobile
+  return createPortal(modalContent, document.body);
 }

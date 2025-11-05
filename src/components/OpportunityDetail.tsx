@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import bookmarksService from '../services/api/bookmarks.service';
 import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
-import { useSEO } from '../hooks/useSEO';
+import { SEOHead } from './SEOHead';
 import { MentionTextarea } from './MentionTextarea';
 import { CommentSkeletonList } from './skeletons';
 
@@ -72,12 +72,7 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
     }
   }, [opportunityId, isAuthenticated]);
 
-  // SEO metadata
-  useSEO({
-    type: 'opportunity',
-    slug: opportunity?.slug || opportunityId || '',
-    enabled: !!opportunity?.slug || !!opportunityId
-  });
+  // SEO metadata will be set via SEOHead component below
 
   // Load comments and reactions (comments are public, reactions load user-specific data only if authenticated)
   useEffect(() => {
@@ -259,13 +254,15 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+      <>
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12 sm:py-20">
             <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-green-500" />
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -285,8 +282,18 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
   }
 
   return (
-    <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
+    <>
+      {opportunity && (
+        <SEOHead
+          title={opportunity.seoTitle || opportunity.title}
+          description={opportunity.seoDescription || opportunity.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Opportunity'}
+          image={opportunity.ogImageUrl || opportunity.logoUrl}
+          url={`${window.location.origin}/opportunities/${opportunity.slug || opportunityId}`}
+          type="article"
+        />
+      )}
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+        <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
         {/* Header */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <button
@@ -659,5 +666,6 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
         )}
       </div>
     </div>
+    </>
   );
 }

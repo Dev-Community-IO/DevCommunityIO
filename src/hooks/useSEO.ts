@@ -14,14 +14,21 @@ interface SEOProps {
 
 export function useSEO(props: SEOProps) {
     const location = useLocation();
-    const { metadata, loading } = useSeoMetadata(location.pathname);
+
+    // Skip API call if we have all critical props (fast path)
+    // This ensures instant rendering when content data is already available
+    const hasAllCriticalProps = props.title && props.description && (props.image || props.url);
+
+    // Only fetch from API if we're missing critical metadata
+    const { metadata, loading } = useSeoMetadata(hasAllCriticalProps ? '' : location.pathname);
 
     // Handle nested API response structure (meta.openGraph, meta.twitter, etc.)
     const apiMeta = metadata?.meta || metadata;
     const apiOpenGraph = metadata?.openGraph || {};
     const apiTwitter = metadata?.twitter || {};
 
-    // Use provided props or fallback to metadata from API
+    // Use provided props FIRST (they take priority for instant rendering)
+    // Then fallback to metadata from API only if props are missing
     const title = props.title || apiMeta?.title || apiOpenGraph['og:title'] || metadata?.title || 'DevCommunity';
     const description = props.description || apiMeta?.description || apiOpenGraph['og:description'] || metadata?.description || 'Where Developers Build the Future';
     const image = props.image || metadata?.image || apiOpenGraph['og:image'] || apiTwitter['twitter:image'] || undefined;
@@ -32,7 +39,7 @@ export function useSEO(props: SEOProps) {
     const modifiedTime = props.modifiedTime || metadata?.modifiedTime;
 
     return {
-        loading,
+        loading: hasAllCriticalProps ? false : loading, // No loading state if we have props
         metadata: {
             title,
             description,

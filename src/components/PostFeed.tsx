@@ -125,7 +125,7 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Category Filter - Mobile Optimized */}
-            <div className="relative flex-1 sm:flex-none z-50">
+            <div className="relative flex-1 sm:flex-none">
               <button
                 onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
                 className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md group w-full sm:w-auto touch-manipulation"
@@ -140,10 +140,10 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
               {isCategoryDropdownOpen && (
                 <>
                   <div
-                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm sm:hidden"
+                    className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm sm:hidden"
                     onClick={() => setIsCategoryDropdownOpen(false)}
                   />
-                  <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-56 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-slide-up">
+                  <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-56 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-30 animate-slide-up">
                     <div className="p-2 max-h-[70vh] sm:max-h-none overflow-y-auto">
                       <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
                         Feed
@@ -199,10 +199,10 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
             {isDropdownOpen && (
               <>
                 <div
-                  className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                  className="fixed inset-0 z-10 bg-black/20 backdrop-blur-sm sm:hidden"
                   onClick={() => setIsDropdownOpen(false)}
                 />
-                <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-slide-up">
+                <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-20 animate-slide-up">
                   <div className="p-2">
                     <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2">
                       Sort By

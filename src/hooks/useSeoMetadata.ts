@@ -38,6 +38,12 @@ export function useSeoMetadata(pathname: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip API call if pathname is empty (fast path optimization)
+    if (!pathname) {
+      setLoading(false);
+      return;
+    }
+
     const fetchMetadata = async () => {
       // Extract slug/ID from pathname
       const pathSegments = pathname.split('/').filter(Boolean);
@@ -63,12 +69,25 @@ export function useSeoMetadata(pathname: string) {
       }
 
       try {
-        const response = await apiClient.get(endpoint);
+        // Use fetch with AbortController for timeout protection
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        const response = await apiClient.get(endpoint, {
+          signal: controller.signal,
+          timeout: 3000 // Additional timeout for axios
+        } as any);
+        
+        clearTimeout(timeoutId);
+        
         if (response.data) {
           setMetadata(response.data);
         }
-      } catch (error) {
-        console.error('Failed to fetch SEO metadata:', error);
+      } catch (error: any) {
+        // Silently fail - don't block rendering if API is slow
+        if (error.name !== 'AbortError') {
+          console.error('Failed to fetch SEO metadata:', error);
+        }
         // Don't set error state, just use defaults
       } finally {
         setLoading(false);

@@ -8,7 +8,7 @@ import { ShareDropdown } from './ShareDropdown';
 import { Post } from '../types';
 import pagesService from '../services/api/pages.service';
 import { useAuth } from '../contexts/AuthContext';
-import { useSEO } from '../hooks/useSEO';
+import { SEOHead } from './SEOHead';
 import { useNavigate } from 'react-router-dom';
 import { PageViewSkeleton } from './skeletons';
 
@@ -48,12 +48,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   
   const canManage = isOwner || isAdmin || (pageData && pageData.userRole === 'moderator');
 
-  // SEO metadata
-  useSEO({
-    type: 'page',
-    slug: pageData?.slug || pageSlug || '',
-    enabled: !!pageData?.slug || !!pageSlug
-  });
+  // SEO metadata will be set via SEOHead component below
 
   // Fetch page data - REBUILT FROM SCRATCH
   useEffect(() => {
@@ -201,7 +196,17 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <>
+      {pageData && (
+        <SEOHead
+          title={pageData.seoTitle || pageData.name}
+          description={pageData.seoDescription || pageData.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Page'}
+          image={pageData.ogImageUrl || pageData.coverImageUrl || pageData.logoUrl}
+          url={`${window.location.origin}/pages/${pageData.slug}`}
+          type="website"
+        />
+      )}
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Hero Section with Cover */}
       <div className="relative">
         {/* Cover Image */}
@@ -519,11 +524,12 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         )}
       </div>
     </div>
+    </>
   );
 }
 
 // About Tab Component
-function AboutTab({ pageData, pageTeamMembers }: any) {
+const AboutTab = ({ pageData, pageTeamMembers }: any) => {
   return (
     <div className="space-y-6">
       <GlassCard className="p-6 md:p-8">
@@ -695,11 +701,11 @@ function AboutTab({ pageData, pageTeamMembers }: any) {
       )}
     </div>
   );
-}
+};
 
 // Followers Tab Component - Shows followers (not team members)
 // Team members are only visible in About tab or Manage section for admins
-function FollowersTab({ pageFollowers }: any) {
+const FollowersTab = ({ pageFollowers }: any) => {
   const navigate = useNavigate();
   const followers = pageFollowers || [];
 
@@ -779,4 +785,4 @@ function FollowersTab({ pageFollowers }: any) {
       </div>
     </div>
   );
-}
+};

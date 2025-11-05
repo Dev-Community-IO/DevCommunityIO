@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import bookmarksService from '../services/api/bookmarks.service';
 import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
-import { useSEO } from '../hooks/useSEO';
+import { SEOHead } from './SEOHead';
 import { MentionTextarea } from './MentionTextarea';
 import { CommentSkeletonList } from './skeletons';
 
@@ -73,12 +73,7 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
     }
   }, [hackathonId, isAuthenticated]);
 
-  // SEO metadata
-  useSEO({
-    type: 'hackathon',
-    slug: hackathon?.slug || hackathonId || '',
-    enabled: !!hackathon?.slug || !!hackathonId
-  });
+  // SEO metadata will be set via SEOHead component below
 
   // Load comments and reactions (comments are public, reactions load user-specific data only if authenticated)
   useEffect(() => {
@@ -280,8 +275,18 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
   const daysUntilStart = getDaysUntil(hackathon.startDate);
 
   return (
-    <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
+    <>
+      {hackathon && (
+        <SEOHead
+          title={hackathon.seoTitle || hackathon.title}
+          description={hackathon.seoDescription || hackathon.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Hackathon'}
+          image={hackathon.ogImageUrl || hackathon.imageUrl}
+          url={`${window.location.origin}/hackathons/${hackathon.slug || hackathonId}`}
+          type="article"
+        />
+      )}
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in">
+        <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-8 sm:pb-12">
         {/* Header */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <button
@@ -809,5 +814,6 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
         )}
       </div>
     </div>
+    </>
   );
 }
