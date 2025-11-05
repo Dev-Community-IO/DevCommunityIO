@@ -10,6 +10,7 @@ import { LoginModal } from './components/LoginModal';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { CreatePost } from './components/CreatePost';
 import { PostDetail } from './components/PostDetail';
+import { PostDetailSkeleton } from './components/skeletons';
 import { UserProfile } from './components/UserProfile';
 import { PagesListing } from './components/PagesListing';
 import { PageView } from './components/PageView';
@@ -29,6 +30,7 @@ import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { TermsOfUsePage } from './components/TermsOfUsePage';
 import { CodeOfConductPage } from './components/CodeOfConductPage';
 import { FloatingCreateButton } from './components/FloatingCreateButton';
+import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { MobileSidebar } from './components/MobileSidebar';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { useAuth } from './contexts/AuthContext';
@@ -285,6 +287,7 @@ function FeedLayout({ category = 'for-you' }: { category?: string }) {
           </div>
         </div>
       </div>
+      <ScrollToTopButton />
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
     </>
   );
@@ -294,37 +297,144 @@ function FeedLayout({ category = 'for-you' }: { category?: string }) {
 function PostFeedWithData({ category, onLoginRequired }: { category: string; onLoginRequired: () => void }) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSort, setActiveSort] = useState<'hot' | 'new' | 'top'>('hot');
   const [activeTagInfo, setActiveTagInfo] = useState<{ name: string; logoUrl?: string } | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [postPaginationMeta, setPostPaginationMeta] = useState<{ currentPage: number; lastPage: number; perPage: number; total: number } | null>(null);
+  const [supplementaryItems, setSupplementaryItems] = useState<FeedItem[]>([]); // Hackathons, events, opportunities
 
+  // Build post params based on category and filters
+  const buildPostParams = (page: number = 1) => {
+    let postParams: any = { page, limit: 20 };
+    
+    // Only add sort parameter if not using "for-you" (which uses recommendations)
+    if (category !== 'for-you') {
+      postParams.sort = activeSort;
+    } else {
+      // For "for-you", use recommendations (default strategy)
+      postParams.recommendations = 'true';
+    }
+    
+    // Check for tag filter in URL params
+    const tagsParam = searchParams.get('tags');
+    if (tagsParam) {
+      const tagSlug = tagsParam.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      postParams.tags = tagSlug;
+    }
+    
+    // Feed categories are for sorting/filtering, not post categories
+    if (category === 'latest') {
+      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+    } else if (category === 'trending') {
+      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+    } else if (category === 'following') {
+      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+    } else if (category === 'for-you') {
+      postParams = { ...postParams, recommendations: 'true' };
+    } else {
+      // If it's an actual post category (article, tutorial, etc.)
+      postParams = { ...postParams, category, sort: activeSort };
+    }
+    
+    return postParams;
+  };
+
+  // Fetch supplementary content (hackathons, events, opportunities) - load once
+  const fetchSupplementaryContent = async () => {
+    try {
+      const [hackathonsResponse, eventsResponse, opportunitiesResponse] = await Promise.allSettled([
+        hackathonsService.getHackathons({ limit: 20 }),
+        eventsService.getEvents({ limit: 20 }),
+        opportunitiesService.getOpportunities({ limit: 20 })
+      ]);
+
+      const supplementary: FeedItem[] = [];
+
+      if (hackathonsResponse.status === 'fulfilled') {
+        const responseValue = hackathonsResponse.value as any;
+        let hackathons: any[] = [];
+        
+        if (responseValue.data && Array.isArray(responseValue.data)) {
+          hackathons = responseValue.data;
+        } else if (responseValue.hackathons && Array.isArray(responseValue.hackathons)) {
+          hackathons = responseValue.hackathons;
+        } else if (Array.isArray(responseValue)) {
+          hackathons = responseValue;
+        }
+        
+        hackathons.forEach((hackathon: any) => {
+          if (hackathon && hackathon.id) {
+            supplementary.push({ type: 'hackathon', data: hackathon });
+          }
+        });
+      }
+
+      if (eventsResponse.status === 'fulfilled') {
+        const responseValue = eventsResponse.value as any;
+        let events: any[] = [];
+        
+        if (responseValue.data && Array.isArray(responseValue.data)) {
+          events = responseValue.data;
+        } else if (responseValue.events && Array.isArray(responseValue.events)) {
+          events = responseValue.events;
+        } else if (Array.isArray(responseValue)) {
+          events = responseValue;
+        }
+        
+        events.forEach((event: any) => {
+          if (event && event.id) {
+            supplementary.push({ type: 'event', data: event });
+          }
+        });
+      }
+
+      if (opportunitiesResponse.status === 'fulfilled') {
+        const responseValue = opportunitiesResponse.value as any;
+        let opportunities: any[] = [];
+        
+        if (responseValue.data && Array.isArray(responseValue.data)) {
+          opportunities = responseValue.data;
+        } else if (responseValue.opportunities && Array.isArray(responseValue.opportunities)) {
+          opportunities = responseValue.opportunities;
+        } else if (Array.isArray(responseValue)) {
+          opportunities = responseValue;
+        }
+        
+        opportunities.forEach((opportunity: any) => {
+          if (opportunity && opportunity.id) {
+            supplementary.push({ type: 'opportunity', data: opportunity });
+          }
+        });
+      }
+
+      setSupplementaryItems(supplementary);
+    } catch (err) {
+      console.error('Error fetching supplementary content:', err);
+    }
+  };
+
+  // Initial load and reset when filters change
   useEffect(() => {
     const fetchAllContent = async () => {
       setLoading(true);
       setError(null);
+      setCurrentPage(1);
+      setHasMore(true);
+      setItems([]);
+      setSupplementaryItems([]);
+      
       try {
-        // Map feed categories to API parameters
-        // Use recommendation system as default for "for-you" category
-        let postParams: any = { limit: 20 };
-        
-        // Only add sort parameter if not using "for-you" (which uses recommendations)
-        if (category !== 'for-you') {
-          postParams.sort = activeSort;
-        } else {
-          // For "for-you", use recommendations (default strategy)
-          postParams.recommendations = 'true';
-        }
-        
-        // Check for tag filter in URL params
+        // Fetch tag info if tag filter is present
         const tagsParam = searchParams.get('tags');
         if (tagsParam) {
-          // Convert tag name to slug if needed (slugify: lowercase, replace spaces with hyphens)
           const tagSlug = tagsParam.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-          postParams.tags = tagSlug;
-          
-          // Fetch tag info to get logo
           try {
             const tagResponse = await tagsService.getTag(tagSlug);
             const tagData = tagResponse.tag || tagResponse;
@@ -337,164 +447,136 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
               setActiveTagInfo({ name: tagsParam });
             }
           } catch (err) {
-            // If tag fetch fails, just use the slug as name
             setActiveTagInfo({ name: tagsParam });
           }
         } else {
           setActiveTagInfo(null);
         }
         
-        // Feed categories are for sorting/filtering, not post categories
-        if (category === 'latest') {
-          postParams = { ...postParams, limit: 20, sort: activeSort, recommendations: 'false' };
-        } else if (category === 'trending') {
-          postParams = { ...postParams, limit: 20, sort: activeSort, recommendations: 'false' };
-        } else if (category === 'following') {
-          postParams = { ...postParams, limit: 20, sort: activeSort, recommendations: 'false' };
-        } else if (category === 'for-you') {
-          // Use recommendations as default for "for-you"
-          postParams = { ...postParams, limit: 20, recommendations: 'true' };
-        } else {
-          // If it's an actual post category (article, tutorial, etc.)
-          postParams = { ...postParams, category, limit: 20, sort: activeSort };
-        }
+        const postParams = buildPostParams(1);
         
-        // Fetch all content types in parallel
-        const [postsResponse, hackathonsResponse, eventsResponse, opportunitiesResponse] = await Promise.allSettled([
+        // Fetch posts and supplementary content in parallel
+        const [postsResponse] = await Promise.allSettled([
           postsService.getPosts(postParams),
-          hackathonsService.getHackathons({ limit: 20 }),
-          eventsService.getEvents({ limit: 20 }),
-          opportunitiesService.getOpportunities({ limit: 20 })
+          fetchSupplementaryContent()
         ]);
-
-        const allItems: FeedItem[] = [];
 
         // Process posts
         if (postsResponse.status === 'fulfilled') {
-          // Handle both paginated format { meta, data } and direct array format
           const responseData = postsResponse.value as any;
           let fetchedPosts: any[] = [];
+          let meta: any = null;
           
           if (responseData.data && Array.isArray(responseData.data)) {
-            // Recommendation system returns { meta, data }
             fetchedPosts = responseData.data;
+            meta = responseData.meta || null;
           } else if (responseData.posts && Array.isArray(responseData.posts)) {
-            // Traditional pagination returns { posts, meta }
             fetchedPosts = responseData.posts;
+            meta = responseData.meta || null;
           } else if (Array.isArray(responseData)) {
-            // Direct array format
             fetchedPosts = responseData;
           }
           
-          const postsMap = new Map();
+          if (meta) {
+            setPostPaginationMeta({
+              currentPage: meta.currentPage || 1,
+              lastPage: meta.lastPage || 1,
+              perPage: meta.perPage || 20,
+              total: meta.total || 0
+            });
+            setHasMore((meta.currentPage || 1) < (meta.lastPage || 1));
+          } else {
+            // If no meta, assume no more pages if we got less than limit
+            setHasMore(fetchedPosts.length >= 20);
+          }
+          
+          const postsMap = new Map<string, any>();
           fetchedPosts.forEach((post: any) => {
             if (post && post.id && !postsMap.has(post.id)) {
               postsMap.set(post.id, post);
             }
           });
-          const uniquePosts = Array.from(postsMap.values());
-          uniquePosts.forEach((post: any) => {
-            allItems.push({ type: 'post', data: post });
-          });
+          
+          const postItems: FeedItem[] = Array.from(postsMap.values()).map((post: any) => ({
+            type: 'post' as const,
+            data: post
+          }));
+          
+          setItems(postItems);
+        } else {
+          setItems([]);
+          setHasMore(false);
         }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch content');
+        console.error('Error fetching content:', err);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        // Process hackathons
-        if (hackathonsResponse.status === 'fulfilled') {
-          // Handle paginated response format: { meta, data } or direct array
-          let hackathons: any[] = [];
-          const responseValue = hackathonsResponse.value as any;
-          
-          if (responseValue.data && Array.isArray(responseValue.data)) {
-            // Paginated format
-            hackathons = responseValue.data;
-          } else if (responseValue.hackathons && Array.isArray(responseValue.hackathons)) {
-            // Alternative format
-            hackathons = responseValue.hackathons;
-          } else if (Array.isArray(responseValue)) {
-            // Direct array
-            hackathons = responseValue;
-          }
-          
-          hackathons.forEach((hackathon: any) => {
-            if (hackathon && hackathon.id) {
-              allItems.push({ type: 'hackathon', data: hackathon });
-            }
-          });
-        }
+    fetchAllContent();
+  }, [category, searchParams, activeSort]);
 
-        // Process events
-        if (eventsResponse.status === 'fulfilled') {
-          // Handle paginated response format: { meta, data } or direct array
-          let events: any[] = [];
-          const responseValue = eventsResponse.value;
-          
-          if (responseValue.data && Array.isArray(responseValue.data)) {
-            // Paginated format
-            events = responseValue.data;
-          } else if (responseValue.events && Array.isArray(responseValue.events)) {
-            // Alternative format
-            events = responseValue.events;
-          } else if (Array.isArray(responseValue)) {
-            // Direct array
-            events = responseValue;
-          }
-          
-          events.forEach((event: any) => {
-            if (event && event.id) {
-              allItems.push({ type: 'event', data: event });
-            }
-          });
-        }
-
-        // Process opportunities
-        if (opportunitiesResponse.status === 'fulfilled') {
-          // Handle paginated response format: { meta, data } or direct array
-          let opportunities: any[] = [];
-          const responseValue = opportunitiesResponse.value as any;
-          
-          if (responseValue.data && Array.isArray(responseValue.data)) {
-            // Paginated format
-            opportunities = responseValue.data;
-          } else if (responseValue.opportunities && Array.isArray(responseValue.opportunities)) {
-            // Alternative format
-            opportunities = responseValue.opportunities;
-          } else if (Array.isArray(responseValue)) {
-            // Direct array
-            opportunities = responseValue;
-          }
-          
-          opportunities.forEach((opportunity: any) => {
-            if (opportunity && opportunity.id) {
-              allItems.push({ type: 'opportunity', data: opportunity });
-            }
-          });
-        }
-
-        // Sort all items by creation date (newest first) - but preserve recommendation order for "for-you"
-        if (category !== 'for-you') {
-          allItems.sort((a, b) => {
-            const dateA = new Date(
-              a.type === 'post' ? (a.data.createdAt || a.data.publishedAt || 0) :
-              a.type === 'hackathon' ? (a.data.createdAt || 0) :
-              a.type === 'event' ? (a.data.createdAt || 0) :
-              (a.data.createdAt || a.data.postedAt || 0)
-            ).getTime();
-            
-            const dateB = new Date(
-              b.type === 'post' ? (b.data.createdAt || b.data.publishedAt || 0) :
-              b.type === 'hackathon' ? (b.data.createdAt || 0) :
-              b.type === 'event' ? (b.data.createdAt || 0) :
-              (b.data.createdAt || b.data.postedAt || 0)
-            ).getTime();
-            
-            return dateB - dateA; // Descending order (newest first)
-          });
-        }
-        // For "for-you", keep the recommendation order (already sorted by score)
-
-        // Remove duplicates based on postId if multiple content types share the same post
+  // Fetch more posts (infinite scroll)
+  const fetchMore = async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const postParams = buildPostParams(nextPage);
+      
+      const postsResponse = await postsService.getPosts(postParams);
+      const responseData = postsResponse as any;
+      
+      let fetchedPosts: any[] = [];
+      let meta: any = null;
+      
+      if (responseData.data && Array.isArray(responseData.data)) {
+        fetchedPosts = responseData.data;
+        meta = responseData.meta || null;
+      } else if (responseData.posts && Array.isArray(responseData.posts)) {
+        fetchedPosts = responseData.posts;
+        meta = responseData.meta || null;
+      } else if (Array.isArray(responseData)) {
+        fetchedPosts = responseData;
+      }
+      
+      if (fetchedPosts.length === 0) {
+        setHasMore(false);
+        setLoadingMore(false);
+        return;
+      }
+      
+      if (meta) {
+        setPostPaginationMeta({
+          currentPage: meta.currentPage || nextPage,
+          lastPage: meta.lastPage || 1,
+          perPage: meta.perPage || 20,
+          total: meta.total || 0
+        });
+        setHasMore((meta.currentPage || nextPage) < (meta.lastPage || 1));
+      } else {
+        setHasMore(fetchedPosts.length >= 20);
+      }
+      
+      // Remove duplicates with existing items
+      const existingPostIds = new Set(items.filter(item => item.type === 'post').map(item => item.data.id));
+      const newPostItems: FeedItem[] = fetchedPosts
+        .filter((post: any) => post && post.id && !existingPostIds.has(post.id))
+        .map((post: any) => ({
+          type: 'post' as const,
+          data: post
+        }));
+      
+      // Merge supplementary items periodically (every 3 pages)
+      let mergedItems: FeedItem[] = [...items, ...newPostItems];
+      if (nextPage % 3 === 0 && supplementaryItems.length > 0) {
+        // Remove duplicates based on postId
         const seenPostIds = new Set<string>();
-        const uniqueItems = allItems.filter(item => {
+        mergedItems = mergedItems.filter(item => {
           const postId = 
             item.type === 'post' ? item.data.id :
             item.type === 'hackathon' ? item.data.postId :
@@ -509,19 +591,92 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
           }
           return true;
         });
-
-        setItems(uniqueItems);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch content');
-        console.error('Error fetching content:', err);
-        setItems([]);
-      } finally {
-        setLoading(false);
+        
+        // Interleave supplementary items (limit to first 5)
+        const limitedSupplementary = supplementaryItems.slice(0, 5);
+        const allItemsWithSupplementary = [...mergedItems, ...limitedSupplementary];
+        
+        // Sort if not "for-you" category
+        if (category !== 'for-you') {
+          allItemsWithSupplementary.sort((a, b) => {
+            const dateA = new Date(
+              a.type === 'post' ? (a.data.createdAt || a.data.publishedAt || 0) :
+              a.type === 'hackathon' ? (a.data.createdAt || 0) :
+              a.type === 'event' ? (a.data.createdAt || 0) :
+              (a.data.createdAt || a.data.postedAt || 0)
+            ).getTime();
+            
+            const dateB = new Date(
+              b.type === 'post' ? (b.data.createdAt || b.data.publishedAt || 0) :
+              b.type === 'hackathon' ? (b.data.createdAt || 0) :
+              b.type === 'event' ? (b.data.createdAt || 0) :
+              (b.data.createdAt || b.data.postedAt || 0)
+            ).getTime();
+            
+            return dateB - dateA;
+          });
+        }
+        
+        mergedItems = allItemsWithSupplementary;
       }
-    };
+      
+      setItems(mergedItems);
+      setCurrentPage(nextPage);
+    } catch (err: any) {
+      console.error('Error fetching more posts:', err);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
-    fetchAllContent();
-  }, [category, searchParams, activeSort]);
+  // Merge supplementary items with posts on initial load
+  useEffect(() => {
+    if (items.length > 0 && supplementaryItems.length > 0 && currentPage === 1) {
+      const allItems: FeedItem[] = [...items, ...supplementaryItems];
+      
+      // Remove duplicates
+      const seenPostIds = new Set<string>();
+      const uniqueItems = allItems.filter(item => {
+        const postId = 
+          item.type === 'post' ? item.data.id :
+          item.type === 'hackathon' ? item.data.postId :
+          item.type === 'event' ? item.data.postId :
+          item.data.postId;
+        
+        if (postId && seenPostIds.has(postId)) {
+          return false;
+        }
+        if (postId) {
+          seenPostIds.add(postId);
+        }
+        return true;
+      });
+      
+      // Sort if not "for-you" category
+      if (category !== 'for-you') {
+        uniqueItems.sort((a, b) => {
+          const dateA = new Date(
+            a.type === 'post' ? (a.data.createdAt || a.data.publishedAt || 0) :
+            a.type === 'hackathon' ? (a.data.createdAt || 0) :
+            a.type === 'event' ? (a.data.createdAt || 0) :
+            (a.data.createdAt || a.data.postedAt || 0)
+          ).getTime();
+          
+          const dateB = new Date(
+            b.type === 'post' ? (b.data.createdAt || b.data.publishedAt || 0) :
+            b.type === 'hackathon' ? (b.data.createdAt || 0) :
+            b.type === 'event' ? (b.data.createdAt || 0) :
+            (b.data.createdAt || b.data.postedAt || 0)
+          ).getTime();
+          
+          return dateB - dateA;
+        });
+      }
+      
+      setItems(uniqueItems);
+    }
+  }, [supplementaryItems, category]);
 
   // Get active tag filter from URL
   const activeTagFilter = activeTagInfo?.name || searchParams.get('tags');
@@ -554,6 +709,8 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
       onLoginRequired={onLoginRequired}
       loading={loading}
       error={error}
+      hasMore={hasMore}
+      fetchMore={fetchMore}
       activeTagFilter={getTagDisplayName(searchParams.get('tags'))}
       activeTagLogo={activeTagInfo?.logoUrl || undefined}
       onClearTagFilter={activeTagFilter ? handleClearTagFilter : undefined}
@@ -661,12 +818,12 @@ function PostDetailPage() {
             navigate(routes[cat] || '/');
           }}
         />
-        <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48">
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48">
           <div className="mx-auto">
-            <div className="flex gap-6">
+            <div className="flex gap-3 sm:gap-4 md:gap-6">
               <div className="hidden lg:block w-16 flex-shrink-0"></div>
-              <div className="flex-1 max-w-4xl mx-auto p-6 text-center">
-                <p className="text-gray-500 dark:text-gray-400">Loading post...</p>
+              <div className="flex-1 max-w-4xl mx-auto">
+                <PostDetailSkeleton />
               </div>
             </div>
           </div>
@@ -722,9 +879,9 @@ function PostDetailPage() {
   return (
     <>
       <NavbarWrapper />
-      <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
         <div className="mx-auto">
-          <div className="flex gap-6 max-w-7xl mx-auto">
+          <div className="flex gap-3 sm:gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Left Sidebar - Icon only mode */}
             <div className="hidden lg:block w-16 flex-shrink-0">
               <Sidebar
@@ -751,7 +908,7 @@ function PostDetailPage() {
             </div>
             
             {/* Main content area */}
-            <div className="flex-1 flex gap-6">
+            <div className="flex-1 flex gap-3 sm:gap-4 md:gap-6">
               <div className="flex-1 max-w-4xl">
                 <PostDetail 
                   post={post} 
@@ -776,6 +933,30 @@ function PostDetailPage() {
                       <PageSidebar
                         page={post.page || { id: post.pageId, slug: post.pageSlug }}
                         onLoginRequired={() => setIsLoginModalOpen(true)}
+                        onFollowChange={(isFollowing, followerCount) => {
+                          // Update post.page with new follow status
+                          if (post.page) {
+                            setPost({
+                              ...post,
+                              page: {
+                                ...post.page,
+                                isFollowing,
+                                followerCount
+                              }
+                            });
+                          } else if (post.pageId) {
+                            // If page data is not in post, we need to add it
+                            setPost({
+                              ...post,
+                              page: {
+                                id: post.pageId,
+                                slug: post.pageSlug,
+                                isFollowing,
+                                followerCount
+                              }
+                            });
+                          }
+                        }}
                       />
                     )}
                     
@@ -804,11 +985,22 @@ function CreatePostPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editPostId = searchParams.get('edit');
+  const contentTypeParam = searchParams.get('type');
+
+  // Validate and normalize content type
+  const validContentTypes = ['post', 'hackathon', 'event', 'opportunity'];
+  const initialContentType = contentTypeParam && validContentTypes.includes(contentTypeParam.toLowerCase())
+    ? contentTypeParam.toLowerCase() as 'post' | 'hackathon' | 'event' | 'opportunity'
+    : undefined;
 
     return (
       <>
       <NavbarWrapper />
-      <CreatePost onBack={() => navigate(-1)} editPostId={editPostId || undefined} />
+      <CreatePost 
+        onBack={() => navigate(-1)} 
+        editPostId={editPostId || undefined}
+        initialContentType={initialContentType}
+      />
       </>
     );
   }
