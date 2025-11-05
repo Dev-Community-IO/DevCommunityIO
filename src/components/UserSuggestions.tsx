@@ -33,7 +33,7 @@ export function UserSuggestions({ selectedUsers, onUsersChange }: UserSuggestion
   const loadSuggestedUsers = async () => {
     try {
       const data = await onboardingService.getSuggestedUsers();
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load users:', error);
       setUsers([]);
@@ -42,9 +42,9 @@ export function UserSuggestions({ selectedUsers, onUsersChange }: UserSuggestion
     }
   };
 
-  const filteredUsers = users.filter((user) =>
-    user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.bio.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = (users || []).filter((user) =>
+    user?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user?.bio?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const toggleUser = (userId: string) => {
