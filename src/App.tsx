@@ -215,9 +215,9 @@ function FeedLayout({ category }: { category?: string }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   
-  // Determine default category: 'for-you' for authenticated users, 'trending' for guests
+  // Determine default category: 'trending' for all users (changed from 'for-you')
   // If guest user tries to access 'for-you', redirect to 'trending'
-  let defaultCategory = category || (isAuthenticated ? 'for-you' : 'trending');
+  let defaultCategory = category || 'trending';
   if (defaultCategory === 'for-you' && !isAuthenticated) {
     defaultCategory = 'trending';
   }
@@ -323,8 +323,13 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
   const [supplementaryItems, setSupplementaryItems] = useState<FeedItem[]>([]); // Hackathons, events, opportunities
 
   // Build post params based on category and filters
-  const buildPostParams = (page: number = 1) => {
+  const buildPostParams = (page: number = 1, excludeIds?: string[]) => {
     let postParams: any = { page, limit: 20 };
+    
+    // Add excludeIds if provided (for pagination to avoid duplicates)
+    if (excludeIds && excludeIds.length > 0) {
+      postParams.excludeIds = excludeIds.join(',');
+    }
     
     // Only add sort parameter if not using "for-you" (which uses recommendations)
     if (category !== 'for-you') {
@@ -500,10 +505,21 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
               perPage: meta.perPage || 20,
               total: meta.total || 0
             });
-            setHasMore((meta.currentPage || 1) < (meta.lastPage || 1));
+            // For "for-you" category, always assume there's more content (unlimited feed)
+            // For other categories, use normal pagination logic
+            if (category === 'for-you') {
+              // Always allow more pages for "For You" feed - never stop infinite scroll
+              setHasMore(true);
+            } else {
+              setHasMore((meta.currentPage || 1) < (meta.lastPage || 1));
+            }
           } else {
-            // If no meta, assume no more pages if we got less than limit
-            setHasMore(fetchedPosts.length >= 20);
+            // If no meta, for "for-you" always assume more, otherwise check if we got full page
+            if (category === 'for-you') {
+              setHasMore(true); // Unlimited feed for "For You"
+            } else {
+              setHasMore(fetchedPosts.length >= 20);
+            }
           }
           
           const postsMap = new Map<string, any>();
@@ -542,7 +558,11 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
     setLoadingMore(true);
     try {
       const nextPage = currentPage + 1;
-      const postParams = buildPostParams(nextPage);
+      // Get already loaded post IDs to exclude from next request
+      const alreadyLoadedPostIds = items
+        .filter(item => item.type === 'post')
+        .map(item => item.data.id);
+      const postParams = buildPostParams(nextPage, alreadyLoadedPostIds);
       
       const postsResponse = await postsService.getPosts(postParams);
       const responseData = postsResponse as any;
@@ -560,8 +580,20 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
         fetchedPosts = responseData;
       }
       
+      // For "for-you" category, even if we get 0 posts, continue trying (might be temporary)
+      // For other categories, stop if we get 0 posts
       if (fetchedPosts.length === 0) {
-        setHasMore(false);
+        if (category === 'for-you') {
+          // For "For You" feed, continue trying - might be temporary empty result
+          // Only stop if we've tried many pages with no results
+          if (nextPage > 50) {
+            setHasMore(false);
+          } else {
+            setHasMore(true); // Keep trying
+          }
+        } else {
+          setHasMore(false);
+        }
         setLoadingMore(false);
         return;
       }
@@ -573,9 +605,19 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
           perPage: meta.perPage || 20,
           total: meta.total || 0
         });
-        setHasMore((meta.currentPage || nextPage) < (meta.lastPage || 1));
+        // For "for-you" category, always assume there's more content (unlimited feed)
+        if (category === 'for-you') {
+          setHasMore(true); // Always allow more pages for "For You" feed
+        } else {
+          setHasMore((meta.currentPage || nextPage) < (meta.lastPage || 1));
+        }
       } else {
-        setHasMore(fetchedPosts.length >= 20);
+        // If no meta, for "for-you" always assume more, otherwise check if we got full page
+        if (category === 'for-you') {
+          setHasMore(true); // Unlimited feed for "For You"
+        } else {
+          setHasMore(fetchedPosts.length >= 20);
+        }
       }
       
       // Remove duplicates with existing items
@@ -586,6 +628,22 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
           type: 'post' as const,
           data: post
         }));
+      
+      // If all fetched posts were duplicates, log for debugging and try next page
+      if (fetchedPosts.length > 0 && newPostItems.length === 0) {
+        console.warn(`Page ${nextPage}: All ${fetchedPosts.length} posts were duplicates. Already loaded ${existingPostIds.size} posts.`);
+        // For "for-you", continue trying next page (might be a temporary issue)
+        // For other categories, this indicates we've reached the end
+        if (category !== 'for-you') {
+          setHasMore(false);
+          setLoadingMore(false);
+          return;
+        }
+        // For "for-you", increment page and try again (but don't add empty items)
+        setCurrentPage(nextPage);
+        setLoadingMore(false);
+        return;
+      }
       
       // Merge supplementary items periodically (every 3 pages)
       let mergedItems: FeedItem[] = [...items, ...newPostItems];
@@ -636,8 +694,15 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
         mergedItems = allItemsWithSupplementary;
       }
       
-      setItems(mergedItems);
-      setCurrentPage(nextPage);
+      // Only update items if we actually got new posts
+      if (newPostItems.length > 0) {
+        setItems(mergedItems);
+        setCurrentPage(nextPage);
+      } else {
+        // No new items - increment page anyway for next attempt
+        setCurrentPage(nextPage);
+        console.warn(`Page ${nextPage}: No new posts to add. Will retry on next scroll.`);
+      }
     } catch (err: any) {
       console.error('Error fetching more posts:', err);
       setHasMore(false);

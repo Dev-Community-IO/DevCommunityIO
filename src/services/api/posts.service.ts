@@ -19,6 +19,7 @@ interface PostsQueryParams {
     userId?: string;
     pageId?: string;
     sort?: 'hot' | 'new' | 'top';
+    excludeIds?: string; // Comma-separated list of post IDs to exclude
 }
 
 class PostsService {

@@ -2,14 +2,35 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '../services/api/config';
 
 interface SeoMetadata {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   image?: string;
-  url: string;
-  type: 'website' | 'article';
+  url?: string;
+  type?: 'website' | 'article';
   author?: string;
   publishedTime?: string;
   modifiedTime?: string;
+  // Nested structure from API
+  meta?: {
+    title?: string;
+    description?: string;
+    keywords?: string;
+  };
+  openGraph?: {
+    'og:title'?: string;
+    'og:description'?: string;
+    'og:image'?: string;
+    'og:url'?: string;
+    'og:type'?: string;
+    'og:site_name'?: string;
+  };
+  twitter?: {
+    'twitter:card'?: string;
+    'twitter:title'?: string;
+    'twitter:description'?: string;
+    'twitter:image'?: string;
+    'twitter:url'?: string;
+  };
 }
 
 export function useSeoMetadata(pathname: string) {
