@@ -46,7 +46,17 @@ export interface Page {
   category?: string;
   memberCount?: number;
   postCount?: number;
+  followerCount?: number;
+  follower_count?: number;
   isVerified?: boolean;
+  isFollowing?: boolean;
+  is_following?: boolean;
+  isTrending?: boolean;
+  ownerId?: string;
+  owner?: User;
+  userRole?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Post {
@@ -74,6 +84,10 @@ export interface Post {
   postOrigin?: string | null;
   originSource?: string | null;
   originUrl?: string | null;
+  // Related content types
+  event?: any;
+  hackathon?: any;
+  opportunity?: any;
 }
 
 export interface Comment {
