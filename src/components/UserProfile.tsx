@@ -541,9 +541,9 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                           type="post"
                           description={mockUser.bio || ''}
                           trigger={
-                            <button className="p-3 sm:p-3.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
-                              <Share2 size={18} className="sm:w-5 sm:h-5 text-gray-700 dark:text-gray-300" />
-                            </button>
+                        <button className="p-3 sm:p-3.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
+                          <Share2 size={18} className="sm:w-5 sm:h-5 text-gray-700 dark:text-gray-300" />
+                        </button>
                           }
                         />
                       </>

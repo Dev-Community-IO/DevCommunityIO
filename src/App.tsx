@@ -23,6 +23,7 @@ import { EventDetail } from './components/EventDetail';
 import { OpportunitiesPage } from './components/OpportunitiesPage';
 import { OpportunityDetail } from './components/OpportunityDetail';
 import { NotificationsPage } from './components/NotificationsPage';
+import { BookmarksPage } from './components/BookmarksPage';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AboutPage } from './components/AboutPage';
 import { ContactPage } from './components/ContactPage';
@@ -42,6 +43,7 @@ import opportunitiesService from './services/api/opportunities.service';
 import { generatePostMeta, updateMetaTags, resetMetaTags } from './utils/seo';
 import { getApiBaseUrl } from './utils/apiUrl';
 import { FeedItem } from './components/PostFeed';
+import { Post } from './types';
 import { isNetworkError } from './services/api/config';
 
 function App() {
@@ -205,10 +207,18 @@ function App() {
 }
 
 // Feed Layout Component
-function FeedLayout({ category = 'for-you' }: { category?: string }) {
+function FeedLayout({ category }: { category?: string }) {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  
+  // Determine default category: 'for-you' for authenticated users, 'trending' for guests
+  // If guest user tries to access 'for-you', redirect to 'trending'
+  let defaultCategory = category || (isAuthenticated ? 'for-you' : 'trending');
+  if (defaultCategory === 'for-you' && !isAuthenticated) {
+    defaultCategory = 'trending';
+  }
 
     return (
       <>
@@ -223,7 +233,7 @@ function FeedLayout({ category = 'for-you' }: { category?: string }) {
         <MobileSidebar
           isOpen={isMobileSidebarOpen}
           onClose={() => setIsMobileSidebarOpen(false)}
-        activeCategory={category}
+        activeCategory={defaultCategory}
         onCategoryChange={(cat) => {
           const routes: Record<string, string> = {
             'for-you': '/',
@@ -247,7 +257,7 @@ function FeedLayout({ category = 'for-you' }: { category?: string }) {
             {/* Left Sidebar */}
             <div className="hidden lg:block w-16 xl:w-64 2xl:w-72 flex-shrink-0">
               <Sidebar
-                activeCategory={category}
+                activeCategory={defaultCategory}
                 onCategoryChange={(cat) => {
                   const routes: Record<string, string> = {
                     'home': '/',
@@ -272,7 +282,7 @@ function FeedLayout({ category = 'for-you' }: { category?: string }) {
             <div className="flex-1 flex gap-4 sm:gap-6 lg:gap-8">
               {/* Main content - Optimized for mobile/tablet */}
               <main className="flex-1 w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto">
-                <PostFeedWithData category={category} onLoginRequired={() => setIsLoginModalOpen(true)} />
+                <PostFeedWithData category={defaultCategory} onLoginRequired={() => setIsLoginModalOpen(true)} />
               </main>
               
               {/* Right sidebar */}
@@ -331,16 +341,20 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
     
     // Feed categories are for sorting/filtering, not post categories
     if (category === 'latest') {
-      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+      // Latest: Sort by newest first, disable recommendations
+      postParams = { ...postParams, sort: 'new', recommendations: 'false' };
     } else if (category === 'trending') {
-      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+      // Trending: Sort by hot (most engagement), disable recommendations
+      postParams = { ...postParams, sort: 'hot', recommendations: 'false' };
     } else if (category === 'following') {
-      postParams = { ...postParams, sort: activeSort, recommendations: 'false' };
+      // Following: Filter by followed users, sort by user preference, disable recommendations
+      postParams = { ...postParams, following: 'true', sort: activeSort, recommendations: 'false' };
     } else if (category === 'for-you') {
+      // For You: Use recommendations (personalized feed)
       postParams = { ...postParams, recommendations: 'true' };
     } else {
       // If it's an actual post category (article, tutorial, etc.)
-      postParams = { ...postParams, category, sort: activeSort };
+      postParams = { ...postParams, category, sort: activeSort, recommendations: 'false' };
     }
     
     return postParams;
@@ -1205,7 +1219,7 @@ function BookmarksPageLayout() {
       <div className="min-h-screen pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
         <div className="max-w-[1400px] mx-auto">
           <BookmarksPage 
-            onPostClick={(post) => navigate(`/post/${post.slug}`)}
+            onPostClick={(post: Post) => navigate(`/post/${post.slug}`)}
             onLoginRequired={() => setIsLoginModalOpen(true)}
           />
         </div>
