@@ -140,12 +140,12 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
               {isCategoryDropdownOpen && (
                 <>
                   <div
-                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm sm:hidden"
                     onClick={() => setIsCategoryDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-slide-up">
-                    <div className="p-2">
-                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2">
+                  <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-56 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-slide-up">
+                    <div className="p-2 max-h-[70vh] sm:max-h-none overflow-y-auto">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
                         Feed
                       </div>
                       {availableCategories.map((category) => {
@@ -164,7 +164,7 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
                             <div className={`p-2 rounded-lg bg-gradient-to-br ${category.color} ${isActive ? 'shadow-lg' : 'opacity-70'} flex-shrink-0`}>
                               <Icon size={14} className="text-white" strokeWidth={2.5} />
                             </div>
-                            <span className={`text-sm font-medium ${
+                            <span className={`text-sm font-medium flex-1 text-left ${
                               isActive
                                 ? 'text-gray-900 dark:text-white'
                                 : 'text-gray-700 dark:text-gray-300'
