@@ -15,14 +15,34 @@ class OnboardingService {
 
     // Get suggested users
     async getSuggestedUsers(): Promise<any[]> {
-        const response = await apiClient.get('/onboarding/suggested-users');
-        return response.data.users;
+        try {
+            const response = await apiClient.get('/onboarding/suggested-users');
+            return response.data?.users || response.data || [];
+        } catch (error: any) {
+            // Return empty array if unauthorized or other error
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                console.log('Not authenticated for suggested users');
+                return [];
+            }
+            console.error('Failed to get suggested users:', error);
+            return [];
+        }
     }
 
     // Get suggested pages
     async getSuggestedPages(): Promise<any[]> {
-        const response = await apiClient.get('/onboarding/suggested-pages');
-        return response.data.pages;
+        try {
+            const response = await apiClient.get('/onboarding/suggested-pages');
+            return response.data?.pages || response.data || [];
+        } catch (error: any) {
+            // Return empty array if unauthorized or other error
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                console.log('Not authenticated for suggested pages');
+                return [];
+            }
+            console.error('Failed to get suggested pages:', error);
+            return [];
+        }
     }
 
     // Save interests
