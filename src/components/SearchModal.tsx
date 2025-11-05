@@ -125,7 +125,21 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
     saveRecentSearch(query);
     setQuery('');
     onClose();
-    onPostClick(post);
+    
+    // Navigate based on post category
+    if (post.category === 'hackathon' && post.slug) {
+      navigate(`/hackathons/${post.slug}`);
+    } else if (post.category === 'event' && post.slug) {
+      navigate(`/events/${post.slug}`);
+    } else if (post.category === 'opportunity' && post.slug) {
+      navigate(`/opportunities/${post.slug}`);
+    } else if (post.slug) {
+      // Regular post
+      navigate(`/post/${post.slug}`);
+    } else {
+      // Fallback: try to use onPostClick if slug is missing
+      onPostClick(post);
+    }
   };
 
   const handleUserClick = (user: User) => {
