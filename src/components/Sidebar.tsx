@@ -100,7 +100,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
       try {
         const [featuredResponse, trendingResponse] = await Promise.all([
           tagsService.getFeaturedTags(3).catch(() => ({ tags: [] })),
-          tagsService.getTrendingTags('7d', 10).catch(() => ({ tags: [] }))
+          tagsService.getTrendingTags('7d', 6).catch(() => ({ tags: [] }))
         ]);
 
         setFeaturedTags(featuredResponse?.tags || []);
@@ -295,7 +295,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
             </h3>
           </div>
           <div className="flex flex-wrap gap-2 px-2">
-            {trendingTags.slice(0, 10).map((tag) => (
+            {trendingTags.slice(0, 6).map((tag) => (
               <button
                 key={tag.id}
                 onClick={() => handleTagClick(tag)}

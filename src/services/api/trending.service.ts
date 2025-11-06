@@ -25,7 +25,7 @@ class TrendingService {
     /**
      * Get trending authors
      */
-    async getTrendingAuthors(timeframe: '24h' | '7d' | '30d' | '1yr' | 'all' = 'all', limit = 10): Promise<User[]> {
+    async getTrendingAuthors(timeframe: '24h' | '7d' | '30d' | '1yr' | 'all' = 'all', limit = 5): Promise<User[]> {
         const response = await apiClient.get('/users/trending', {
             params: { timeframe, limit }
         });
@@ -36,7 +36,7 @@ class TrendingService {
     /**
      * Get most reputed authors
      */
-    async getMostReputedAuthors(limit = 10): Promise<User[]> {
+    async getMostReputedAuthors(limit = 5): Promise<User[]> {
         const response = await apiClient.get('/users', {
             params: { sort: 'reputation', limit, order: 'desc' }
         });

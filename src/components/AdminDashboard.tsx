@@ -25,9 +25,10 @@ import { AdminRequests } from './admin/AdminRequests';
 import { AdminApp } from './admin/AdminApp';
 import { AdminConfigs } from './admin/AdminConfigs';
 import { AdminStaticPages } from './admin/AdminStaticPages';
+import { AdminAutoModeration } from './admin/AdminAutoModeration';
 import siteSettingsService from '../services/api/siteSettings.service';
 
-type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages';
+type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages' | 'auto-moderation';
 
 export function AdminDashboard() {
   const { user, isAdmin } = useAuth();
@@ -82,6 +83,7 @@ export function AdminDashboard() {
     { id: 'pages' as TabType, label: 'Pages', icon: Building2, adminOnly: false },
     { id: 'tags' as TabType, label: 'Tags', icon: Hash, adminOnly: false },
     { id: 'achievements' as TabType, label: 'Achievements', icon: Award, adminOnly: false },
+    { id: 'auto-moderation' as TabType, label: 'Auto Moderation', icon: ShieldCheck, adminOnly: true },
     { id: 'static-pages' as TabType, label: 'Static Pages', icon: FileText, adminOnly: true },
     { id: 'requests' as TabType, label: 'Requests', icon: MessageSquare, adminOnly: true },
     { id: 'app' as TabType, label: 'App', icon: Settings, adminOnly: true },
@@ -156,6 +158,7 @@ export function AdminDashboard() {
           {activeTab === 'pages' && <AdminPages />}
           {activeTab === 'tags' && <AdminTags />}
           {activeTab === 'achievements' && <AdminAchievements />}
+          {activeTab === 'auto-moderation' && isFullAdmin && <AdminAutoModeration />}
           {activeTab === 'static-pages' && isFullAdmin && <AdminStaticPages />}
           {activeTab === 'requests' && isFullAdmin && <AdminRequests />}
           {activeTab === 'app' && isFullAdmin && <AdminApp />}

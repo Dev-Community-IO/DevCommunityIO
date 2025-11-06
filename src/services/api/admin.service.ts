@@ -174,6 +174,43 @@ class AdminService {
         await apiClient.put('/admin/app/settings', data);
     }
 
+    // Auto-moderation settings
+    async getAutoModerationSettings(): Promise<any> {
+        const response = await apiClient.get('/admin/auto-moderation/settings');
+        return response.data;
+    }
+
+    async updateAutoModerationSettings(data: any): Promise<void> {
+        await apiClient.put('/admin/auto-moderation/settings', data);
+    }
+
+    // Get spam detection logs
+    async getSpamDetectionLogs(params: {
+        page?: number;
+        limit?: number;
+        userId?: string;
+        contentType?: string;
+        detectionType?: string;
+        dateFrom?: string;
+        dateTo?: string;
+    } = {}): Promise<any> {
+        const response = await apiClient.get('/admin/auto-moderation/detection-logs', { params });
+        return response.data;
+    }
+
+    // Get user activity logs
+    async getUserActivityLogs(params: {
+        page?: number;
+        limit?: number;
+        userId?: string;
+        ipAddress?: string;
+        dateFrom?: string;
+        dateTo?: string;
+    } = {}): Promise<any> {
+        const response = await apiClient.get('/admin/auto-moderation/activity-logs', { params });
+        return response.data;
+    }
+
     // Upload asset (logo, favicon, icon, ogImage, twitterImage)
     async uploadAsset(type: 'logo' | 'favicon' | 'icon' | 'ogImage' | 'twitterImage', file: File): Promise<any> {
         const formData = new FormData();

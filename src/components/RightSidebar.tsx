@@ -67,7 +67,7 @@ export function RightSidebar({ onHackathonClick, onEventClick, onOpportunityClic
     const fetchTrendingAuthors = async () => {
       try {
         setLoadingTrending(true);
-        const authors = await trendingService.getTrendingAuthors(trendingTimeframe, 10);
+        const authors = await trendingService.getTrendingAuthors(trendingTimeframe, 5);
         setTrendingAuthors(Array.isArray(authors) ? authors : []);
       } catch (err: any) {
         // Don't log network errors (server offline) - already handled by interceptor
@@ -86,7 +86,7 @@ export function RightSidebar({ onHackathonClick, onEventClick, onOpportunityClic
   useEffect(() => {
     const fetchMostReputedAuthors = async () => {
       try {
-        const authors = await trendingService.getMostReputedAuthors(10);
+        const authors = await trendingService.getMostReputedAuthors(5);
         setMostReputedAuthors(Array.isArray(authors) ? authors : []);
       } catch (err: any) {
         // Don't log network errors (server offline) - already handled by interceptor
