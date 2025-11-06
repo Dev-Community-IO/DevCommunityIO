@@ -5,14 +5,17 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
  * - Uses VITE_API_BASE_URL if set in environment
  * - Checks window.__API_BASE_URL__ set by index.html script
  * - Otherwise, detects based on current hostname
- * - For IP addresses (mobile/LAN), uses same IP with port 3333
- * - For localhost, uses localhost:3333
+ * - For IP addresses (mobile/LAN), uses same IP with port from VITE_API_PORT (default: 3333)
+ * - For localhost, uses localhost with port from VITE_API_PORT (default: 3333)
  */
 function getApiBaseUrl(): string {
-    // Use environment variable if set
+    // Use environment variable if set (highest priority)
     if (import.meta.env.VITE_API_BASE_URL) {
         return import.meta.env.VITE_API_BASE_URL;
     }
+
+    // Get API port from environment or use default 3333
+    const apiPort = import.meta.env.VITE_API_PORT || '3333';
 
     // Check if API URL was set by index.html script
     if (typeof window !== 'undefined' && (window as any).__API_BASE_URL__) {
@@ -23,17 +26,35 @@ function getApiBaseUrl(): string {
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        
+
+        // Production domains
+        const productionDomains = [
+            'devcommunity.io',
+            'www.devcommunity.io',
+            'www.devcommunity.com',
+        ];
+
+        const isProductionDomain = productionDomains.includes(hostname);
+
         if (isLocalhost) {
-            return 'http://localhost:3333/api';
+            return `http://localhost:${apiPort}/api`;
+        } else if (isProductionDomain) {
+            // Use HTTPS and API subdomain for production (no port needed)
+            if (hostname.startsWith('www.')) {
+                const baseDomain = hostname.replace('www.', '');
+                return `https://api.${baseDomain}/api`;
+            } else {
+                return `https://api.${hostname}/api`;
+            }
         } else {
-            // For IP addresses or other hostnames, use same hostname with port 3333
-            return `http://${hostname}:3333/api`;
+            // For IP addresses or other hostnames, use current protocol with dynamic port
+            const protocol = window.location.protocol;
+            return `${protocol}//${hostname}:${apiPort}/api`;
         }
     }
 
     // Fallback default
-    return 'http://localhost:3333/api';
+    return `http://localhost:${apiPort}/api`;
 }
 
 const API_BASE_URL = getApiBaseUrl();
@@ -44,21 +65,21 @@ let networkErrorLogged = false;
 // Helper function to check if an error is a network error (server not available)
 export function isNetworkError(error: any): boolean {
     if (!error) return false;
-    
+
     // Check if error is marked as network error (from our interceptor)
     if (error.isNetworkError === true) {
         return true;
     }
-    
+
     // Check for various network error indicators
-    const isNetworkError = 
+    const isNetworkError =
         !error.response && // No response means network error
-        (error.message === 'Network Error' || 
-         error.message?.includes('ERR_CONNECTION_REFUSED') ||
-         error.message?.includes('ECONNREFUSED') ||
-         error.code === 'ECONNREFUSED' ||
-         error.code === 'ERR_NETWORK');
-    
+        (error.message === 'Network Error' ||
+            error.message?.includes('ERR_CONNECTION_REFUSED') ||
+            error.message?.includes('ECONNREFUSED') ||
+            error.code === 'ECONNREFUSED' ||
+            error.code === 'ERR_NETWORK');
+
     return !!isNetworkError;
 }
 
@@ -144,29 +165,29 @@ apiClient.interceptors.response.use(
             // List of endpoints where 401 is expected and shouldn't be logged
             // Note: /reactions/emoji is now public, but we keep this list for other endpoints
             const isExpected401Endpoint = url.includes('/auth/me');
-            
+
             // Don't log errors for expected 401 endpoints
             if (!isExpected401Endpoint) {
-        console.error('❌ API Error:', {
+                console.error('❌ API Error:', {
                     url,
-            method: originalRequest?.method,
+                    method: originalRequest?.method,
                     status,
-            message: error.message,
-            baseURL: apiClient.defaults.baseURL,
-        });
+                    message: error.message,
+                    baseURL: apiClient.defaults.baseURL,
+                });
             }
 
             // Only clear auth state and dispatch logout for protected endpoints
             // Don't do this for public endpoints
             if (!originalRequest._retry) {
-            originalRequest._retry = true;
+                originalRequest._retry = true;
 
                 // Clear auth state for protected endpoints
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
 
-            // Redirect to login or emit event
-            window.dispatchEvent(new CustomEvent('auth:logout'));
+                // Redirect to login or emit event
+                window.dispatchEvent(new CustomEvent('auth:logout'));
             }
 
             return Promise.reject(error);
@@ -174,7 +195,7 @@ apiClient.interceptors.response.use(
 
         // Suppress console errors for 404s on user pages endpoint (expected for users without pages)
         const isExpected404 = url?.includes('/users/') && url?.includes('/pages');
-        
+
         // Log error details for debugging (non-401, non-expected-404 errors)
         if (!isExpected404) {
             console.error('❌ API Error:', {
@@ -186,8 +207,15 @@ apiClient.interceptors.response.use(
             });
         }
 
-        // Handle other errors
-        const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
+        // Handle other errors - safely access message property
+        // AxiosError extends Error, so we can safely access message after checking
+        const responseMessage = error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+            ? (error.response.data as any).message
+            : undefined;
+        const errorMsg = 'message' in error && typeof (error as any).message === 'string'
+            ? (error as any).message
+            : '';
+        const errorMessage: string = responseMessage || errorMsg || 'An error occurred';
 
         return Promise.reject({
             message: errorMessage,

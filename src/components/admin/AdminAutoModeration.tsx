@@ -85,7 +85,8 @@ export function AdminAutoModeration() {
       
       // Check if it's a network error (backend not running)
       if (error?.isNetworkError || error?.message?.includes('Network Error') || error?.code === 'ERR_CONNECTION_REFUSED') {
-        toast.error('Cannot connect to backend server. Please ensure the API server is running on port 3333.');
+        const apiPort = import.meta.env.VITE_API_PORT || '3333';
+        toast.error(`Cannot connect to backend server. Please ensure the API server is running on port ${apiPort}.`);
       } else {
         toast.error(error?.response?.data?.message || 'Failed to load auto-moderation settings');
       }
@@ -519,7 +520,8 @@ function AutoModerationContent() {
       
       // Check if it's a network error (backend not running)
       if (error?.isNetworkError || error?.message?.includes('Network Error') || error?.code === 'ERR_CONNECTION_REFUSED') {
-        toast.error('Cannot connect to backend server. Please ensure the API server is running on port 3333.');
+        const apiPort = import.meta.env.VITE_API_PORT || '3333';
+        toast.error(`Cannot connect to backend server. Please ensure the API server is running on port ${apiPort}.`);
       } else {
         toast.error(error?.response?.data?.message || 'Failed to load logs');
       }

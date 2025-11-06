@@ -12,8 +12,39 @@ interface SEOHeadProps {
   modifiedTime?: string;
 }
 
+/**
+ * Normalize image URL to absolute HTTPS URL
+ */
+function normalizeImageUrl(imageUrl: string | undefined): string | undefined {
+  if (!imageUrl) return undefined;
+  
+  // If already absolute URL, ensure HTTPS
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl.replace('http://', 'https://');
+  }
+  
+  // If relative URL, make it absolute
+  if (imageUrl.startsWith('/')) {
+    return `${window.location.origin}${imageUrl}`;
+  }
+  
+  // If it's a CloudFront or S3 URL without protocol, add HTTPS
+  if (imageUrl.includes('.cloudfront.net') || imageUrl.includes('.s3.') || imageUrl.includes('amazonaws.com')) {
+    if (!imageUrl.startsWith('http')) {
+      return `https://${imageUrl}`;
+    }
+    return imageUrl.replace('http://', 'https://');
+  }
+  
+  // Default: assume it needs to be made absolute
+  return `${window.location.origin}/${imageUrl.replace(/^\//, '')}`;
+}
+
 export function SEOHead(props: SEOHeadProps) {
   const { metadata } = useSEO(props);
+  
+  // Normalize image URL to ensure it's absolute and HTTPS
+  const normalizedImage = normalizeImageUrl(metadata.image);
 
   return (
     <Helmet>
@@ -27,7 +58,15 @@ export function SEOHead(props: SEOHeadProps) {
       <meta property="og:url" content={metadata.url} />
       <meta property="og:title" content={metadata.title} />
       <meta property="og:description" content={metadata.description} />
-      {metadata.image && <meta property="og:image" content={metadata.image} />}
+      {normalizedImage && (
+        <>
+          <meta property="og:image" content={normalizedImage} />
+          <meta property="og:image:secure_url" content={normalizedImage} />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:type" content="image/jpeg" />
+        </>
+      )}
       <meta property="og:site_name" content="DevCommunity" />
 
       {/* Twitter */}
@@ -35,7 +74,12 @@ export function SEOHead(props: SEOHeadProps) {
       <meta name="twitter:url" content={metadata.url} />
       <meta name="twitter:title" content={metadata.title} />
       <meta name="twitter:description" content={metadata.description} />
-      {metadata.image && <meta name="twitter:image" content={metadata.image} />}
+      {normalizedImage && <meta name="twitter:image" content={normalizedImage} />}
+      
+      {/* Preload critical image for faster loading */}
+      {normalizedImage && (
+        <link rel="preload" as="image" href={normalizedImage} />
+      )}
 
       {/* Article specific */}
       {metadata.type === 'article' && (

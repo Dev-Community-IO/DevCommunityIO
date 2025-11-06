@@ -5,27 +5,50 @@
 
 /**
  * Detect API URL dynamically (without /api suffix)
+ * Uses VITE_API_PORT from environment (default: 3333)
  */
 function getApiUrl(): string {
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
-    
+
+    // Get API port from environment or use default 3333
+    const apiPort = import.meta.env.VITE_API_PORT || '3333';
+
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-        
+
+        // Production domains
+        const productionDomains = [
+            'devcommunity.io',
+            'www.devcommunity.io',
+            'www.devcommunity.com',
+        ];
+
+        const isProductionDomain = productionDomains.includes(hostname);
+
         if (isLocalhost) {
-            return 'http://localhost:3333';
+            return `http://localhost:${apiPort}`;
+        } else if (isProductionDomain) {
+            // Use HTTPS and API subdomain for production (no port needed)
+            if (hostname.startsWith('www.')) {
+                const baseDomain = hostname.replace('www.', '');
+                return `https://api.${baseDomain}`;
+            } else {
+                return `https://api.${hostname}`;
+            }
         } else {
-            return `http://${hostname}:3333`;
+            // For other environments, use the current protocol
+            const protocol = window.location.protocol;
+            return `${protocol}//${hostname}:${apiPort}`;
         }
     }
-    
-    return 'http://localhost:3333';
+
+    return `http://localhost:${apiPort}`;
 }
 
-interface PushSubscription {
+interface PushSubscriptionData {
     endpoint: string
     keys: {
         p256dh: string
@@ -35,7 +58,7 @@ interface PushSubscription {
 
 class PushNotificationService {
     private swRegistration: ServiceWorkerRegistration | null = null
-    private subscription: PushSubscription | null = null
+    private subscription: PushSubscriptionData | null = null
     private isSupported: boolean
 
     constructor() {
@@ -91,7 +114,7 @@ class PushNotificationService {
     /**
      * Subscribe to push notifications
      */
-    async subscribe(userId: string): Promise<PushSubscription | null> {
+    async subscribe(userId: string): Promise<PushSubscriptionData | null> {
         if (!this.isSupported || !this.swRegistration) {
             console.warn('Push notifications not supported')
             return null
@@ -115,7 +138,7 @@ class PushNotificationService {
             // Subscribe to push
             const subscription = await this.swRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey,
+                applicationServerKey: applicationServerKey as BufferSource,
             })
 
             this.subscription = this.subscriptionToObject(subscription)
@@ -190,7 +213,7 @@ class PushNotificationService {
     /**
      * Get current subscription
      */
-    async getSubscription(): Promise<PushSubscription | null> {
+    async getSubscription(): Promise<PushSubscriptionData | null> {
         if (!this.swRegistration) return null
 
         try {
@@ -226,7 +249,7 @@ class PushNotificationService {
     /**
      * Convert subscription to object
      */
-    private subscriptionToObject(subscription: PushSubscription): PushSubscription {
+    private subscriptionToObject(subscription: globalThis.PushSubscription): PushSubscriptionData {
         const key = subscription.getKey ? subscription.getKey('p256dh') : null
         const auth = subscription.getKey ? subscription.getKey('auth') : null
 
@@ -251,7 +274,8 @@ class PushNotificationService {
         for (let i = 0; i < rawData.length; ++i) {
             outputArray[i] = rawData.charCodeAt(i)
         }
-        return outputArray
+        // Ensure we return a proper Uint8Array that TypeScript recognizes as BufferSource
+        return new Uint8Array(outputArray.buffer)
     }
 
     /**

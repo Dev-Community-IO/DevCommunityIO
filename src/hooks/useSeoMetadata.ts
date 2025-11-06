@@ -1,6 +1,34 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../services/api/config';
 
+/**
+ * Normalize image URL to absolute HTTPS URL
+ */
+function normalizeImageUrl(imageUrl: string | undefined): string | undefined {
+  if (!imageUrl) return undefined;
+  
+  // If already absolute URL, ensure HTTPS
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl.replace('http://', 'https://');
+  }
+  
+  // If relative URL, make it absolute
+  if (imageUrl.startsWith('/')) {
+    return `${window.location.origin}${imageUrl}`;
+  }
+  
+  // If it's a CloudFront or S3 URL without protocol, add HTTPS
+  if (imageUrl.includes('.cloudfront.net') || imageUrl.includes('.s3.') || imageUrl.includes('amazonaws.com')) {
+    if (!imageUrl.startsWith('http')) {
+      return `https://${imageUrl}`;
+    }
+    return imageUrl.replace('http://', 'https://');
+  }
+  
+  // Default: assume it needs to be made absolute
+  return `${window.location.origin}/${imageUrl.replace(/^\//, '')}`;
+}
+
 interface SeoMetadata {
   title?: string;
   description?: string;
@@ -69,19 +97,34 @@ export function useSeoMetadata(pathname: string) {
       }
 
       try {
-        // Use fetch with AbortController for timeout protection
+        // Use fetch with AbortController for timeout protection (reduced to 1.5s for faster loading)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5 second timeout
         
         const response = await apiClient.get(endpoint, {
           signal: controller.signal,
-          timeout: 3000 // Additional timeout for axios
+          timeout: 1500, // Additional timeout for axios
+          headers: {
+            'Cache-Control': 'max-age=300', // Cache for 5 minutes
+          },
         } as any);
         
         clearTimeout(timeoutId);
         
         if (response.data) {
-          setMetadata(response.data);
+          // Normalize image URLs to ensure they're absolute HTTPS URLs
+          const normalizedData = { ...response.data };
+          if (normalizedData.image) {
+            normalizedData.image = normalizeImageUrl(normalizedData.image);
+          }
+          if (normalizedData.openGraph?.['og:image']) {
+            normalizedData.openGraph['og:image'] = normalizeImageUrl(normalizedData.openGraph['og:image']);
+          }
+          if (normalizedData.twitter?.['twitter:image']) {
+            normalizedData.twitter['twitter:image'] = normalizeImageUrl(normalizedData.twitter['twitter:image']);
+          }
+          
+          setMetadata(normalizedData);
         }
       } catch (error: any) {
         // Silently fail - don't block rendering if API is slow
