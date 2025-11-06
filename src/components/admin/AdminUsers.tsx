@@ -304,16 +304,21 @@ export function AdminUsers() {
 
   const handleActivateUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
+    const isPending = user?.status === 'pending';
     setConfirmDialog({
       isOpen: true,
-      title: 'Activate User Account',
-      message: `Are you sure you want to activate ${user?.username}? They will regain full access to the platform.`,
+      title: isPending ? 'Restore User from Pending' : 'Activate User Account',
+      message: isPending 
+        ? `Are you sure you want to restore ${user?.username} from pending status? They will regain full access to the platform and be able to perform all actions.`
+        : `Are you sure you want to activate ${user?.username}? They will regain full access to the platform.`,
       variant: 'info',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
           await adminService.activateUser(userId);
-          toast.success('User account has been activated and access restored');
+          toast.success(isPending 
+            ? 'User has been restored from pending status and access has been fully restored'
+            : 'User account has been activated and access restored');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
@@ -886,6 +891,19 @@ export function AdminUsers() {
                                   >
                                     <CheckCircle size={16} />
                                     Restore User Access
+                                  </button>
+                                ) : user.status === 'pending' ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Restore from Pending clicked', { userId: user.id });
+                                      handleActivateUser(user.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400"
+                                  >
+                                    <UserCheck size={16} />
+                                    Restore from Pending
                                   </button>
                                 ) : null}
 
