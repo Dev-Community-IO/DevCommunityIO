@@ -48,20 +48,128 @@ class PostsService {
 
     // Create post
     async createPost(data: CreatePostData): Promise<Post> {
-        const response = await apiClient.post('/posts', data);
-        if (!response.data || !response.data.post) {
-            throw new Error('Invalid response from server: post data is missing');
+        try {
+            const response = await apiClient.post('/posts', data);
+            // Check if response is successful and has post data
+            if (response.status >= 200 && response.status < 300) {
+                if (response.data?.post) {
+                    return response.data.post;
+                }
+                // Sometimes the post might be directly in response.data
+                if (response.data && !response.data.message && !response.data.errors) {
+                    return response.data as Post;
+                }
+            }
+            // If we get here, response structure is unexpected
+            const errorMessage = response.data?.message || 'Invalid response from server: post data is missing';
+            throw new Error(errorMessage);
+        } catch (error: any) {
+            // Handle axios errors (400, 401, 403, etc.)
+            if (error.response) {
+                const status = error.response.status;
+                const responseData = error.response.data;
+
+                // Extract error message from various possible formats
+                let errorMessage = 'Failed to create post';
+
+                if (responseData?.message) {
+                    errorMessage = responseData.message;
+                } else if (responseData?.errors) {
+                    // Handle validation errors array
+                    if (Array.isArray(responseData.errors)) {
+                        errorMessage = responseData.errors.join(', ');
+                    } else if (typeof responseData.errors === 'object') {
+                        errorMessage = Object.values(responseData.errors).flat().join(', ');
+                    } else {
+                        errorMessage = String(responseData.errors);
+                    }
+                } else if (responseData?.error) {
+                    errorMessage = responseData.error;
+                } else if (status === 400) {
+                    errorMessage = 'Validation failed. Please check your input.';
+                } else if (status === 401) {
+                    errorMessage = 'Authentication required. Please log in.';
+                } else if (status === 403) {
+                    errorMessage = responseData?.message || 'You do not have permission to perform this action.';
+                } else if (status === 413) {
+                    errorMessage = 'Request payload is too large. Please reduce the size of your content or images.';
+                }
+
+                const enhancedError = new Error(errorMessage);
+                (enhancedError as any).status = status;
+                (enhancedError as any).response = error.response;
+                throw enhancedError;
+            }
+
+            // Handle network errors or other errors
+            if (error.message) {
+                throw error;
+            }
+            throw new Error('Failed to create post. Please try again.');
         }
-        return response.data.post;
     }
 
     // Update post
     async updatePost(postId: string, data: Partial<CreatePostData>): Promise<Post> {
-        const response = await apiClient.patch(`/posts/${postId}`, data);
-        if (!response.data || !response.data.post) {
-            throw new Error('Invalid response from server: post data is missing');
+        try {
+            const response = await apiClient.patch(`/posts/${postId}`, data);
+            // Check if response is successful and has post data
+            if (response.status >= 200 && response.status < 300) {
+                if (response.data?.post) {
+                    return response.data.post;
+                }
+                // Sometimes the post might be directly in response.data
+                if (response.data && !response.data.message && !response.data.errors) {
+                    return response.data as Post;
+                }
+            }
+            // If we get here, response structure is unexpected
+            const errorMessage = response.data?.message || 'Invalid response from server: post data is missing';
+            throw new Error(errorMessage);
+        } catch (error: any) {
+            // Handle axios errors (400, 401, 403, etc.)
+            if (error.response) {
+                const status = error.response.status;
+                const responseData = error.response.data;
+
+                // Extract error message from various possible formats
+                let errorMessage = 'Failed to update post';
+
+                if (responseData?.message) {
+                    errorMessage = responseData.message;
+                } else if (responseData?.errors) {
+                    // Handle validation errors array
+                    if (Array.isArray(responseData.errors)) {
+                        errorMessage = responseData.errors.join(', ');
+                    } else if (typeof responseData.errors === 'object') {
+                        errorMessage = Object.values(responseData.errors).flat().join(', ');
+                    } else {
+                        errorMessage = String(responseData.errors);
+                    }
+                } else if (responseData?.error) {
+                    errorMessage = responseData.error;
+                } else if (status === 400) {
+                    errorMessage = 'Validation failed. Please check your input.';
+                } else if (status === 401) {
+                    errorMessage = 'Authentication required. Please log in.';
+                } else if (status === 403) {
+                    errorMessage = responseData?.message || 'You do not have permission to perform this action.';
+                } else if (status === 413) {
+                    errorMessage = 'Request payload is too large. Please reduce the size of your content or images.';
+                }
+
+                const enhancedError = new Error(errorMessage);
+                (enhancedError as any).status = status;
+                (enhancedError as any).response = error.response;
+                throw enhancedError;
+            }
+
+            // Handle network errors or other errors
+            if (error.message) {
+                throw error;
+            }
+            throw new Error('Failed to update post. Please try again.');
         }
-        return response.data.post;
     }
 
     // Get post by slug (for editing)

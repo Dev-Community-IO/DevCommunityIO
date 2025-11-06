@@ -845,6 +845,16 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         setSubmitError('Request payload is too large. Please reduce the size of your content or images.');
       } else if (error.response?.status === 502) {
         setSubmitError('Server is temporarily unavailable. Please try again in a moment.');
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors array
+        const errors = error.response.data.errors;
+        if (Array.isArray(errors)) {
+          setSubmitError(errors.join('. '));
+        } else if (typeof errors === 'object') {
+          setSubmitError(Object.values(errors).flat().join('. '));
+        } else {
+          setSubmitError(String(errors));
+        }
       } else if (error.response?.data?.message) {
         setSubmitError(error.response.data.message);
       } else if (error.message) {
