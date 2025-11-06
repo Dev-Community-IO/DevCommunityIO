@@ -80,6 +80,7 @@ export interface Post {
   hasDownvoted?: boolean;
   coverImage?: string;
   coverImageUrl?: string;
+  coverImageSizes?: { thumb?: string; feed?: string; mobile?: string; full?: string } | null;
   ogImageUrl?: string;
   page?: Page;
   pageId?: string;

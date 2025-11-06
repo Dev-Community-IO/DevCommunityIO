@@ -24,7 +24,7 @@ interface CreatePostProps {
 type ContentType = 'post' | 'hackathon' | 'event' | 'opportunity';
 
 const TITLE_MAX_LENGTH = 200;
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1MB limit
 const MAX_TAGS = 5;
 
 const defaultTags = [
@@ -67,7 +67,10 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null); // Uploaded URL (full size)
+  const [coverImageSizes, setCoverImageSizes] = useState<Record<string, string> | null>(null); // All sizes
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [companyLogoImage, setCompanyLogoImage] = useState<string | null>(null);
   const [companyLogoError, setCompanyLogoError] = useState<string | null>(null);
   const [tagsList, setTagsList] = useState<{ tag: string; color: string }[]>([]);
@@ -262,6 +265,8 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         setTitle(post.title || '');
         setContent(post.content || '');
         setCoverImage(post.coverImageUrl || null);
+        setCoverImageUrl(post.coverImageUrl || null);
+        setCoverImageSizes((post as any).coverImageSizes || null);
         setTagsList(post.tags?.map((t: any) => ({ tag: t.name || t, color: getRandomTagColor() })) || []);
         if (post.pageId) {
           setSelectedPageId(post.pageId);
@@ -436,12 +441,12 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     { id: 'opportunity' as ContentType, name: 'Opportunity', icon: Briefcase, color: 'from-blue-500 to-indigo-500' }
   ];
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > MAX_IMAGE_SIZE) {
-      setImageError('Image size must be less than 5MB');
+      setImageError('Image size must be less than 1MB. Please compress your image before uploading.');
       return;
     }
 
@@ -451,16 +456,35 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     }
 
     setImageError(null);
+    setIsUploadingImage(true);
+
+    // Show preview immediately
     const reader = new FileReader();
     reader.onloadend = () => {
       setCoverImage(reader.result as string);
     };
     reader.readAsDataURL(file);
+
+    // Upload image immediately
+    try {
+      const result = await postsService.uploadPostImage(file);
+      setCoverImageUrl(result.url); // Full size for backward compatibility
+      setCoverImageSizes(result.sizes || null); // All sizes
+      setIsUploadingImage(false);
+    } catch (error: any) {
+      console.error('Failed to upload image:', error);
+      setIsUploadingImage(false);
+      setImageError(error.response?.data?.message || 'Failed to upload image. Please try again.');
+      // Keep preview but mark as failed
+    }
   };
 
   const handleRemoveCoverImage = () => {
     setCoverImage(null);
+    setCoverImageUrl(null);
+    setCoverImageSizes(null);
     setImageError(null);
+    setIsUploadingImage(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -638,6 +662,12 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
       return;
     }
 
+    // Check if image is still uploading
+    if (isUploadingImage) {
+      setSubmitError('Please wait for the image to finish uploading before submitting.');
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
@@ -651,7 +681,8 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           content, 
           category: contentType,
           tags: tagsList.map(t => t.tag),
-          coverImageUrl: coverImage || null,
+          coverImageUrl: coverImageUrl || null, // Use uploaded URL, not base64
+          coverImageSizes: coverImageSizes || null, // All image sizes
           pageId: selectedPageId || undefined,
           status: 'published',
           postOrigin: postOrigin || null,
@@ -692,7 +723,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         const hackathonData = {
           title,
           description: content,
-          imageUrl: coverImage || undefined,
+          imageUrl: coverImageUrl || undefined,
           organizerName: organizerName || user?.username || user?.pseudo || undefined,
           organizerLogoUrl: organizerLogoImage || organizerLogoUrl || undefined,
           startDate,
@@ -745,7 +776,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         const eventData = {
           title,
           description: content,
-          imageUrl: coverImage || undefined,
+          imageUrl: coverImageUrl || undefined,
           date: eventDate,
           time: eventTime,
           location,
@@ -1539,7 +1570,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                   </div>
                   <div className="text-center px-4">
                     <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Tap to upload cover image</p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 5MB</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 1MB</p>
                   </div>
                   <input
                     ref={fileInputRef}
@@ -1556,10 +1587,25 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                     alt="Cover"
                     className="w-full h-full object-cover"
                   />
+                  {isUploadingImage && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <p className="text-white text-sm font-medium">Uploading...</p>
+                      </div>
+                    </div>
+                  )}
+                  {!isUploadingImage && coverImageUrl && (
+                    <div className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-green-500/90 text-white text-xs font-medium flex items-center gap-1">
+                      <Check size={12} />
+                      Uploaded
+                    </div>
+                  )}
                   <button
                     onClick={handleRemoveCoverImage}
                     className="absolute top-3 right-3 p-2.5 sm:p-3 rounded-xl bg-red-500 active:bg-red-600 text-white shadow-sm transition-all duration-300 touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
                     aria-label="Remove cover image"
+                    disabled={isUploadingImage}
                   >
                     <X size={18} className="sm:w-5 sm:h-5" />
                   </button>

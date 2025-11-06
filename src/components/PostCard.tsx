@@ -9,6 +9,7 @@ import { EmojiReactions } from './EmojiReactions';
 import { UserHoverCardDropdown } from './UserHoverCardDropdown';
 import { PageHoverCardDropdown } from './PageHoverCardDropdown';
 import { ShareDropdown } from './ShareDropdown';
+import { ResponsivePostImage } from './ResponsivePostImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import reactionsService from '../services/api/reactions.service';
@@ -493,12 +494,14 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
           </h3>
 
           {/* Cover Image - Always show post's cover, not page's cover - Mobile Optimized */}
-          {(postData.coverImage || postData.coverImageUrl) && (
+          {(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes) && (
             <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3">
-              <img
-                src={postData.coverImage || postData.coverImageUrl}
+              <ResponsivePostImage
+                coverImageUrl={postData.coverImage || postData.coverImageUrl}
+                coverImageSizes={postData.coverImageSizes}
                 alt={postData.title}
                 className="w-full h-full object-cover"
+                size="feed" // Use feed size for cards
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';

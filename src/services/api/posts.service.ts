@@ -239,6 +239,19 @@ class PostsService {
         const response = await apiClient.get('/posts/bookmarks', { params });
         return response.data;
     }
+
+    // Upload post image (returns URL and all sizes immediately)
+    async uploadPostImage(file: File): Promise<{ url: string; sizes: Record<string, string> }> {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const response = await apiClient.post('/upload/post-image', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    }
 }
 
 export default new PostsService();

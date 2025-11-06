@@ -11,6 +11,7 @@ import { ShareDropdown } from './ShareDropdown';
 import { ReportModal } from './ReportModal';
 import { MentionTextarea } from './MentionTextarea';
 import { PostOriginDisplay } from './PostOriginDisplay';
+import { ResponsivePostImage } from './ResponsivePostImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -395,12 +396,14 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6 leading-tight">{post.title}</h1>
 
               {/* Cover Image - Show post cover first, only fallback to page cover if post has none */}
-              {(post.coverImage || post.coverImageUrl) ? (
+              {(post.coverImage || post.coverImageUrl || post.coverImageSizes) ? (
                 <div className="relative w-full h-48 sm:h-64 md:h-80 lg:h-96 xl:h-[28rem] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 sm:mb-6 shadow-lg">
-                  <img
-                    src={post.coverImage || post.coverImageUrl}
+                  <ResponsivePostImage
+                    coverImageUrl={post.coverImage || post.coverImageUrl}
+                    coverImageSizes={post.coverImageSizes}
                     alt={post.title}
                     className="w-full h-full object-cover"
+                    size="full" // Use full size for detail view
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
