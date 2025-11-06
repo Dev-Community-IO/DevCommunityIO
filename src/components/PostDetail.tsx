@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile, Award, AlertCircle } from 'lucide-react';
 import { Post, Comment as CommentType, Page } from '../types';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
@@ -19,6 +19,7 @@ import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import pagesService from '../services/api/pages.service';
 import bookmarksService from '../services/api/bookmarks.service';
+import adminService from '../services/api/admin.service';
 import { PostDetailSkeleton, CommentSkeletonList } from './skeletons';
 
 interface PostDetailProps {
@@ -41,6 +42,15 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const [pageData, setPageData] = useState<Page | null>(post.page || null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [commentRequirement, setCommentRequirement] = useState<number>(0);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const bypassCommentRequirement = user ? (user.isTrusted || ['moderator', 'admin', 'super_admin'].includes(user.role)) : false;
+  const isCommentRequirementBlocking = Boolean(
+    user &&
+    commentRequirement > 0 &&
+    !bypassCommentRequirement &&
+    user.reputation < commentRequirement
+  );
 
   // REBUILT: Fetch full page data if post has a page - same pattern as PageView
   useEffect(() => {
@@ -91,6 +101,28 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     }
   }, [post.page?.isFollowing, post.page?.followerCount]); // Sync when follow status or follower count changes
   
+  // Load reputation requirements for comments
+  useEffect(() => {
+    const fetchCommentRequirement = async () => {
+      try {
+        const data = await adminService.getReputationRequirements();
+        if (data.requirements) {
+          setCommentRequirement(data.requirements.comment ?? 0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch comment reputation requirement:', error);
+      }
+    };
+
+    fetchCommentRequirement();
+  }, []);
+
+  useEffect(() => {
+    if (!isCommentRequirementBlocking) {
+      setCommentError(null);
+    }
+  }, [isCommentRequirementBlocking]);
+
   // Load emoji reactions on mount
   useEffect(() => {
     const loadReactions = async () => {
@@ -252,7 +284,16 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
       return;
     }
     
+    setCommentError(null);
+
     if (!comment.trim()) return;
+    
+    if (isCommentRequirementBlocking) {
+      setCommentError(
+        `You need at least ${commentRequirement} reputation points to comment. Your current reputation: ${user?.reputation ?? 0}`
+      );
+      return;
+    }
     
     try {
       setSubmittingComment(true);
@@ -262,7 +303,8 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
       await fetchComments();
     } catch (error: any) {
       console.error('Failed to submit comment:', error);
-      alert(error.response?.data?.message || 'Failed to post comment');
+      const errorMessage = error.response?.data?.message || 'Failed to post comment';
+      setCommentError(errorMessage);
     } finally {
       setSubmittingComment(false);
     }
@@ -617,13 +659,36 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
             onChange={setComment}
             placeholder="Share your thoughts... Use @ to mention other users"
             rows={6}
+            disabled={isCommentRequirementBlocking}
+            className={isCommentRequirementBlocking ? 'opacity-70' : ''}
           />
+          {isCommentRequirementBlocking && (
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20">
+              <Award size={18} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                <p className="font-semibold">Reputation required to comment</p>
+                <p className="mt-1">
+                  You need at least <strong>{commentRequirement}</strong> reputation points to comment. Your current reputation is{' '}
+                  <strong>{user?.reputation ?? 0}</strong>.
+                </p>
+                <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
+                  Trusted members and moderators automatically bypass this requirement.
+                </p>
+              </div>
+            </div>
+          )}
+          {commentError && (
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+              <AlertCircle size={18} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700 dark:text-red-300">{commentError}</p>
+            </div>
+          )}
           <div className="flex justify-end">
             <Button 
               variant="primary" 
               size="sm"
               onClick={handleSubmitComment}
-              disabled={!comment.trim() || submittingComment}
+              disabled={!comment.trim() || submittingComment || isCommentRequirementBlocking}
             >
               {submittingComment ? 'Posting...' : 'Post Comment'}
             </Button>

@@ -15,9 +15,10 @@ interface MentionTextareaProps {
     placeholder?: string
     rows?: number
     className?: string
+    disabled?: boolean
 }
 
-export function MentionTextarea({ value, onChange, placeholder, rows = 4, className = '' }: MentionTextareaProps) {
+export function MentionTextarea({ value, onChange, placeholder, rows = 4, className = '', disabled = false }: MentionTextareaProps) {
     const [suggestions, setSuggestions] = useState<User[]>([])
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -35,6 +36,12 @@ export function MentionTextarea({ value, onChange, placeholder, rows = 4, classN
         }
     }, [mentionSearch])
 
+    useEffect(() => {
+        if (disabled) {
+            setShowSuggestions(false)
+        }
+    }, [disabled])
+
     const fetchUsers = async (query: string) => {
         try {
             const response = await apiClient.get('/users/search', { params: { q: query } })
@@ -47,6 +54,9 @@ export function MentionTextarea({ value, onChange, placeholder, rows = 4, classN
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        if (disabled) {
+            return
+        }
         const newValue = e.target.value
         const cursorPos = e.target.selectionStart
 
@@ -97,6 +107,9 @@ export function MentionTextarea({ value, onChange, placeholder, rows = 4, classN
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (disabled) {
+            return
+        }
         if (!showSuggestions || suggestions.length === 0) return
 
         switch (e.key) {
@@ -129,7 +142,8 @@ export function MentionTextarea({ value, onChange, placeholder, rows = 4, classN
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 rows={rows}
-                className={`w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none ${className}`}
+                disabled={disabled}
+                className={`w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none disabled:bg-gray-100 disabled:dark:bg-gray-900/40 disabled:text-gray-500 disabled:dark:text-gray-500 disabled:cursor-not-allowed ${className}`}
             />
 
             {showSuggestions && suggestions.length > 0 && (

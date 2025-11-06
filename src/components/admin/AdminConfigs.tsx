@@ -94,6 +94,8 @@ export function AdminConfigs() {
   
   // Reputation requirements
   const [reputationRequirements, setReputationRequirements] = useState<Record<string, number>>({
+    post: 0,
+    comment: 0,
     page: 0,
     event: 0,
     opportunity: 0,
@@ -164,7 +166,16 @@ export function AdminConfigs() {
       setIsLoadingReputation(true);
       const data = await adminService.getReputationRequirements();
       if (data.requirements) {
-        setReputationRequirements(data.requirements);
+        setReputationRequirements({
+          post: 0,
+          comment: 0,
+          page: 0,
+          event: 0,
+          opportunity: 0,
+          hackathon: 0,
+          verification: 0,
+          ...data.requirements,
+        });
       }
     } catch (error) {
       console.error('Failed to load reputation requirements:', error);
@@ -215,6 +226,10 @@ export function AdminConfigs() {
 
   const getContentTypeIcon = (contentType: string) => {
     switch (contentType) {
+      case 'post':
+        return <FileText size={18} className="text-indigo-500" />;
+      case 'comment':
+        return <MessageSquare size={18} className="text-teal-500" />;
       case 'page':
         return <Building2 size={18} className="text-purple-500" />;
       case 'event':
@@ -450,6 +465,10 @@ export function AdminConfigs() {
 
   const getContentTypeLabel = (contentType: string) => {
     switch (contentType) {
+      case 'post':
+        return 'Post';
+      case 'comment':
+        return 'Comment';
       case 'page':
         return 'Page';
       case 'event':
@@ -820,7 +839,7 @@ export function AdminConfigs() {
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(['page', 'event', 'opportunity', 'hackathon', 'verification'] as const).map((contentType) => {
+              {(['post', 'comment', 'page', 'event', 'opportunity', 'hackathon', 'verification'] as const).map((contentType) => {
                 const currentValue = reputationRequirements[contentType] || 0;
                 const isEditing = editingContentType === contentType;
                 

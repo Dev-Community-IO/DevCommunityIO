@@ -3,7 +3,7 @@ import { Check, FileText, Trophy, Calendar, Briefcase, Upload, X, Plus, Trash2, 
 import { MarkdownEditor } from './MarkdownEditor';
 import { Avatar } from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import postsService from '../services/api/posts.service';
 import pagesService from '../services/api/pages.service';
 import hackathonsService from '../services/api/hackathons.service';
@@ -93,7 +93,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reputationRequirements, setReputationRequirements] = useState<Record<string, number>>({});
   const [reputationError, setReputationError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +101,15 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const organizerLogoInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
   const editDataRef = useRef<{ postId: string; hackathonId?: string; eventId?: string; opportunityId?: string } | null>(null);
+
+  const activeReputationRequirement = reputationRequirements[contentType] || 0;
+  const bypassReputationRequirement = user ? (user.isTrusted || ['moderator', 'admin', 'super_admin'].includes(user.role)) : false;
+  const isReputationBlocked = Boolean(
+    user &&
+    activeReputationRequirement > 0 &&
+    !bypassReputationRequirement &&
+    user.reputation < activeReputationRequirement
+  );
 
   // Fetch reputation requirements on mount
   useEffect(() => {
@@ -639,16 +648,13 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     setSubmitError(null);
     setReputationError(null);
 
-    // Check reputation requirement for non-post content types
-    if (contentType !== 'post' && user) {
-      const requiredReputation = reputationRequirements[contentType] || 0;
-      if (requiredReputation > 0 && user.reputation < requiredReputation) {
-        setReputationError(
-          `You need at least ${requiredReputation} reputation points to create a ${contentType}. Your current reputation: ${user.reputation}`
-        );
-        isSubmittingRef.current = false;
-        return;
-      }
+    // Check reputation requirement
+    if (user && !bypassReputationRequirement && activeReputationRequirement > 0 && user.reputation < activeReputationRequirement) {
+      setReputationError(
+        `You need at least ${activeReputationRequirement} reputation points to create a ${contentType}. Your current reputation: ${user.reputation}`
+      );
+      isSubmittingRef.current = false;
+      return;
     }
 
     // Validation
@@ -1862,7 +1868,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                     isSubmitting || 
                     !title.trim() || 
                     !content.trim() || 
-                    !!(contentType !== 'post' && user && reputationRequirements[contentType] > 0 && user.reputation < reputationRequirements[contentType])
+                    isReputationBlocked
                   }
                   className="flex-1 min-h-[48px] px-6 rounded-xl font-semibold text-base text-white bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 active:from-blue-700 active:to-cyan-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation flex items-center justify-center gap-2"
                 >
@@ -1913,14 +1919,14 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
 
                 {/* Reputation Warning - Right Sidebar */}
-                {contentType !== 'post' && user && reputationRequirements[contentType] > 0 && user.reputation < reputationRequirements[contentType] && (
+                {isReputationBlocked && (
                   <div className="border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 bg-yellow-50 dark:bg-yellow-900/20">
                     <div className="flex items-start gap-2">
                       <Award size={16} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-100 mb-1">Reputation Required</p>
                         <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                          You need <strong>{reputationRequirements[contentType]}</strong> reputation points to create a {contentType}. Your current: <strong>{user.reputation}</strong>
+                          You need <strong>{activeReputationRequirement}</strong> reputation points to create a {contentType}. Your current: <strong>{user?.reputation ?? 0}</strong>
                         </p>
                       </div>
                     </div>
