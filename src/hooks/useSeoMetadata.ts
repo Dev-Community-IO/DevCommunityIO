@@ -52,15 +52,15 @@ export function useSeoMetadata(pathname: string) {
       let endpoint: string | null = null;
       
       if (pathSegments[0] === 'post' && pathSegments[1]) {
-        endpoint = `/api/seo/posts/${pathSegments[1]}`;
+        endpoint = `/seo/posts/${pathSegments[1]}`;
       } else if (pathSegments[0] === 'hackathons' && pathSegments[1]) {
-        endpoint = `/api/seo/hackathons/${pathSegments[1]}`;
+        endpoint = `/seo/hackathons/${pathSegments[1]}`;
       } else if (pathSegments[0] === 'events' && pathSegments[1]) {
-        endpoint = `/api/seo/events/${pathSegments[1]}`;
+        endpoint = `/seo/events/${pathSegments[1]}`;
       } else if (pathSegments[0] === 'opportunities' && pathSegments[1]) {
-        endpoint = `/api/seo/opportunities/${pathSegments[1]}`;
+        endpoint = `/seo/opportunities/${pathSegments[1]}`;
       } else if (pathSegments[0] === 'pages' && pathSegments[1]) {
-        endpoint = `/api/seo/pages/${pathSegments[1]}`;
+        endpoint = `/seo/pages/${pathSegments[1]}`;
       }
 
       if (!endpoint) {

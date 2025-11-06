@@ -661,9 +661,15 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
 
         if (isEditMode && editDataRef.current?.postId) {
           const updatedPost = await postsService.updatePost(editDataRef.current.postId, postData);
+          if (!updatedPost?.slug) {
+            throw new Error('Failed to update post: Invalid response from server');
+          }
           navigate(`/post/${updatedPost.slug}`, { replace: true, state: { post: updatedPost } });
         } else {
           const createdPost = await postsService.createPost(postData);
+          if (!createdPost?.slug) {
+            throw new Error('Failed to create post: Invalid response from server');
+          }
           navigate(`/post/${createdPost.slug}`, { replace: true, state: { post: createdPost } });
         }
       } else if (contentType === 'hackathon') {
@@ -783,7 +789,19 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Failed to create/update content:', error);
-      setSubmitError(error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} ${contentType}. Please try again.`);
+      
+      // Handle specific error cases
+      if (error.response?.status === 413) {
+        setSubmitError('Request payload is too large. Please reduce the size of your content or images.');
+      } else if (error.response?.status === 502) {
+        setSubmitError('Server is temporarily unavailable. Please try again in a moment.');
+      } else if (error.response?.data?.message) {
+        setSubmitError(error.response.data.message);
+      } else if (error.message) {
+        setSubmitError(error.message);
+      } else {
+        setSubmitError(`Failed to ${isEditMode ? 'update' : 'create'} ${contentType}. Please try again.`);
+      }
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
