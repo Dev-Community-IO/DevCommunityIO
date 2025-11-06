@@ -82,7 +82,7 @@ export function AdminUsers() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Debounce search query - only clear users when search actually changes (not on initial mount)
+  // Debounce search query - reset page when search changes (not on initial mount)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -90,9 +90,8 @@ export function AdminUsers() {
     }
 
     const timer = setTimeout(() => {
-      console.log('[DEBUG] Search query debounced, resetting page and users');
+      console.log('[DEBUG] Search query debounced, resetting page');
       setPage(1);
-      setUsers([]);
     }, 500);
 
     return () => clearTimeout(timer);
@@ -100,6 +99,10 @@ export function AdminUsers() {
 
   // Load data on mount and when filters change
   useEffect(() => {
+    // Clear users only when page resets to 1 (new search/filter)
+    if (page === 1) {
+      setUsers([]);
+    }
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterRole, filterStatus, filterVerified, page, searchQuery]);
@@ -173,7 +176,8 @@ export function AdminUsers() {
         console.log('[DEBUG] Loaded users (page 1):', {
           totalReceived: filteredUsers.length,
           uniqueUsers: uniqueUsers.length,
-          duplicateIds: filteredUsers.length - uniqueUsers.length
+          searchQuery: searchQuery,
+          filters: { filterRole, filterStatus, filterVerified }
         });
         setUsers(uniqueUsers);
       } else {
@@ -641,7 +645,7 @@ export function AdminUsers() {
       )}
 
       {/* Users Table */}
-      <GlassCard className="overflow-hidden">
+      <GlassCard className="overflow-visible">
         {isLoading && users.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
@@ -652,7 +656,7 @@ export function AdminUsers() {
             <p className="text-gray-500 dark:text-gray-400">No users found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                 <tr>
@@ -774,7 +778,11 @@ export function AdminUsers() {
                                   }}
                                 />
                                 <div 
-                                  className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[60] overflow-hidden"
+                                  className="fixed right-4 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[100] overflow-hidden"
+                                  style={{
+                                    top: actionMenuRef.current ? `${actionMenuRef.current.getBoundingClientRect().bottom + 8}px` : 'auto',
+                                    right: actionMenuRef.current ? `${window.innerWidth - actionMenuRef.current.getBoundingClientRect().right}px` : '16px'
+                                  }}
                                   onClick={(e) => {
                                     console.log('[DEBUG] Menu container clicked, stopping propagation');
                                     e.stopPropagation();

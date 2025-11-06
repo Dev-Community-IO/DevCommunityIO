@@ -18,7 +18,13 @@ import {
   Clock,
   User,
   AlertTriangle,
-  Archive
+  Archive,
+  Edit,
+  Star,
+  UserCheck,
+  UserX,
+  Shield,
+  ShieldOff
 } from 'lucide-react';
 import { GlassCard } from '../GlassCard';
 import { Avatar } from '../Avatar';
@@ -42,6 +48,8 @@ interface ContentItem {
     username: string;
     avatar?: string;
     isTrusted?: boolean;
+    isSpam?: boolean;
+    isVerified?: boolean;
   };
   status: string;
   createdAt: string;
@@ -92,7 +100,7 @@ export function AdminContents() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Debounce search query - only clear contents when search actually changes (not on initial mount)
+  // Debounce search query - reset page when search changes (not on initial mount)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -101,7 +109,6 @@ export function AdminContents() {
 
     const timer = setTimeout(() => {
       setPage(1);
-      setContents([]);
     }, 500);
 
     return () => clearTimeout(timer);
@@ -109,6 +116,10 @@ export function AdminContents() {
 
   // Load data on mount and when filters change
   useEffect(() => {
+    // Clear contents only when page resets to 1 (new search/filter)
+    if (page === 1) {
+      setContents([]);
+    }
     loadContents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter, statusFilter, searchQuery, authorFilter, dateFrom, dateTo, page]);
@@ -146,16 +157,24 @@ export function AdminContents() {
         limit: 50,
         type: typeFilter !== 'all' ? typeFilter : undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchQuery || undefined,
+        search: searchQuery.trim() || undefined,
         authorId: authorFilter || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       });
       
+      const contentsData = data.contents || data.data || [];
+      console.log('[DEBUG] Loaded contents:', {
+        totalReceived: contentsData.length,
+        page,
+        searchQuery: searchQuery,
+        filters: { typeFilter, statusFilter, authorFilter }
+      });
+      
       if (page === 1) {
-        setContents(data.contents || data.data || []);
+        setContents(contentsData);
       } else {
-        setContents(prev => [...prev, ...(data.contents || data.data || [])]);
+        setContents(prev => [...prev, ...contentsData]);
       }
       
       setHasMore(data.meta?.currentPage < data.meta?.lastPage);
@@ -404,6 +423,175 @@ export function AdminContents() {
     });
   };
 
+  const handleMarkAuthorSpam = (authorId: string, username: string) => {
+    setSelectedAuthor({ id: authorId, username });
+    setShowAuthorModal('spam');
+    setModalComment('');
+    setShowActionMenu(null);
+  };
+
+  const handleMarkAuthorSpamConfirm = async () => {
+    if (!selectedAuthor || !modalComment.trim()) {
+      toast.warning('Please provide a comment explaining why this author is being marked as spam');
+      return;
+    }
+
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      await adminService.markSpam(selectedAuthor.id, modalComment);
+      toast.success('Author marked as spam successfully. User has been notified.');
+      setShowAuthorModal(null);
+      setModalComment('');
+      setSelectedAuthor(null);
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      loadContents();
+    } catch (error: any) {
+      console.error('Failed to mark author as spam:', error);
+      toast.error(error?.response?.data?.message || 'Failed to mark author as spam');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleUnmarkAuthorSpam = (authorId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Remove Spam Status',
+      message: 'Are you sure you want to remove spam status from this author? They will regain normal posting privileges.',
+      variant: 'info',
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+          await adminService.unmarkSpam(authorId);
+          toast.success('Spam status removed successfully. User has been notified.');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          setShowActionMenu(null);
+          loadContents();
+        } catch (error: any) {
+          console.error('Failed to unmark spam:', error);
+          toast.error(error?.response?.data?.message || 'Failed to remove spam status');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      isLoading: false,
+    });
+  };
+
+  const handleMarkAuthorTrusted = async (authorId: string) => {
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      await adminService.markTrusted(authorId);
+      toast.success('Author marked as trusted successfully. User has been notified.');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      setShowActionMenu(null);
+      loadContents();
+    } catch (error: any) {
+      console.error('Failed to mark author as trusted:', error);
+      toast.error(error?.response?.data?.message || 'Failed to mark author as trusted');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleUnmarkAuthorTrusted = (authorId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Remove Trusted Status',
+      message: 'Are you sure you want to remove trusted status from this author? They will lose cooldown exemptions.',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+          await adminService.unmarkTrusted(authorId);
+          toast.success('Trusted status removed successfully. User has been notified.');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          setShowActionMenu(null);
+          loadContents();
+        } catch (error: any) {
+          console.error('Failed to unmark trusted:', error);
+          toast.error(error?.response?.data?.message || 'Failed to remove trusted status');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      isLoading: false,
+    });
+  };
+
+  const handleVerifyAuthor = (authorId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Grant Verification Badge',
+      message: 'Are you sure you want to grant a verification badge to this author? This badge will be displayed on their profile and content.',
+      variant: 'info',
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+          await adminService.verifyUser(authorId);
+          toast.success('Verification badge has been granted to the author');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          setShowActionMenu(null);
+          loadContents();
+        } catch (error: any) {
+          console.error('Failed to verify author:', error);
+          toast.error(error?.response?.data?.message || 'Failed to verify author');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      isLoading: false,
+    });
+  };
+
+  const handleUnverifyAuthor = (authorId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Revoke Verification Badge',
+      message: 'Are you sure you want to revoke the verification badge from this author? They will lose their verified status and badge.',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+          await adminService.unverifyUser(authorId);
+          toast.success('Verification badge has been revoked from the author');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          setShowActionMenu(null);
+          loadContents();
+        } catch (error: any) {
+          console.error('Failed to unverify author:', error);
+          toast.error(error?.response?.data?.message || 'Failed to unverify author');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      isLoading: false,
+    });
+  };
+
+  const handleDeactivateAuthor = (authorId: string, username: string) => {
+    setSelectedAuthor({ id: authorId, username });
+    setShowAuthorModal('deactivate');
+    setModalComment('');
+    setShowActionMenu(null);
+  };
+
+  const handleDeactivateAuthorConfirm = async () => {
+    if (!selectedAuthor || !modalComment.trim()) {
+      toast.warning('Please provide a comment explaining why this author is being deactivated');
+      return;
+    }
+
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      await adminService.deactivateUser(selectedAuthor.id, modalComment);
+      toast.success('Author account has been deactivated and access revoked. User has been notified.');
+      setShowAuthorModal(null);
+      setModalComment('');
+      setSelectedAuthor(null);
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      loadContents();
+    } catch (error: any) {
+      console.error('Failed to deactivate author:', error);
+      toast.error(error?.response?.data?.message || 'Failed to deactivate author');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters */}
@@ -533,7 +721,7 @@ export function AdminContents() {
       )}
 
       {/* Contents Table */}
-      <GlassCard className="overflow-hidden p-0">
+      <GlassCard className="overflow-visible p-0">
         {isLoading && contents.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
@@ -544,7 +732,7 @@ export function AdminContents() {
             <p className="text-gray-500 dark:text-gray-400">No content found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-800/30 border-b-2 border-gray-200 dark:border-gray-700">
                 <tr>
@@ -661,7 +849,7 @@ export function AdminContents() {
                               <Eye size={13} className="text-gray-500 dark:text-gray-400 group-hover/btn:text-purple-600 dark:group-hover/btn:text-purple-400 transition-colors" />
                             </button>
                           )}
-                          <div className="relative" ref={actionMenuRef}>
+                          <div className="relative" ref={showActionMenu === item.id ? actionMenuRef : null}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -676,27 +864,39 @@ export function AdminContents() {
                               <>
                                 <div
                                   className="fixed inset-0 z-40"
-                                  onClick={() => setShowActionMenu(null)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowActionMenu(null);
+                                  }}
                                 />
                                 <div 
-                                  className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                                  className="fixed right-4 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                                  style={{
+                                    top: actionMenuRef.current ? `${actionMenuRef.current.getBoundingClientRect().bottom + 8}px` : 'auto',
+                                    right: actionMenuRef.current ? `${window.innerWidth - actionMenuRef.current.getBoundingClientRect().right}px` : '16px'
+                                  }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     if (item.slug && item.type === 'post') {
                                       navigate(`/post/${item.slug}`);
+                                    } else if (item.type === 'comment' && item.id) {
+                                      // For comments, we might need to navigate to the post
+                                      toast.info('Navigate to the post to view this comment');
                                     }
                                     setShowActionMenu(null);
                                   }}
                                   className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300 transition-colors"
                                 >
                                   <Eye size={16} />
-                                  Open Content
+                                  View Content
                                 </button>
                                 
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     navigate(`/profile/${item.author.username}`);
                                     setShowActionMenu(null);
                                   }}
@@ -708,9 +908,14 @@ export function AdminContents() {
 
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
+                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                  Content Actions
+                                </div>
+
                                 {item.status === 'published' ? (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleUnpublish(item.type, item.id);
                                       setShowActionMenu(null);
                                     }}
@@ -721,7 +926,8 @@ export function AdminContents() {
                                   </button>
                                 ) : (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleRepublish(item.type, item.id);
                                       setShowActionMenu(null);
                                     }}
@@ -732,23 +938,12 @@ export function AdminContents() {
                                   </button>
                                 )}
 
-                                <button
-                                  onClick={() => {
-                                    handleUnpublishAllAuthorPosts(item.author.id);
-                                    setShowActionMenu(null);
-                                  }}
-                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
-                                >
-                                  <Archive size={16} />
-                                  Unpublish All Author Content
-                                </button>
-
-                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-
                                 {(item.type === 'post' || item.type === 'comment') && (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleViewReports(item);
+                                      setShowActionMenu(null);
                                     }}
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
                                   >
@@ -762,8 +957,105 @@ export function AdminContents() {
                                   </button>
                                 )}
 
+                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                  Author Actions
+                                </div>
+
+                                {!item.author.isVerified ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVerifyAuthor(item.author.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
+                                  >
+                                    <UserCheck size={16} />
+                                    Grant Verification Badge
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnverifyAuthor(item.author.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-600 dark:text-gray-400 transition-colors"
+                                  >
+                                    <UserX size={16} />
+                                    Revoke Verification Badge
+                                  </button>
+                                )}
+
+                                {item.author.isTrusted ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnmarkAuthorTrusted(item.author.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
+                                  >
+                                    <X size={16} />
+                                    Remove Trusted Status
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkAuthorTrusted(item.author.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
+                                  >
+                                    <Star size={16} />
+                                    Mark as Trusted
+                                  </button>
+                                )}
+
+                                {item.author.isSpam ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnmarkAuthorSpam(item.author.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
+                                  >
+                                    <CheckCircle2 size={16} />
+                                    Remove Spam Status
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkAuthorSpam(item.author.id, item.author.username);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
+                                  >
+                                    <AlertTriangle size={16} />
+                                    Mark as Spam
+                                  </button>
+                                )}
+
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnpublishAllAuthorPosts(item.author.id);
+                                    setShowActionMenu(null);
+                                  }}
+                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
+                                >
+                                  <Archive size={16} />
+                                  Unpublish All Author Content
+                                </button>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleSuspendAuthor(item.author.id);
                                     setShowActionMenu(null);
                                   }}
@@ -774,7 +1066,20 @@ export function AdminContents() {
                                 </button>
 
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeactivateAuthor(item.author.id, item.author.username);
+                                    setShowActionMenu(null);
+                                  }}
+                                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400 transition-colors"
+                                >
+                                  <UserX size={16} />
+                                  Deactivate Author Account
+                                </button>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleBanAuthor(item.author.id);
                                     setShowActionMenu(null);
                                   }}
@@ -786,8 +1091,13 @@ export function AdminContents() {
 
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
+                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                  Dangerous Actions
+                                </div>
+
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleDelete(item.type, item.id);
                                     setShowActionMenu(null);
                                   }}
@@ -854,6 +1164,125 @@ export function AdminContents() {
           contentId={selectedContentForReports.id}
           contentTitle={selectedContentForReports.title}
         />
+      )}
+
+      {/* Author Action Modals */}
+      {showAuthorModal && selectedAuthor && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            onClick={() => {
+              setShowAuthorModal(null);
+              setModalComment('');
+              setSelectedAuthor(null);
+            }}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <GlassCard className="max-w-md w-full p-6 animate-scale-in">
+              {showAuthorModal === 'spam' && (
+                <>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <AlertTriangle className="text-orange-500" size={20} />
+                    Mark Author as Spam
+                  </h3>
+                  <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-400">
+                      You are about to mark {selectedAuthor.username} as spam. This will restrict their posting to once every 24 hours.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Comment (required) - This will be sent to the user
+                      </label>
+                      <textarea
+                        value={modalComment}
+                        onChange={(e) => setModalComment(e.target.value)}
+                        placeholder="Explain why this author is being marked as spam..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (modalComment.trim()) {
+                            handleMarkAuthorSpamConfirm();
+                          } else {
+                            toast.warning('Please provide a comment');
+                          }
+                        }}
+                        className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!modalComment.trim()}
+                      >
+                        Mark as Spam
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAuthorModal(null);
+                          setModalComment('');
+                          setSelectedAuthor(null);
+                        }}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showAuthorModal === 'deactivate' && (
+                <>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <UserX className="text-orange-500" size={20} />
+                    Deactivate Author Account
+                  </h3>
+                  <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-400">
+                      You are about to deactivate {selectedAuthor.username}. They will not be able to perform any actions until reactivated.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Comment (required) - This will be sent to the user
+                      </label>
+                      <textarea
+                        value={modalComment}
+                        onChange={(e) => setModalComment(e.target.value)}
+                        placeholder="Explain why this author is being deactivated..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (modalComment.trim()) {
+                            handleDeactivateAuthorConfirm();
+                          } else {
+                            toast.warning('Please provide a comment');
+                          }
+                        }}
+                        className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!modalComment.trim()}
+                      >
+                        Deactivate Author
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAuthorModal(null);
+                          setModalComment('');
+                          setSelectedAuthor(null);
+                        }}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </GlassCard>
+          </div>
+        </>
       )}
     </div>
   );
