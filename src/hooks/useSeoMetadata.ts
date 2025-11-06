@@ -72,6 +72,9 @@ export function useSeoMetadata(pathname: string) {
       return;
     }
 
+    let controller: AbortController | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const fetchMetadata = async () => {
       // Extract slug/ID from pathname
       const pathSegments = pathname.split('/').filter(Boolean);
@@ -97,19 +100,22 @@ export function useSeoMetadata(pathname: string) {
       }
 
       try {
-        // Use fetch with AbortController for timeout protection (reduced to 1.5s for faster loading)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5 second timeout
+        // Use fetch with AbortController for timeout protection (increased to 5s for reliability)
+        controller = new AbortController();
+        timeoutId = setTimeout(() => controller?.abort(), 5000); // 5 second timeout
         
         const response = await apiClient.get(endpoint, {
           signal: controller.signal,
-          timeout: 1500, // Additional timeout for axios
+          timeout: 5000, // Additional timeout for axios
           headers: {
             'Cache-Control': 'max-age=300', // Cache for 5 minutes
           },
         } as any);
         
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         
         if (response.data) {
           // Normalize image URLs to ensure they're absolute HTTPS URLs
@@ -128,16 +134,30 @@ export function useSeoMetadata(pathname: string) {
         }
       } catch (error: any) {
         // Silently fail - don't block rendering if API is slow
-        if (error.name !== 'AbortError') {
+        // Only log non-abort errors (abort is expected for timeout or component unmount)
+        if (error.name !== 'AbortError' && error.code !== 'ECONNABORTED' && !error.message?.includes('canceled')) {
           console.error('Failed to fetch SEO metadata:', error);
         }
         // Don't set error state, just use defaults
       } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         setLoading(false);
       }
     };
 
     fetchMetadata();
+
+    // Cleanup function to abort request if component unmounts or pathname changes
+    return () => {
+      if (controller) {
+        controller.abort();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [pathname]);
 
   return { metadata, loading };

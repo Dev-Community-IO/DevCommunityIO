@@ -71,6 +71,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [coverImageSizes, setCoverImageSizes] = useState<Record<string, string> | null>(null); // All sizes
   const [imageError, setImageError] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [autoGenerateImage, setAutoGenerateImage] = useState(false); // Auto-generate OG image (disabled by default)
   const [companyLogoImage, setCompanyLogoImage] = useState<string | null>(null);
   const [companyLogoError, setCompanyLogoError] = useState<string | null>(null);
   const [tagsList, setTagsList] = useState<{ tag: string; color: string }[]>([]);
@@ -685,6 +686,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           tags: tagsList.map(t => t.tag),
           coverImageUrl: coverImageUrl || null, // Use uploaded URL, not base64
           coverImageSizes: coverImageSizes || null, // All image sizes
+          autoGenerateImage: autoGenerateImage, // Auto-generate OG image flag
           pageId: selectedPageId || undefined,
           status: 'published',
           postOrigin: postOrigin || null,
@@ -1565,26 +1567,61 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
                 <label className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                 Cover Image
-                <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 5MB)</span>
+                <span className="text-xs text-gray-400 ml-2 font-normal">(Optional, max 1MB)</span>
               </label>
               </div>
+              
+              {/* Auto-generate image checkbox */}
+              <div className="mb-4">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={autoGenerateImage}
+                    onChange={(e) => setAutoGenerateImage(e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white block">Auto-generate social preview image</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 block">
+                      {autoGenerateImage 
+                        ? 'A professional image will be automatically generated for social media sharing'
+                        : 'Upload a cover image manually or leave blank'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+              
               {!coverImage ? (
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-48 sm:h-56 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 active:border-blue-500 dark:active:border-blue-500 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3 sm:gap-4 touch-manipulation"
+                  onClick={() => !autoGenerateImage && fileInputRef.current?.click()}
+                  className={`w-full h-48 sm:h-56 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 transition-all duration-300 flex flex-col items-center justify-center gap-3 sm:gap-4 touch-manipulation ${
+                    autoGenerateImage 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : 'active:border-blue-500 dark:active:border-blue-500 cursor-pointer'
+                  }`}
                 >
                   <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-sm">
                     <Upload size={24} className="sm:w-7 sm:h-7 text-white" />
                   </div>
                   <div className="text-center px-4">
-                    <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Tap to upload cover image</p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 1MB</p>
+                    {autoGenerateImage ? (
+                      <>
+                        <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Image will be auto-generated</p>
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Uncheck auto-generate to upload manually</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Tap to upload cover image</p>
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">PNG, JPG up to 1MB (optional)</p>
+                      </>
+                    )}
                   </div>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handleImageUpload}
+                    disabled={autoGenerateImage}
                     className="hidden"
                   />
                 </div>

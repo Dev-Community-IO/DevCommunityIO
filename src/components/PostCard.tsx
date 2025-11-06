@@ -493,11 +493,11 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
             {postData.title}
           </h3>
 
-          {/* Cover Image - Always show post's cover, not page's cover - Mobile Optimized */}
-          {(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes) && (
+          {/* Cover Image - Show cover image or OG image if auto-generated - Mobile Optimized */}
+          {(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes || postData.ogImageUrl) && (
             <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3">
               <ResponsivePostImage
-                coverImageUrl={postData.coverImage || postData.coverImageUrl}
+                coverImageUrl={postData.coverImage || postData.coverImageUrl || postData.ogImageUrl}
                 coverImageSizes={postData.coverImageSizes}
                 alt={postData.title}
                 className="w-full h-full object-cover"

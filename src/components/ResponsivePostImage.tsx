@@ -64,9 +64,14 @@ export function ResponsivePostImage({
     if (coverImageSizes) {
       // Use the appropriate size from coverImageSizes
       const url = coverImageSizes[imageSize] || coverImageSizes.full || coverImageSizes.mobile || coverImageSizes.feed || coverImageSizes.thumb;
-      setCurrentSrc(url || null);
-    } else if (coverImageUrl) {
-      // Fallback to legacy coverImageUrl
+      // Only use coverImageSizes if we found a valid URL, otherwise fall back to coverImageUrl
+      if (url) {
+        setCurrentSrc(url);
+        return;
+      }
+    }
+    // Fallback to coverImageUrl (which may include ogImageUrl)
+    if (coverImageUrl) {
       setCurrentSrc(coverImageUrl);
     } else {
       setCurrentSrc(null);

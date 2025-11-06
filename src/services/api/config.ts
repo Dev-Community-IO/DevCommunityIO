@@ -142,6 +142,23 @@ apiClient.interceptors.response.use(
         const status = error.response?.status;
         const url = originalRequest?.url || '';
 
+        // Handle canceled/aborted requests - suppress logging (expected behavior)
+        const isCanceled = error.code === 'ECONNABORTED' ||
+            error.message === 'canceled' ||
+            error.message?.includes('canceled') ||
+            error.name === 'AbortError' ||
+            (error.message === 'Request aborted' && !status);
+
+        if (isCanceled) {
+            // Silently reject canceled requests - they're expected when navigating away or timeout
+            return Promise.reject({
+                message: 'canceled',
+                status: undefined,
+                data: undefined,
+                isCanceled: true,
+            });
+        }
+
         // Handle network errors (server not available) - suppress logging to prevent spam
         const isNetworkErr = isNetworkError(error);
         if (isNetworkErr) {
