@@ -661,16 +661,24 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
 
         if (isEditMode && editDataRef.current?.postId) {
           const updatedPost = await postsService.updatePost(editDataRef.current.postId, postData);
-          if (!updatedPost?.slug) {
-            throw new Error('Failed to update post: Invalid response from server');
+          if (!updatedPost) {
+            throw new Error('Failed to update post: No response from server');
           }
-          navigate(`/post/${updatedPost.slug}`, { replace: true, state: { post: updatedPost } });
+          if (!updatedPost.slug && !updatedPost.id) {
+            throw new Error('Failed to update post: Invalid response from server (missing slug/id)');
+          }
+          const identifier = updatedPost.slug || updatedPost.id;
+          navigate(`/post/${identifier}`, { replace: true, state: { post: updatedPost } });
         } else {
           const createdPost = await postsService.createPost(postData);
-          if (!createdPost?.slug) {
-            throw new Error('Failed to create post: Invalid response from server');
+          if (!createdPost) {
+            throw new Error('Failed to create post: No response from server');
           }
-          navigate(`/post/${createdPost.slug}`, { replace: true, state: { post: createdPost } });
+          if (!createdPost.slug && !createdPost.id) {
+            throw new Error('Failed to create post: Invalid response from server (missing slug/id)');
+          }
+          const identifier = createdPost.slug || createdPost.id;
+          navigate(`/post/${identifier}`, { replace: true, state: { post: createdPost } });
         }
       } else if (contentType === 'hackathon') {
         // Create or update hackathon
@@ -705,11 +713,25 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         if (isEditMode && editDataRef.current?.hackathonId) {
           const result = await hackathonsService.updateHackathon(editDataRef.current.hackathonId, hackathonData);
           const hackathon = result.hackathon || result;
-          navigate(`/hackathons/${hackathon.slug}`, { replace: true });
+          if (!hackathon) {
+            throw new Error('Failed to update hackathon: No response from server');
+          }
+          const identifier = hackathon.slug || hackathon.id;
+          if (!identifier) {
+            throw new Error('Failed to update hackathon: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/hackathons/${identifier}`, { replace: true });
         } else {
           const result = await hackathonsService.createHackathon(hackathonData);
           const hackathon = result.hackathon || result;
-          navigate(`/hackathons/${hackathon.slug}`, { replace: true });
+          if (!hackathon) {
+            throw new Error('Failed to create hackathon: No response from server');
+          }
+          const identifier = hackathon.slug || hackathon.id;
+          if (!identifier) {
+            throw new Error('Failed to create hackathon: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/hackathons/${identifier}`, { replace: true });
         }
       } else if (contentType === 'event') {
         // Create or update event
@@ -741,11 +763,25 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         if (isEditMode && editDataRef.current?.eventId) {
           const result = await eventsService.updateEvent(editDataRef.current.eventId, eventData);
           const event = result.event || result;
-          navigate(`/events/${event.slug}`, { replace: true });
+          if (!event) {
+            throw new Error('Failed to update event: No response from server');
+          }
+          const identifier = event.slug || event.id;
+          if (!identifier) {
+            throw new Error('Failed to update event: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/events/${identifier}`, { replace: true });
         } else {
           const result = await eventsService.createEvent(eventData);
           const event = result.event || result;
-          navigate(`/events/${event.slug}`, { replace: true });
+          if (!event) {
+            throw new Error('Failed to create event: No response from server');
+          }
+          const identifier = event.slug || event.id;
+          if (!identifier) {
+            throw new Error('Failed to create event: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/events/${identifier}`, { replace: true });
         }
       } else if (contentType === 'opportunity') {
         // Create or update opportunity
@@ -777,11 +813,25 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         if (isEditMode && editDataRef.current?.opportunityId) {
           const result = await opportunitiesService.updateOpportunity(editDataRef.current.opportunityId, opportunityData);
           const opportunity = result.opportunity || result;
-          navigate(`/opportunities/${opportunity.slug}`, { replace: true });
+          if (!opportunity) {
+            throw new Error('Failed to update opportunity: No response from server');
+          }
+          const identifier = opportunity.slug || opportunity.id;
+          if (!identifier) {
+            throw new Error('Failed to update opportunity: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/opportunities/${identifier}`, { replace: true });
         } else {
           const result = await opportunitiesService.createOpportunity(opportunityData);
           const opportunity = result.opportunity || result;
-          navigate(`/opportunities/${opportunity.slug}`, { replace: true });
+          if (!opportunity) {
+            throw new Error('Failed to create opportunity: No response from server');
+          }
+          const identifier = opportunity.slug || opportunity.id;
+          if (!identifier) {
+            throw new Error('Failed to create opportunity: Invalid response from server (missing slug/id)');
+          }
+          navigate(`/opportunities/${identifier}`, { replace: true });
         }
       }
       

@@ -49,12 +49,18 @@ class PostsService {
     // Create post
     async createPost(data: CreatePostData): Promise<Post> {
         const response = await apiClient.post('/posts', data);
+        if (!response.data || !response.data.post) {
+            throw new Error('Invalid response from server: post data is missing');
+        }
         return response.data.post;
     }
 
     // Update post
     async updatePost(postId: string, data: Partial<CreatePostData>): Promise<Post> {
         const response = await apiClient.patch(`/posts/${postId}`, data);
+        if (!response.data || !response.data.post) {
+            throw new Error('Invalid response from server: post data is missing');
+        }
         return response.data.post;
     }
 
