@@ -374,7 +374,13 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                           navigate(`/profile/${postData.author.username}`);
                         }}
                         className="-ml-1.5 sm:-ml-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg active:scale-95 transition-all duration-200 ring-2 ring-blue-500/20 relative z-20 touch-manipulation">
-                        <Avatar src={postData.author.avatar || postData.author.avatarUrl} alt={postData.author.username} size="sm" className="w-full h-full" />
+                        <Avatar 
+                          src={postData.author.avatar || postData.author.avatarUrl} 
+                          alt={postData.author.username} 
+                          size="sm" 
+                          className="w-full h-full"
+                          isTrusted={postData.author.isTrusted}
+                        />
                       </div>
                     }
                     onViewProfile={() => {
@@ -397,7 +403,13 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         navigate(`/profile/${post.author.username}`);
                       }}
                       className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 cursor-pointer active:scale-95 transition-transform duration-200 touch-manipulation">
-                      <Avatar src={post.author.avatar || post.author.avatarUrl} alt={post.author.username} size="sm" className="w-full h-full" />
+                      <Avatar 
+                        src={post.author.avatar || post.author.avatarUrl} 
+                        alt={post.author.username} 
+                        size="sm" 
+                        className="w-full h-full"
+                        isTrusted={post.author.isTrusted}
+                      />
                     </div>
                   }
                   onViewProfile={() => {

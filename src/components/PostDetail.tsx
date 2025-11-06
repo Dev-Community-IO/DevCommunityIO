@@ -310,7 +310,13 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                           onClick={() => navigate(`/profile/${post.author.username || post.author.pseudo || ''}`)}
                           className="relative cursor-pointer hover:scale-105 transition-transform"
                         >
-                          <Avatar src={(post.author.avatar || post.author.avatarUrl) || ''} alt={post.author.username || post.author.pseudo || 'Unknown'} size="md" className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all" />
+                          <Avatar 
+                            src={(post.author.avatar || post.author.avatarUrl) || ''} 
+                            alt={post.author.username || post.author.pseudo || 'Unknown'} 
+                            size="md" 
+                            className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
+                            isTrusted={post.author.isTrusted}
+                          />
                         {/* Page Logo under avatar if post is for a page */}
                         {pageData && (
                           <div 

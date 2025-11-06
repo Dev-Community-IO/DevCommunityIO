@@ -426,6 +426,7 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
                             alt={notification.user.username}
                             size="sm"
                             className="flex-shrink-0 hover:ring-2 hover:ring-blue-500 transition-all border-2 border-gray-200 dark:border-gray-700"
+                            isTrusted={notification.user.isTrusted}
                         />
                         </div>
                       ) : (

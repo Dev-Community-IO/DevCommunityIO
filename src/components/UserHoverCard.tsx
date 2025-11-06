@@ -109,7 +109,7 @@ export function UserHoverCard({ user, children }: UserHoverCardProps) {
         >
           <div className="w-80 p-4 rounded-xl backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl">
             <div className="flex gap-3">
-              <Avatar src={user.avatar} alt={user.username} size="lg" className="w-16 h-16" />
+              <Avatar src={user.avatar} alt={user.username} size="lg" className="w-16 h-16" isTrusted={user.isTrusted} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-bold text-base truncate">{user.username}</h4>

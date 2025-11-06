@@ -14,6 +14,8 @@ import {
   Edit,
   X,
   Loader2,
+  Star,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import adminService from '../../services/api/admin.service';
@@ -34,6 +36,8 @@ interface User {
   status: 'active' | 'suspended' | 'banned' | 'pending' | 'inactive';
   reputation: number;
   isVerified?: boolean;
+  isSpam?: boolean;
+  isTrusted?: boolean;
   createdAt: string;
   suspendedUntil?: string;
   suspendedReason?: string;
@@ -47,10 +51,11 @@ export function AdminUsers() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showModal, setShowModal] = useState<'role' | 'suspend' | 'ban' | 'delete' | 'unpublish' | null>(null);
+  const [showModal, setShowModal] = useState<'role' | 'suspend' | 'ban' | 'delete' | 'unpublish' | 'spam' | 'deactivate' | 'trusted' | null>(null);
   const [modalReason, setModalReason] = useState('');
   const [modalDuration, setModalDuration] = useState(7);
   const [modalRole, setModalRole] = useState<string>('');
+  const [modalComment, setModalComment] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -67,6 +72,7 @@ export function AdminUsers() {
     isLoading: false,
   });
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,9 +82,15 @@ export function AdminUsers() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Debounce search query
+  // Debounce search query - only clear users when search actually changes (not on initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
+      console.log('[DEBUG] Search query debounced, resetting page and users');
       setPage(1);
       setUsers([]);
     }, 500);
@@ -103,16 +115,28 @@ export function AdminUsers() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      console.log('[DEBUG] Click outside handler triggered', {
+        showActionMenu,
+        actionMenuRef: actionMenuRef.current,
+        target: event.target,
+        contains: actionMenuRef.current?.contains(event.target as Node)
+      });
+      
       if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        console.log('[DEBUG] Closing action menu');
         setShowActionMenu(null);
       }
     };
 
     if (showActionMenu) {
+      console.log('[DEBUG] Adding click outside listener, menu open for:', showActionMenu);
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
+      if (showActionMenu) {
+        console.log('[DEBUG] Removing click outside listener');
+      }
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showActionMenu]);
@@ -138,9 +162,33 @@ export function AdminUsers() {
       }
       
       if (page === 1) {
-        setUsers(filteredUsers);
+        // Remove duplicates when starting fresh
+        const userMap = new Map<string, User>();
+        filteredUsers.forEach((user: User) => {
+          if (user.id) {
+            userMap.set(user.id, user);
+          }
+        });
+        const uniqueUsers = Array.from(userMap.values());
+        console.log('[DEBUG] Loaded users (page 1):', {
+          totalReceived: filteredUsers.length,
+          uniqueUsers: uniqueUsers.length,
+          duplicateIds: filteredUsers.length - uniqueUsers.length
+        });
+        setUsers(uniqueUsers);
       } else {
-        setUsers(prev => [...prev, ...filteredUsers]);
+        // When appending, filter out duplicates
+        setUsers(prev => {
+          const existingIds = new Set(prev.map(u => u.id));
+          const newUsers = filteredUsers.filter((user: User) => user.id && !existingIds.has(user.id));
+          console.log('[DEBUG] Appending users (page > 1):', {
+            existingCount: prev.length,
+            newUsersReceived: filteredUsers.length,
+            newUsersAdded: newUsers.length,
+            duplicatesSkipped: filteredUsers.length - newUsers.length
+          });
+          return [...prev, ...newUsers];
+        });
       }
       
       setHasMore(data.meta?.currentPage < data.meta?.lastPage);
@@ -276,23 +324,118 @@ export function AdminUsers() {
   };
 
   const handleDeactivateUser = (userId: string) => {
+    console.log('[DEBUG] handleDeactivateUser called', { userId });
+    const user = users.find(u => u.id === userId);
+    console.log('[DEBUG] Found user for deactivate:', user);
+    setSelectedUser(user || null);
+    setShowModal('deactivate');
+    setModalComment('');
+    console.log('[DEBUG] Modal state set to deactivate');
+  };
+
+  const handleDeactivateUserConfirm = async () => {
+    if (!selectedUser || !modalComment.trim()) {
+      toast.warning('Please provide a comment explaining why this user is being deactivated');
+      return;
+    }
+
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      await adminService.deactivateUser(selectedUser.id, modalComment);
+      toast.success('User account has been deactivated and access revoked. User has been notified.');
+      setShowModal(null);
+      setModalComment('');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      setShowActionMenu(null);
+      loadUsers();
+    } catch (error: any) {
+      console.error('Failed to deactivate user:', error);
+      toast.error(error?.response?.data?.message || 'Failed to deactivate user');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleMarkSpam = async (userId: string, comment: string) => {
+    console.log('[DEBUG] handleMarkSpam called', { userId, comment });
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      console.log('[DEBUG] Calling adminService.markSpam');
+      await adminService.markSpam(userId, comment);
+      console.log('[DEBUG] markSpam API call successful');
+      toast.success('User marked as spam successfully. User has been notified.');
+      setShowModal(null);
+      setModalComment('');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      setShowActionMenu(null);
+      loadUsers();
+    } catch (error: any) {
+      console.error('Failed to mark user as spam:', error);
+      toast.error(error?.response?.data?.message || 'Failed to mark user as spam');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleUnmarkSpam = (userId: string) => {
     const user = users.find(u => u.id === userId);
     setConfirmDialog({
       isOpen: true,
-      title: 'Deactivate User Account',
-      message: `Are you sure you want to deactivate ${user?.username}? They will lose all access to the platform until reactivated.`,
-      variant: 'warning',
+      title: 'Remove Spam Status',
+      message: `Are you sure you want to remove spam status from ${user?.username}? They will regain normal posting privileges.`,
+      variant: 'info',
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
-          await adminService.deactivateUser(userId);
-          toast.success('User account has been deactivated and access revoked');
+          await adminService.unmarkSpam(userId);
+          toast.success('Spam status removed successfully. User has been notified.');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadUsers();
         } catch (error: any) {
-          console.error('Failed to deactivate user:', error);
-          toast.error(error?.response?.data?.message || 'Failed to deactivate user');
+          console.error('Failed to unmark spam:', error);
+          toast.error(error?.response?.data?.message || 'Failed to remove spam status');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      isLoading: false,
+    });
+  };
+
+  const handleMarkTrusted = async (userId: string) => {
+    console.log('[DEBUG] handleMarkTrusted called', { userId });
+    try {
+      setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+      console.log('[DEBUG] Calling adminService.markTrusted');
+      await adminService.markTrusted(userId);
+      console.log('[DEBUG] markTrusted API call successful');
+      toast.success('User marked as trusted successfully. User has been notified.');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      setShowActionMenu(null);
+      loadUsers();
+    } catch (error: any) {
+      console.error('Failed to mark user as trusted:', error);
+      toast.error(error?.response?.data?.message || 'Failed to mark user as trusted');
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleUnmarkTrusted = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Remove Trusted Status',
+      message: `Are you sure you want to remove trusted status from ${user?.username}? They will lose cooldown exemptions.`,
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+          await adminService.unmarkTrusted(userId);
+          toast.success('Trusted status removed successfully. User has been notified.');
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          setShowActionMenu(null);
+          loadUsers();
+        } catch (error: any) {
+          console.error('Failed to unmark trusted:', error);
+          toast.error(error?.response?.data?.message || 'Failed to remove trusted status');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         }
       },
@@ -301,7 +444,9 @@ export function AdminUsers() {
   };
 
   const handleVerifyUser = (userId: string) => {
+    console.log('[DEBUG] handleVerifyUser called', { userId });
     const user = users.find(u => u.id === userId);
+    console.log('[DEBUG] Found user:', user);
     setConfirmDialog({
       isOpen: true,
       title: 'Grant Verification Badge',
@@ -353,8 +498,8 @@ export function AdminUsers() {
   const handleUnpublishUserPosts = async (userId: string, reason: string) => {
     try {
       setConfirmDialog(prev => ({ ...prev, isLoading: true }));
-      await adminService.unpublishUserPosts(userId, reason);
-      toast.success('All user content has been unpublished and hidden from public view');
+      await adminService.unpublishUserContent(userId, reason);
+      toast.success('All user content has been unpublished and hidden from public view. User has been notified.');
       setShowModal(null);
       setModalReason('');
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -531,6 +676,12 @@ export function AdminUsers() {
                 {users.map((user) => {
                   const isSelected = selectedItems.has(user.id);
                   
+                  // Ensure user.id exists before using as key
+                  if (!user.id) {
+                    console.warn('[DEBUG] User without ID found:', user);
+                    return null;
+                  }
+                  
                   return (
                     <tr 
                       key={user.id}
@@ -550,12 +701,25 @@ export function AdminUsers() {
                             src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                             alt={user.username}
                             size="sm"
+                            isTrusted={user.isTrusted}
                           />
                           <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-gray-900 dark:text-white">{user.username}</p>
-                              {user.isVerified && <VerifiedBadge size={14} />}
-                            </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-gray-900 dark:text-white">{user.username}</p>
+                            {user.isVerified && <VerifiedBadge size={14} />}
+                            {user.isSpam && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-500/10 text-red-600 dark:text-red-400 flex items-center gap-1">
+                                <AlertTriangle size={10} />
+                                Spam
+                              </span>
+                            )}
+                            {user.isTrusted && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                <Star size={10} />
+                                Trusted
+                              </span>
+                            )}
+                          </div>
                             {user.email && (
                               <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
                             )}
@@ -581,20 +745,46 @@ export function AdminUsers() {
                           >
                             <Eye size={16} />
                           </button>
-                          <div className="relative" ref={actionMenuRef}>
+                          <div className="relative" ref={showActionMenu === user.id ? actionMenuRef : null}>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('[DEBUG] Action menu button clicked', {
+                                  userId: user.id,
+                                  currentMenu: showActionMenu,
+                                  willOpen: showActionMenu !== user.id
+                                });
                                 setSelectedUser(user);
-                                setShowActionMenu(showActionMenu === user.id ? null : user.id);
+                                const newMenuState = showActionMenu === user.id ? null : user.id;
+                                console.log('[DEBUG] Setting menu state to:', newMenuState);
+                                setShowActionMenu(newMenuState);
                               }}
                               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                             >
                               <MoreVertical size={18} />
                             </button>
                             {showActionMenu === user.id && (
-                              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={(e) => {
+                                    console.log('[DEBUG] Backdrop clicked, closing menu');
+                                    e.stopPropagation();
+                                    setShowActionMenu(null);
+                                  }}
+                                />
+                                <div 
+                                  className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[60] overflow-hidden"
+                                  onClick={(e) => {
+                                    console.log('[DEBUG] Menu container clicked, stopping propagation');
+                                    e.stopPropagation();
+                                  }}
+                                >
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[DEBUG] Update User Role clicked', { userId: user.id, role: user.role });
+                                    setSelectedUser(user);
                                     setShowModal('role');
                                     setModalRole(user.role);
                                     setShowActionMenu(null);
@@ -607,7 +797,9 @@ export function AdminUsers() {
                                 
                                 {!user.isVerified ? (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Grant Verification clicked', { userId: user.id });
                                       handleVerifyUser(user.id);
                                       setShowActionMenu(null);
                                     }}
@@ -618,7 +810,9 @@ export function AdminUsers() {
                                   </button>
                                 ) : (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Revoke Verification clicked', { userId: user.id });
                                       handleUnverifyUser(user.id);
                                       setShowActionMenu(null);
                                     }}
@@ -633,7 +827,9 @@ export function AdminUsers() {
                                   <>
                                     {user.status === 'active' ? (
                                       <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          console.log('[DEBUG] Deactivate clicked', { userId: user.id });
                                           handleDeactivateUser(user.id);
                                           setShowActionMenu(null);
                                         }}
@@ -644,7 +840,9 @@ export function AdminUsers() {
                                       </button>
                                     ) : (
                                       <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          console.log('[DEBUG] Activate clicked', { userId: user.id });
                                           handleActivateUser(user.id);
                                           setShowActionMenu(null);
                                         }}
@@ -655,7 +853,10 @@ export function AdminUsers() {
                                       </button>
                                     )}
                                     <button
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log('[DEBUG] Suspend clicked', { userId: user.id });
+                                        setSelectedUser(user);
                                         setShowModal('suspend');
                                         setShowActionMenu(null);
                                       }}
@@ -667,7 +868,9 @@ export function AdminUsers() {
                                   </>
                                 ) : user.status === 'suspended' ? (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Unsuspend clicked', { userId: user.id });
                                       handleUnsuspendUser(user.id);
                                       setShowActionMenu(null);
                                     }}
@@ -678,8 +881,75 @@ export function AdminUsers() {
                                   </button>
                                 ) : null}
 
+                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                  Spam & Trusted
+                                </div>
+                                {user.isSpam ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Unmark Spam clicked', { userId: user.id });
+                                      handleUnmarkSpam(user.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
+                                  >
+                                    <CheckCircle size={16} />
+                                    Remove Spam Status
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Mark Spam clicked', { userId: user.id });
+                                      setSelectedUser(user);
+                                      setModalComment('');
+                                      setShowModal('spam');
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
+                                  >
+                                    <AlertTriangle size={16} />
+                                    Mark as Spam
+                                  </button>
+                                )}
+                                {user.isTrusted ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Unmark Trusted clicked', { userId: user.id });
+                                      handleUnmarkTrusted(user.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400"
+                                  >
+                                    <X size={16} />
+                                    Remove Trusted Status
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Mark Trusted clicked', { userId: user.id });
+                                      handleMarkTrusted(user.id);
+                                      setShowActionMenu(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400"
+                                  >
+                                    <Star size={16} />
+                                    Mark as Trusted
+                                  </button>
+                                )}
+
+                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[DEBUG] Ban clicked', { userId: user.id });
+                                    setSelectedUser(user);
                                     setShowModal('ban');
                                     setShowActionMenu(null);
                                   }}
@@ -690,7 +960,10 @@ export function AdminUsers() {
                                 </button>
 
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[DEBUG] Unpublish Content clicked', { userId: user.id });
+                                    setSelectedUser(user);
                                     setShowModal('unpublish');
                                     setShowActionMenu(null);
                                   }}
@@ -703,7 +976,10 @@ export function AdminUsers() {
                                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[DEBUG] Delete User clicked', { userId: user.id });
+                                    setSelectedUser(user);
                                     setShowModal('delete');
                                     setShowActionMenu(null);
                                   }}
@@ -713,6 +989,7 @@ export function AdminUsers() {
                                   Permanently Delete User
                                 </button>
                               </div>
+                              </>
                             )}
                           </div>
                         </div>
@@ -755,6 +1032,7 @@ export function AdminUsers() {
               setShowModal(null);
               setModalReason('');
               setModalRole('');
+              setModalComment('');
             }}
           />
           <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
@@ -989,7 +1267,7 @@ export function AdminUsers() {
                   <h3 className="text-xl font-bold mb-4">Unpublish All User Content</h3>
                   <div className="space-y-4">
                     <p className="text-gray-600 dark:text-gray-400">
-                      This will unpublish all content created by {selectedUser.username}. All posts will be hidden from public view but can be restored later.
+                      This will unpublish all content created by {selectedUser?.username}. All posts will be hidden from public view but can be restored later.
                     </p>
                     <div>
                       <label className="block text-sm font-medium mb-2">Reason</label>
@@ -1029,6 +1307,106 @@ export function AdminUsers() {
                         onClick={() => {
                           setShowModal(null);
                           setModalReason('');
+                        }}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showModal === 'spam' && (
+                <>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <AlertTriangle className="text-orange-500" size={20} />
+                    Mark User as Spam
+                  </h3>
+                  <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-400">
+                      You are about to mark {selectedUser?.username} as spam. This will restrict their posting to once every 24 hours.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Comment (required) - This will be sent to the user
+                      </label>
+                      <textarea
+                        value={modalComment}
+                        onChange={(e) => setModalComment(e.target.value)}
+                        placeholder="Explain why this user is being marked as spam..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (selectedUser && modalComment.trim()) {
+                            handleMarkSpam(selectedUser.id, modalComment);
+                          } else {
+                            toast.warning('Please provide a comment');
+                          }
+                        }}
+                        className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!modalComment.trim()}
+                      >
+                        Mark as Spam
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowModal(null);
+                          setModalComment('');
+                        }}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showModal === 'deactivate' && (
+                <>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <UserX className="text-orange-500" size={20} />
+                    Deactivate User Account
+                  </h3>
+                  <div className="space-y-4">
+                    <p className="text-gray-600 dark:text-gray-400">
+                      You are about to deactivate {selectedUser?.username}. They will not be able to perform any actions until reactivated.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Comment (required) - This will be sent to the user
+                      </label>
+                      <textarea
+                        value={modalComment}
+                        onChange={(e) => setModalComment(e.target.value)}
+                        placeholder="Explain why this user is being deactivated..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (selectedUser && modalComment.trim()) {
+                            handleDeactivateUserConfirm();
+                          } else {
+                            toast.warning('Please provide a comment');
+                          }
+                        }}
+                        className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!modalComment.trim()}
+                      >
+                        Deactivate User
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowModal(null);
+                          setModalComment('');
                         }}
                         className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
                       >

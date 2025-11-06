@@ -41,6 +41,7 @@ interface ContentItem {
     id: string;
     username: string;
     avatar?: string;
+    isTrusted?: boolean;
   };
   status: string;
   createdAt: string;
@@ -79,6 +80,7 @@ export function AdminContents() {
     isLoading: false,
   });
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
   
   // Filters
   const [typeFilter, setTypeFilter] = useState<ContentType>('all');
@@ -90,8 +92,13 @@ export function AdminContents() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Debounce search query
+  // Debounce search query - only clear contents when search actually changes (not on initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       setPage(1);
       setContents([]);
@@ -121,11 +128,15 @@ export function AdminContents() {
         setShowActionMenu(null);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
+
+    if (showActionMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [showActionMenu]);
 
   const loadContents = async () => {
     try {
@@ -378,8 +389,8 @@ export function AdminContents() {
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
-          await adminService.unpublishUserPosts(authorId, 'All posts unpublished by admin');
-          toast.success('All author content has been unpublished and hidden from public view');
+          await adminService.unpublishUserContent(authorId, 'All posts unpublished by admin');
+          toast.success('All author content has been unpublished and hidden from public view. User has been notified.');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
           loadContents();
@@ -602,6 +613,7 @@ export function AdminContents() {
                             src={item.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author.username}`}
                             alt={item.author.username}
                             size="sm"
+                            isTrusted={item.author.isTrusted}
                           />
                           <span className="text-xs font-medium text-gray-900 dark:text-white truncate max-w-[100px]">{item.author.username}</span>
                         </div>
@@ -661,7 +673,15 @@ export function AdminContents() {
                               <MoreVertical size={13} className="text-gray-500 dark:text-gray-400 group-hover/btn:text-purple-600 dark:group-hover/btn:text-purple-400 transition-colors" />
                             </button>
                             {showActionMenu === item.id && (
-                              <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                              <>
+                                <div
+                                  className="fixed inset-0 z-40"
+                                  onClick={() => setShowActionMenu(null)}
+                                />
+                                <div 
+                                  className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                 <button
                                   onClick={() => {
                                     if (item.slug && item.type === 'post') {
@@ -777,6 +797,7 @@ export function AdminContents() {
                                   Permanently Delete Content
                                 </button>
                               </div>
+                              </>
                             )}
                           </div>
                         </div>

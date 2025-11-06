@@ -375,7 +375,13 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                               }}
                               className="flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
                             >
-                              <Avatar src={post.author?.avatar || post.author?.avatarUrl || ''} alt={post.author?.username || 'User'} size="md" className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all" />
+                              <Avatar 
+                                src={post.author?.avatar || post.author?.avatarUrl || ''} 
+                                alt={post.author?.username || 'User'} 
+                                size="md" 
+                                className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
+                                isTrusted={post.author?.isTrusted}
+                              />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 
@@ -447,7 +453,13 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                             }}
                             className="flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
                           >
-                            <Avatar src={user.avatar || user.avatarUrl || ''} alt={user.username || 'User'} size="md" className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all" />
+                            <Avatar 
+                              src={user.avatar || user.avatarUrl || ''} 
+                              alt={user.username || 'User'} 
+                              size="md" 
+                              className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
+                              isTrusted={user.isTrusted}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">

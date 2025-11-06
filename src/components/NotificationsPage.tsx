@@ -513,6 +513,7 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                             alt={notification.user.username}
                             size="md"
                             className="w-11 h-11 border-2 border-white dark:border-gray-800 group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 group-hover/avatar:ring-offset-2 dark:group-hover/avatar:ring-offset-gray-900 transition-all shadow-md hover:shadow-lg"
+                            isTrusted={notification.user.isTrusted}
                           />
                         </div>
                         {isUnread && (

@@ -188,7 +188,13 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                   navigate(`/profile/${comment.author.username}`);
                 }}
               >
-                <Avatar src={(comment.author.avatar || comment.author.avatarUrl) || ''} alt={comment.author.username} size="sm" className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all" />
+                <Avatar 
+                  src={(comment.author.avatar || comment.author.avatarUrl) || ''} 
+                  alt={comment.author.username} 
+                  size="sm" 
+                  className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all"
+                  isTrusted={comment.author.isTrusted}
+                />
               </div>
             </Tooltip>
           </div>

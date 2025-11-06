@@ -44,6 +44,7 @@ interface Page {
     id: string;
     username: string;
     avatar?: string;
+    isTrusted?: boolean;
   };
   memberCount?: number;
   postCount?: number;
@@ -87,6 +88,7 @@ export function AdminPages() {
     isLoading: false,
   });
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,8 +97,13 @@ export function AdminPages() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Debounce search query
+  // Debounce search query - only clear pages when search actually changes (not on initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       setPage(1);
       setPages([]);
@@ -342,8 +349,7 @@ export function AdminPages() {
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
-          // TODO: Implement archive page API call
-          // await adminService.archivePage(pageId);
+          await adminService.updatePageSettings(pageId, { status: 'archived' });
           toast.success('Page has been archived and hidden from public view');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowActionMenu(null);
@@ -393,8 +399,7 @@ export function AdminPages() {
       onConfirm: async () => {
         try {
           setConfirmDialog(prev => ({ ...prev, isLoading: true }));
-          // TODO: Implement transfer ownership API call
-          // await adminService.transferPageOwnership(selectedPage.id, newOwnerId);
+          await adminService.updatePageSettings(selectedPage.id, { owner_id: newOwnerId });
           toast.success('Page ownership has been transferred successfully');
           setConfirmDialog(prev => ({ ...prev, isOpen: false }));
           setShowTransferModal(false);
@@ -552,6 +557,7 @@ export function AdminPages() {
                             src={page.owner.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${page.owner.username}`}
                             alt={page.owner.username}
                             size="sm"
+                            isTrusted={page.owner.isTrusted}
                           />
                           <span className="text-sm text-gray-900 dark:text-white">{page.owner.username}</span>
                         </div>
@@ -596,9 +602,10 @@ export function AdminPages() {
                         >
                           <Eye size={16} />
                         </button>
-                        <div className="relative" ref={actionMenuRef}>
+                        <div className="relative" ref={showActionMenu === page.id ? actionMenuRef : null}>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedPage(page);
                               setShowActionMenu(showActionMenu === page.id ? null : page.id);
                             }}
@@ -607,9 +614,23 @@ export function AdminPages() {
                             <MoreVertical size={18} />
                           </button>
                           {showActionMenu === page.id && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowActionMenu(null);
+                                }}
+                              />
+                              <div 
+                                className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[60] overflow-hidden"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   navigate(`/pages/${page.slug}`);
                                   setShowActionMenu(null);
                                 }}
@@ -621,7 +642,8 @@ export function AdminPages() {
 
                               {page.owner && (
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     navigate(`/profile/${page.owner.username}`);
                                     setShowActionMenu(null);
                                   }}
@@ -636,7 +658,8 @@ export function AdminPages() {
 
                               {!page.isVerified ? (
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleVerifyPage(page.id);
                                     setShowActionMenu(null);
                                   }}
@@ -647,7 +670,8 @@ export function AdminPages() {
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleUnverifyPage(page.id);
                                     setShowActionMenu(null);
                                   }}
@@ -659,8 +683,10 @@ export function AdminPages() {
                               )}
 
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleToggleTrending(page.id);
+                                  setShowActionMenu(null);
                                 }}
                                 className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-purple-600 dark:text-purple-400 transition-colors"
                               >
@@ -678,8 +704,10 @@ export function AdminPages() {
                               </button>
 
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleOpenMembersModal(page.id);
+                                  setShowActionMenu(null);
                                 }}
                                 className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
                               >
@@ -688,8 +716,8 @@ export function AdminPages() {
                               </button>
 
                               <button
-                                onClick={() => {
-                                  // Navigate to page edit or open edit modal
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   navigate(`/pages/${page.slug}?edit=true`);
                                   setShowActionMenu(null);
                                 }}
@@ -700,8 +728,8 @@ export function AdminPages() {
                               </button>
 
                               <button
-                                onClick={() => {
-                                  // View page analytics/stats
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   navigate(`/pages/${page.slug}?tab=stats`);
                                   setShowActionMenu(null);
                                 }}
@@ -714,8 +742,8 @@ export function AdminPages() {
                               <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
                               <button
-                                onClick={() => {
-                                  // Archive page (temporary removal)
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleArchivePage(page.id);
                                   setShowActionMenu(null);
                                 }}
@@ -726,8 +754,8 @@ export function AdminPages() {
                               </button>
 
                               <button
-                                onClick={() => {
-                                  // Transfer ownership to another user
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleTransferOwnership(page.id);
                                   setShowActionMenu(null);
                                 }}
@@ -740,7 +768,8 @@ export function AdminPages() {
                               <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleDeletePage(page.id);
                                   setShowActionMenu(null);
                                 }}
@@ -749,7 +778,8 @@ export function AdminPages() {
                                 <Trash2 size={16} />
                                 Permanently Delete Page
                               </button>
-                            </div>
+                              </div>
+                            </>
                           )}
                         </div>
                       </div>
@@ -864,6 +894,7 @@ export function AdminPages() {
                           src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                           alt={user.username}
                           size="sm"
+                          isTrusted={user.isTrusted}
                         />
                         <div className="flex-1">
                           <p className="font-medium">{user.username}</p>
@@ -1063,6 +1094,7 @@ export function AdminPages() {
                               src={member.user?.avatarUrl || member.user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user?.username || member.username}`}
                               alt={member.user?.username || member.username}
                               size="sm"
+                              isTrusted={member.user?.isTrusted}
                             />
                             <div>
                               <p className="font-medium">{member.user?.username || member.username}</p>

@@ -170,6 +170,7 @@ export function Navbar({ onCreatePost, onPostClick, onLogoClick, onNotifications
                       src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
                       alt={user?.username || 'User'}
                       size="sm"
+                      isTrusted={user?.isTrusted}
                     />
                   </button>
                   {showUserMenu && (

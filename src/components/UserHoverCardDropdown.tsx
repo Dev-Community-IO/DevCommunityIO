@@ -226,7 +226,8 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
                 <div className="w-16 h-16 rounded-full border-3 border-white dark:border-gray-900 overflow-hidden shadow-xl bg-white dark:bg-gray-800">
                   <Avatar 
                     src={user.avatarUrl || user.avatar} 
-                    alt={user.username} 
+                    alt={user.username}
+                    isTrusted={user.isTrusted} 
                     size="lg" 
                     className="w-full h-full rounded-full"
                   />

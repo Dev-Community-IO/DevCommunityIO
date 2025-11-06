@@ -49,6 +49,11 @@ class AdminService {
         await apiClient.post(`/admin/users/${userId}/posts/republish`);
     }
 
+    // Unpublish all user content
+    async unpublishUserContent(userId: string, reason: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/unpublish-content`, { reason });
+    }
+
     // Get users list
     async getUsers(params: {
         page?: number;
@@ -72,8 +77,8 @@ class AdminService {
     }
 
     // Deactivate user
-    async deactivateUser(userId: string): Promise<void> {
-        await apiClient.post(`/admin/users/${userId}/deactivate`);
+    async deactivateUser(userId: string, comment: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/deactivate`, { comment });
     }
 
     // Verify user
@@ -104,6 +109,26 @@ class AdminService {
     // Ban user
     async banUser(userId: string, reason: string): Promise<void> {
         await apiClient.post(`/admin/users/${userId}/ban`, { reason });
+    }
+
+    // Mark user as spam
+    async markSpam(userId: string, comment: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/mark-spam`, { comment });
+    }
+
+    // Unmark user as spam
+    async unmarkSpam(userId: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/unmark-spam`);
+    }
+
+    // Mark user as trusted
+    async markTrusted(userId: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/mark-trusted`);
+    }
+
+    // Unmark user as trusted
+    async unmarkTrusted(userId: string): Promise<void> {
+        await apiClient.post(`/admin/users/${userId}/unmark-trusted`);
     }
 
     // Get pages

@@ -4,6 +4,7 @@ import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
+import { TrustedBadge } from './TrustedBadge';
 import { ProfileDashboard } from './ProfileDashboard';
 import { ProfilePosts } from './ProfilePosts';
 import { ProfileReplies } from './ProfileReplies';
@@ -52,6 +53,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     walletAddress: string;
     reputation: number;
     isVerified: boolean;
+    isTrusted?: boolean;
     role: string;
     occupation?: string | null;
     location: string;
@@ -116,6 +118,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
               walletAddress: prev.walletAddress,
               reputation: userData.reputation,
               isVerified: userData.isVerified,
+              isTrusted: userData.isTrusted || false,
               role: userData.role,
               occupation: userData.occupation || prev.occupation || null,
               location: userData.location ?? prev.location,
@@ -141,6 +144,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
             socialLinks: userData.socialLinks || undefined,
             reputation: userData.reputation,
             isVerified: userData.isVerified,
+            isTrusted: userData.isTrusted || false,
             role: userData.role as 'user' | 'moderator' | 'admin' | 'super_admin',
           });
         }).catch(error => {
@@ -187,6 +191,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           walletAddress: '',
           reputation: userData.reputation,
           isVerified: userData.isVerified,
+          isTrusted: userData.isTrusted || false,
           role: userData.role,
           occupation: userData.occupation || null,
           location: userData.location ?? '',
@@ -356,6 +361,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                       alt={mockUser.username}
                       size="xl"
                       className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 ring-4 ring-white dark:ring-gray-900 shadow-2xl"
+                      isTrusted={mockUser.isTrusted}
                     />
                   </div>
 
@@ -377,6 +383,9 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                         )}
                         {mockUser.isVerified && (
                           <VerifiedBadge size={16} className="sm:w-5 sm:h-5 md:w-6 md:h-6 flex-shrink-0" />
+                        )}
+                        {mockUser.isTrusted && (
+                          <TrustedBadge size={16} className="sm:w-5 sm:h-5 md:w-6 md:h-6 flex-shrink-0 ml-1" />
                         )}
                       </div>
                     </div>

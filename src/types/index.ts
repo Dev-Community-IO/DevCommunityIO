@@ -9,6 +9,8 @@ export interface User {
   walletAddress?: string;
   reputation: number;
   isVerified: boolean;
+  isTrusted?: boolean;
+  isSpam?: boolean;
   role?: 'user' | 'moderator' | 'admin' | 'super_admin';
   status?: 'active' | 'suspended' | 'banned' | 'pending';
   bio?: string;
