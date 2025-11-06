@@ -88,6 +88,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [originUrl, setOriginUrl] = useState('');
   const [userPagesData, setUserPagesData] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState<string>('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reputationRequirements, setReputationRequirements] = useState<Record<string, number>>({});
   const [reputationError, setReputationError] = useState<string | null>(null);
@@ -672,6 +673,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     setIsSubmitting(true);
     setSubmitError(null);
     setReputationError(null);
+    setSubmitProgress('Validating post...');
 
     try {
       if (contentType === 'post') {
@@ -691,6 +693,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         };
 
         if (isEditMode && editDataRef.current?.postId) {
+          setSubmitProgress('Updating post...');
           const updatedPost = await postsService.updatePost(editDataRef.current.postId, postData);
           if (!updatedPost) {
             throw new Error('Failed to update post: No response from server');
@@ -698,9 +701,11 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           if (!updatedPost.slug && !updatedPost.id) {
             throw new Error('Failed to update post: Invalid response from server (missing slug/id)');
           }
+          setSubmitProgress('Post updated successfully!');
           const identifier = updatedPost.slug || updatedPost.id;
           navigate(`/post/${identifier}`, { replace: true, state: { post: updatedPost } });
         } else {
+          setSubmitProgress('Creating post...');
           const createdPost = await postsService.createPost(postData);
           if (!createdPost) {
             throw new Error('Failed to create post: No response from server');
@@ -708,6 +713,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           if (!createdPost.slug && !createdPost.id) {
             throw new Error('Failed to create post: Invalid response from server (missing slug/id)');
           }
+          setSubmitProgress('Post created successfully!');
           const identifier = createdPost.slug || createdPost.id;
           navigate(`/post/${identifier}`, { replace: true, state: { post: createdPost } });
         }
@@ -893,6 +899,8 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
       } else {
         setSubmitError(`Failed to ${isEditMode ? 'update' : 'create'} ${contentType}. Please try again.`);
       }
+      // Clear progress on error
+      setSubmitProgress('');
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
@@ -1824,7 +1832,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                   {isSubmitting ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>{isEditMode ? 'Updating...' : 'Publishing...'}</span>
+                      <span>{submitProgress || (isEditMode ? 'Updating...' : 'Publishing...')}</span>
                     </>
                   ) : (
                     <>
