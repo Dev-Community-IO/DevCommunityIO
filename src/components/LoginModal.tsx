@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import authService from '../services/api/auth.service';
 import { connectCardanoWallet, getAvailableWallets, signCardanoMessage, stringToHex } from '../utils/cardanoWallet';
 import { GlassCard } from './GlassCard';
+import { executeRecaptcha } from '../utils/recaptcha';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -79,9 +80,19 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   };
 
-  const handleGoogleLogin = () => {
-    const authUrl = authService.getGoogleAuthUrl();
-    window.location.href = authUrl;
+  const handleGoogleLogin = async () => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const recaptchaToken = await executeRecaptcha('google_login');
+      const authUrl = authService.getGoogleAuthUrl(recaptchaToken || undefined);
+      window.location.href = authUrl;
+    } catch (err: any) {
+      console.error('Google login reCAPTCHA error:', err);
+      setError('Security verification failed. Please refresh and try again.');
+      setIsLoading(false);
+    }
   };
 
   const handleGithubLogin = () => {

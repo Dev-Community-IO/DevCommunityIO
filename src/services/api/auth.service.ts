@@ -55,8 +55,12 @@ class AuthService {
     }
 
     // OAuth - Google login
-    getGoogleAuthUrl(): string {
-        return `${apiClient.defaults.baseURL}/auth/google`;
+    getGoogleAuthUrl(recaptchaToken?: string): string {
+        const url = new URL(`${apiClient.defaults.baseURL}/auth/google`);
+        if (recaptchaToken) {
+            url.searchParams.set('recaptcha_token', recaptchaToken);
+        }
+        return url.toString();
     }
 
     // OAuth - GitHub login
