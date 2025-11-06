@@ -72,6 +72,12 @@ export function AdminContents() {
     id: string;
     title?: string;
   } | null>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<{
+    id: string;
+    username: string;
+  } | null>(null);
+  const [showAuthorModal, setShowAuthorModal] = useState<'spam' | 'trusted' | 'verify' | 'deactivate' | null>(null);
+  const [modalComment, setModalComment] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
