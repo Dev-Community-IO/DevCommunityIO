@@ -21,13 +21,14 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [organizerReputation, setOrganizerReputation] = useState(event.organizer?.reputation ?? 0);
 
   // Check bookmark status on mount
   useEffect(() => {
@@ -82,6 +83,12 @@ export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
     };
   }, [showEmojiPicker]);
 
+  useEffect(() => {
+    if (event.organizer?.reputation !== undefined && event.organizer?.reputation !== null) {
+      setOrganizerReputation(event.organizer.reputation);
+    }
+  }, [event.organizer?.reputation]);
+
   const handleEmojiReaction = async (emoji: string) => {
     const currentPostId = event.postId || (event.post as any)?.id;
     if (!user || !currentPostId) {
@@ -90,7 +97,7 @@ export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
     }
 
     try {
-      await reactionsService.addEmoji({ postId: currentPostId, emoji });
+      const response = await reactionsService.addEmoji({ postId: currentPostId, emoji });
       
       // Reload reactions to get accurate counts
       const { reactions } = await reactionsService.getEmojis({ postId: currentPostId });
@@ -99,6 +106,14 @@ export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
       if (user) {
         const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: currentPostId });
         setUserEmojis(userEmojisList || []);
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
+
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setOrganizerReputation(response.authorReputation);
       }
     } catch (error: any) {
       console.error('Failed to add emoji:', error);
@@ -188,14 +203,18 @@ export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
     return cleaned;
   };
 
-  const organizer = event.organizer || (event.post?.page ? undefined : { 
-    id: event.organizerId, 
-    username: 'Organizer',
-    avatar: '',
-    avatarUrl: '',
-    reputation: 0,
-    isVerified: false
-  });
+  const organizer = event.organizer
+    ? { ...event.organizer, reputation: organizerReputation }
+    : (event.post?.page
+        ? undefined
+        : {
+            id: event.organizerId,
+            username: 'Organizer',
+            avatar: '',
+            avatarUrl: '',
+            reputation: organizerReputation,
+            isVerified: false,
+          });
 
   const commentCount = (event.post as any)?.commentCount || 0;
 

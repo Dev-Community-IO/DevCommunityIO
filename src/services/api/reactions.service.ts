@@ -11,8 +11,16 @@ export interface EmojiReaction {
     }>;
 }
 
+export interface EmojiReactionResponse {
+    message: string;
+    reaction?: any;
+    reacted: boolean;
+    authorReputation?: number | null;
+    reactorReputation?: number | null;
+}
+
 export const reactionsService = {
-    addEmoji: async (data: { postId?: string; commentId?: string; emoji: string }) => {
+    addEmoji: async (data: { postId?: string; commentId?: string; emoji: string }): Promise<EmojiReactionResponse> => {
         const response = await apiClient.post('/reactions/emoji', data);
         return response.data;
     },

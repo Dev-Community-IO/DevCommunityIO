@@ -23,7 +23,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [postData, setPostData] = useState<Post>(post);
@@ -242,6 +242,10 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
             reputation: response.authorReputation
           }
         }));
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
       }
     } catch (error) {
       console.error('Failed to add emoji:', error);

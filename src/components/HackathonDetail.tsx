@@ -26,7 +26,7 @@ interface HackathonDetailProps {
 }
 
 export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [hackathon, setHackathon] = useState<Hackathon | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,10 +123,30 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
     if (!hackathon?.postId) return;
 
     try {
-      await reactionsService.addEmoji({ postId: hackathon.postId, emoji });
+      const response = await reactionsService.addEmoji({ postId: hackathon.postId, emoji });
       
       // Reload reactions to get accurate counts
       await loadReactions();
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
+
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setHackathon(prev => {
+          if (!prev) return prev;
+          if (prev.organizer) {
+            return {
+              ...prev,
+              organizer: {
+                ...prev.organizer,
+                reputation: response.authorReputation,
+              },
+            };
+          }
+          return prev;
+        });
+      }
     } catch (error) {
       console.error('Failed to add emoji:', error);
     }

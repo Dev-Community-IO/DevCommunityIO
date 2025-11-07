@@ -21,13 +21,14 @@ interface HackathonCardProps {
 }
 
 export function HackathonCard({ hackathon, onClick, onLoginRequired }: HackathonCardProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [organizerReputation, setOrganizerReputation] = useState(hackathon.organizer?.reputation ?? 0);
 
   // Check bookmark status on mount
   useEffect(() => {
@@ -82,6 +83,12 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
     };
   }, [showEmojiPicker]);
 
+  useEffect(() => {
+    if (hackathon.organizer?.reputation !== undefined && hackathon.organizer?.reputation !== null) {
+      setOrganizerReputation(hackathon.organizer.reputation);
+    }
+  }, [hackathon.organizer?.reputation]);
+
   const handleEmojiReaction = async (emoji: string) => {
     const currentPostId = hackathon.postId || (hackathon.post as any)?.id;
     if (!user || !currentPostId) {
@@ -90,7 +97,7 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
     }
 
     try {
-      await reactionsService.addEmoji({ postId: currentPostId, emoji });
+      const response = await reactionsService.addEmoji({ postId: currentPostId, emoji });
       
       // Reload reactions to get accurate counts
       const { reactions } = await reactionsService.getEmojis({ postId: currentPostId });
@@ -99,6 +106,14 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
       if (user) {
         const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: currentPostId });
         setUserEmojis(userEmojisList || []);
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
+
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setOrganizerReputation(response.authorReputation);
       }
     } catch (error: any) {
       console.error('Failed to add emoji:', error);
@@ -188,19 +203,23 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
     return cleaned;
   };
 
-  const organizer = hackathon.organizer ? {
-    ...hackathon.organizer,
-    avatar: hackathon.organizer.avatar || hackathon.organizer.avatarUrl || '',
-    avatarUrl: hackathon.organizer.avatarUrl || hackathon.organizer.avatar,
-    reputation: hackathon.organizer.reputation || 0
-  } as any : (hackathon.post?.page ? undefined : { 
-    id: hackathon.organizerId, 
-    username: hackathon.organizerName,
-    avatar: hackathon.organizerLogoUrl || '',
-    avatarUrl: hackathon.organizerLogoUrl,
-    reputation: 0,
-    isVerified: false
-  } as any);
+  const organizer = hackathon.organizer
+    ? {
+        ...hackathon.organizer,
+        avatar: hackathon.organizer.avatar || hackathon.organizer.avatarUrl || '',
+        avatarUrl: hackathon.organizer.avatarUrl || hackathon.organizer.avatar,
+        reputation: organizerReputation,
+      } as any
+    : (hackathon.post?.page
+        ? undefined
+        : {
+            id: hackathon.organizerId,
+            username: hackathon.organizerName,
+            avatar: hackathon.organizerLogoUrl || '',
+            avatarUrl: hackathon.organizerLogoUrl,
+            reputation: organizerReputation,
+            isVerified: false,
+          } as any);
 
   const commentCount = (hackathon.post as any)?.commentCount || 0;
 

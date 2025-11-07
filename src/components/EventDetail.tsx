@@ -25,7 +25,7 @@ interface EventDetailProps {
 }
 
 export function EventDetail({ eventId, onClose }: EventDetailProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,10 +122,14 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
     if (!event?.postId) return;
 
     try {
-      await reactionsService.addEmoji({ postId: event.postId, emoji });
+      const response = await reactionsService.addEmoji({ postId: event.postId, emoji });
       
       // Reload reactions to get accurate counts
       await loadReactions();
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
     } catch (error) {
       console.error('Failed to add emoji:', error);
     }

@@ -25,7 +25,7 @@ interface OpportunityDetailProps {
 }
 
 export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,10 +126,14 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
     if (!postId) return;
 
     try {
-      await reactionsService.addEmoji({ postId, emoji });
+      const response = await reactionsService.addEmoji({ postId, emoji });
       
       // Reload reactions to get accurate counts
       await loadReactions();
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
     } catch (error) {
       console.error('Failed to add emoji:', error);
     }

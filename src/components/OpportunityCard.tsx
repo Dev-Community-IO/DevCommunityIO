@@ -21,13 +21,14 @@ interface OpportunityCardProps {
 }
 
 export function OpportunityCard({ opportunity, onClick, onLoginRequired }: OpportunityCardProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [companyReputation, setCompanyReputation] = useState(opportunity.company?.reputation ?? 0);
 
   // Check bookmark status on mount
   useEffect(() => {
@@ -82,6 +83,12 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
     };
   }, [showEmojiPicker]);
 
+  useEffect(() => {
+    if (opportunity.company?.reputation !== undefined && opportunity.company?.reputation !== null) {
+      setCompanyReputation(opportunity.company.reputation);
+    }
+  }, [opportunity.company?.reputation]);
+
   const handleEmojiReaction = async (emoji: string) => {
     const currentPostId = opportunity.postId || (opportunity.post as any)?.id;
     if (!user || !currentPostId) {
@@ -90,7 +97,7 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
     }
 
     try {
-      await reactionsService.addEmoji({ postId: currentPostId, emoji });
+      const response = await reactionsService.addEmoji({ postId: currentPostId, emoji });
       
       // Reload reactions to get accurate counts
       const { reactions } = await reactionsService.getEmojis({ postId: currentPostId });
@@ -99,6 +106,14 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
       if (user) {
         const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: currentPostId });
         setUserEmojis(userEmojisList || []);
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
+
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setCompanyReputation(response.authorReputation);
       }
     } catch (error: any) {
       console.error('Failed to add emoji:', error);
@@ -184,14 +199,18 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
     return cleaned;
   };
 
-  const company = opportunity.company || (opportunity.post?.page ? undefined : { 
-    id: opportunity.companyId, 
-    username: opportunity.companyName,
-    avatar: opportunity.logoUrl || '',
-    avatarUrl: opportunity.logoUrl || '',
-    reputation: 0,
-    isVerified: false
-  } as any);
+  const company = opportunity.company
+    ? { ...opportunity.company, reputation: companyReputation }
+    : (opportunity.post?.page
+        ? undefined
+        : {
+            id: opportunity.companyId,
+            username: opportunity.companyName,
+            avatar: opportunity.logoUrl || '',
+            avatarUrl: opportunity.logoUrl || '',
+            reputation: companyReputation,
+            isVerified: false,
+          } as any);
 
   const commentCount = (opportunity.post as any)?.commentCount || 0;
 

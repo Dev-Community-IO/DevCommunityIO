@@ -18,7 +18,7 @@ interface CompactPostCardProps {
 
 export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = false }: CompactPostCardProps) {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -89,6 +89,10 @@ export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = fal
           }
         }
         setUserEmojis(userEmojis.filter(e => e !== emoji));
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
       }
     } catch (error) {
       console.error('Failed to add emoji:', error);

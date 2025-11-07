@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile, Award, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile, Award, AlertCircle, X } from 'lucide-react';
 import { Post, Comment as CommentType, Page } from '../types';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
@@ -13,14 +13,16 @@ import { MentionTextarea } from './MentionTextarea';
 import { PostOriginDisplay } from './PostOriginDisplay';
 import { ResponsivePostImage } from './ResponsivePostImage';
 import { useAuth } from '../contexts/AuthContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import pagesService from '../services/api/pages.service';
 import bookmarksService from '../services/api/bookmarks.service';
-import adminService from '../services/api/admin.service';
 import { PostDetailSkeleton, CommentSkeletonList } from './skeletons';
+import { useToast } from './Toast';
+
+const COMMENT_REQUIREMENT_CACHE_KEY = 'devcommunity.commentRequirement.comment';
 
 interface PostDetailProps {
   post: Post;
@@ -29,7 +31,8 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const [bookmarked, setBookmarked] = useState(false);
   const [comment, setComment] = useState('');
@@ -44,13 +47,56 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [commentRequirement, setCommentRequirement] = useState<number>(0);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentNotice, setCommentNotice] = useState<string | null>(null);
+  const userReputation = user?.reputation ?? 0;
+  const debugCommentGate = useCallback((label: string, payload?: unknown) => {
+    console.debug('[PostDetail][CommentGate]', label, payload);
+  }, []);
+  const updateCommentRequirement = useCallback((value: number) => {
+    setCommentRequirement(value);
+    if (typeof window !== 'undefined') {
+      if (value > 0) {
+        window.sessionStorage.setItem(COMMENT_REQUIREMENT_CACHE_KEY, String(value));
+      } else {
+        window.sessionStorage.removeItem(COMMENT_REQUIREMENT_CACHE_KEY);
+      }
+    }
+    debugCommentGate('updateCommentRequirement', { value });
+  }, [debugCommentGate]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cachedRequirement = window.sessionStorage.getItem(COMMENT_REQUIREMENT_CACHE_KEY);
+    if (!cachedRequirement) return;
+    const parsedRequirement = Number(cachedRequirement);
+    if (!Number.isNaN(parsedRequirement) && parsedRequirement > 0) {
+      debugCommentGate('hydrateRequirementFromCache', { parsedRequirement });
+      setCommentRequirement(parsedRequirement);
+    }
+  }, [debugCommentGate]);
   const bypassCommentRequirement = user ? (user.isTrusted || ['moderator', 'admin', 'super_admin'].includes(user.role)) : false;
   const isCommentRequirementBlocking = Boolean(
     user &&
     commentRequirement > 0 &&
     !bypassCommentRequirement &&
-    user.reputation < commentRequirement
+    userReputation < commentRequirement
   );
+  const requirementWarningShownRef = useRef(false);
+  const requirementMessage = user
+    ? `You need at least ${commentRequirement} reputation points to comment. Your current reputation: ${userReputation}`
+    : null;
+  const remindReputationRequirement = useCallback(() => {
+    if (!requirementMessage) return;
+    debugCommentGate('remindReputationRequirement', {
+      requirementMessage,
+      requirementWarningShown: requirementWarningShownRef.current,
+    });
+    setCommentNotice(requirementMessage);
+    setCommentError(null);
+    if (!requirementWarningShownRef.current) {
+      toast.warning(requirementMessage);
+      requirementWarningShownRef.current = true;
+    }
+  }, [debugCommentGate, requirementMessage, toast]);
 
   // REBUILT: Fetch full page data if post has a page - same pattern as PageView
   useEffect(() => {
@@ -101,27 +147,61 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     }
   }, [post.page?.isFollowing, post.page?.followerCount]); // Sync when follow status or follower count changes
   
-  // Load reputation requirements for comments
+  // Load reputation requirements for comments (public endpoint)
   useEffect(() => {
+    let isMounted = true;
+
     const fetchCommentRequirement = async () => {
       try {
-        const data = await adminService.getReputationRequirements();
-        if (data.requirements) {
-          setCommentRequirement(data.requirements.comment ?? 0);
+        const data = await commentsService.getRequirement();
+        debugCommentGate('fetchedRequirementFromPublic', data);
+        if (!isMounted) return;
+
+        if (data && typeof data.requiredReputation === 'number') {
+          updateCommentRequirement(data.requiredReputation);
         }
       } catch (error) {
         console.error('Failed to fetch comment reputation requirement:', error);
+        debugCommentGate('fetchRequirementError', error);
       }
     };
 
     fetchCommentRequirement();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [debugCommentGate, updateCommentRequirement]);
 
   useEffect(() => {
     if (!isCommentRequirementBlocking) {
-      setCommentError(null);
+      requirementWarningShownRef.current = false;
+      debugCommentGate('requirementCleared', {
+        commentNotice,
+        commentError,
+      });
+      if (!commentNotice) {
+        setCommentError(null);
+      }
     }
-  }, [isCommentRequirementBlocking]);
+  }, [
+    isCommentRequirementBlocking,
+    requirementMessage,
+    toast,
+    remindReputationRequirement,
+    commentNotice,
+    commentRequirement,
+    userReputation,
+    debugCommentGate
+  ]);
+
+  useEffect(() => {
+    debugCommentGate('commentNoticeChanged', commentNotice);
+  }, [commentNotice, debugCommentGate]);
+
+  useEffect(() => {
+    debugCommentGate('commentErrorChanged', commentError);
+  }, [commentError, debugCommentGate]);
 
   // Load emoji reactions on mount
   useEffect(() => {
@@ -231,6 +311,9 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
         }
         setUserEmojis(userEmojis.filter(e => e !== emoji));
       }
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
+      }
     } catch (error) {
       console.error('Failed to add emoji:', error);
     }
@@ -278,20 +361,52 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     }
   };
 
+  const handleCommentChange = (value: string) => {
+    setComment(value);
+    debugCommentGate('handleCommentChange:start', {
+      valueLength: value.length,
+      isCommentRequirementBlocking,
+      requirementMessage,
+    });
+
+    if (!value.trim()) {
+      if (!isCommentRequirementBlocking) {
+        setCommentNotice(null);
+        setCommentError(null);
+        debugCommentGate('handleCommentChange:clearedEmptyValue');
+      } else {
+        debugCommentGate('handleCommentChange:emptyWhileBlocking');
+      }
+      return;
+    }
+
+    if (!isCommentRequirementBlocking) {
+      setCommentNotice(null);
+      setCommentError(null);
+      debugCommentGate('handleCommentChange:clearedNonBlocking');
+    } else {
+      debugCommentGate('handleCommentChange:blockingNoClear');
+    }
+  };
+
   const handleSubmitComment = async () => {
+    debugCommentGate('handleSubmitComment:start', {
+      isAuthenticated,
+      hasCommentText: Boolean(comment.trim()),
+      isCommentRequirementBlocking,
+    });
     if (!isAuthenticated) {
       onLoginRequired?.();
       return;
     }
     
-    setCommentError(null);
-
     if (!comment.trim()) return;
     
     if (isCommentRequirementBlocking) {
-      setCommentError(
-        `You need at least ${commentRequirement} reputation points to comment. Your current reputation: ${user?.reputation ?? 0}`
-      );
+      debugCommentGate('handleSubmitComment:blockingEarlyExit', {
+        requirementMessage,
+      });
+      remindReputationRequirement();
       return;
     }
     
@@ -299,13 +414,67 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
       setSubmittingComment(true);
       await commentsService.createComment(post.id, { content: comment });
       setComment('');
+      setCommentError(null);
+      setCommentNotice(null);
       // Refresh comments
       await fetchComments();
     } catch (error: any) {
       console.error('Failed to submit comment:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to post comment';
-      setCommentError(errorMessage);
+      debugCommentGate('handleSubmitComment:error', {
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
+      const status = error.response?.status;
+      const errorData = error.response?.data || {};
+      if (status === 403) {
+        const rawRequired =
+          errorData.requiredReputation ??
+          errorData.required_reputation ??
+          errorData.requirement ??
+          commentRequirement;
+        const parsedRequired = Number(rawRequired);
+        const requiredReputation =
+          !Number.isNaN(parsedRequired) && parsedRequired > 0 ? parsedRequired : commentRequirement;
+        updateCommentRequirement(requiredReputation);
+        debugCommentGate('handleSubmitComment:403', {
+          rawRequired,
+          requiredReputation,
+        });
+
+        const rawCurrent =
+          errorData.currentReputation ?? errorData.current_reputation ?? userReputation;
+        const parsedCurrent = Number(rawCurrent);
+        const currentReputation =
+          !Number.isNaN(parsedCurrent) && parsedCurrent >= 0 ? parsedCurrent : userReputation;
+        debugCommentGate('handleSubmitComment:403Current', {
+          rawCurrent,
+          currentReputation,
+        });
+
+        const constructedMessage =
+          errorData.message ||
+          `You need at least ${requiredReputation} reputation points to comment. Your current reputation: ${currentReputation}`;
+
+        setCommentNotice(constructedMessage);
+        setCommentError(null);
+        toast.warning(constructedMessage);
+        requirementWarningShownRef.current = true;
+        debugCommentGate('handleSubmitComment:403NoticeApplied', {
+          constructedMessage,
+          requiredReputation,
+          currentReputation,
+        });
+      } else {
+        const errorMessage = errorData.message || 'Failed to post comment';
+        setCommentError(errorMessage);
+        setCommentNotice(null);
+        toast.error(errorMessage);
+        debugCommentGate('handleSubmitComment:genericError', {
+          errorMessage,
+        });
+      }
     } finally {
+      debugCommentGate('handleSubmitComment:finally');
       setSubmittingComment(false);
     }
   };
@@ -656,21 +825,37 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
         <div className="space-y-3 sm:space-y-4">
           <MentionTextarea
             value={comment}
-            onChange={setComment}
+            onChange={handleCommentChange}
             placeholder="Share your thoughts... Use @ to mention other users"
             rows={6}
-            disabled={isCommentRequirementBlocking}
-            className={isCommentRequirementBlocking ? 'opacity-70' : ''}
+            className={isCommentRequirementBlocking ? 'ring-2 ring-yellow-400/60 dark:ring-yellow-500/40' : ''}
           />
+          {commentNotice && (
+            <div className="relative flex items-start gap-3 p-3 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-sm text-red-900 dark:text-red-100">
+              <AlertCircle size={18} className="flex-shrink-0 mt-0.5 text-red-700 dark:text-red-300" />
+              <div className="flex-1">
+                <p className="font-semibold mb-1">Action requise</p>
+                <p>{commentNotice}</p>
+              </div>
+              <button
+                onClick={() => setCommentNotice(null)}
+                className="absolute top-2 right-2 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-100 transition-colors"
+                aria-label="Dismiss notice"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           {isCommentRequirementBlocking && (
             <div className="flex items-start gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20">
               <Award size={18} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-800 dark:text-yellow-200">
                 <p className="font-semibold">Reputation required to comment</p>
-                <p className="mt-1">
-                  You need at least <strong>{commentRequirement}</strong> reputation points to comment. Your current reputation is{' '}
-                  <strong>{user?.reputation ?? 0}</strong>.
-                </p>
+                {requirementMessage && (
+                  <p className="mt-1">
+                    {requirementMessage}
+                  </p>
+                )}
                 <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
                   Trusted members and moderators automatically bypass this requirement.
                 </p>

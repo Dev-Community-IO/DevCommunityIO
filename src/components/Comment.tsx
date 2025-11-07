@@ -21,7 +21,7 @@ interface CommentProps {
 }
 
 export function Comment({ comment, postId, isReply = false, onReplySuccess, onDelete }: CommentProps) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuth();
   const navigate = useNavigate();
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -36,6 +36,7 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [authorReputation, setAuthorReputation] = useState(comment.author.reputation);
   
   const isOwnComment = user && comment.author.id === user.id;
 
@@ -57,6 +58,10 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
     loadReactions();
   }, [comment.id, user]);
 
+  useEffect(() => {
+    setAuthorReputation(comment.author.reputation);
+  }, [comment.author.reputation]);
+
   const handleEmojiReaction = async (emoji: string) => {
     if (!isAuthenticated || !user) {
       // Redirect to login or show login modal
@@ -65,7 +70,7 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
     }
 
     try {
-      await reactionsService.addEmoji({ commentId: comment.id, emoji });
+      const response = await reactionsService.addEmoji({ commentId: comment.id, emoji });
       
       // Reload reactions to get accurate counts
       const { reactions } = await reactionsService.getEmojis({ commentId: comment.id });
@@ -74,6 +79,14 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
       if (user) {
         const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ commentId: comment.id });
         setUserEmojis(userEmojisList || []);
+      }
+
+      if (response.authorReputation !== undefined && response.authorReputation !== null) {
+        setAuthorReputation(response.authorReputation);
+      }
+
+      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
+        updateUser({ reputation: response.reactorReputation });
       }
     } catch (error) {
       console.error('Failed to add emoji:', error);
@@ -216,7 +229,7 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                     <VerifiedBadge size={14} />
                   )}
                 </div>
-                <Badge variant="gradient" className="text-xs">{comment.author.reputation} rep</Badge>
+                <Badge variant="gradient" className="text-xs">{authorReputation} rep</Badge>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <span className="hidden sm:inline">•</span>
                   <span className="font-mono text-xs">
