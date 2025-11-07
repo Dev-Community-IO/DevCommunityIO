@@ -9,6 +9,8 @@ import { Page } from '../types';
 import pagesService from '../services/api/pages.service';
 import { useAuth } from '../contexts/AuthContext';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface PageSidebarProps {
   page: Page | { id: string; slug?: string };
   onLoginRequired?: () => void;
@@ -179,12 +181,12 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
         <div className="flex items-center gap-3">
           <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg relative`}>
             <img 
-              src={pageData.logo || pageData.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`}
+              src={pageData.logo || pageData.logoUrl || DEFAULT_PAGE_LOGO}
               alt={pageData.name}
               className="w-full h-full object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`;
+                target.src = DEFAULT_PAGE_LOGO;
               }}
             />
             {pageData.isVerified && (

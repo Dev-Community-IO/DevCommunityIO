@@ -6,6 +6,8 @@ import { Users, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import pagesService from '../services/api/pages.service';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface PageHoverCardDropdownProps {
   page: {
     id: string;
@@ -226,14 +228,14 @@ export function PageHoverCardDropdown({ page, trigger, onJoin, onViewPage }: Pag
             
             {/* Logo positioned at bottom of header - similar to user dropdown */}
             <div className="absolute -bottom-8 left-4 z-20">
-              <div className="w-16 h-16 rounded-xl overflow-hidden border-3 border-white dark:border-gray-900 shadow-xl bg-white dark:bg-gray-800">
+              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white dark:border-gray-900 shadow-xl bg-white dark:bg-gray-800">
                 <img 
-                  src={page.logo || page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`} 
+                  src={page.logo || page.logoUrl || DEFAULT_PAGE_LOGO} 
                   alt={page.name} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                    target.src = DEFAULT_PAGE_LOGO;
                   }}
                 />
               </div>

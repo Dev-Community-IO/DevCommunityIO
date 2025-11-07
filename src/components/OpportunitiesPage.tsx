@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface OpportunitiesPageProps {
   onBack?: () => void;
   onViewOpportunityDetail?: (id: string) => void;
@@ -97,7 +99,7 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
     salary: o.salary || 'Competitive',
     experience: o.experience,
     posted: o.postedAt ? new Date(o.postedAt).toLocaleDateString() : 'Recently',
-    logo: o.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${o.companyName}`,
+    logo: o.logoUrl || DEFAULT_PAGE_LOGO,
     tags: [],
     featured: o.featured,
     remote: o.remote

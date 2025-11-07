@@ -19,6 +19,8 @@ import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import pagesService from '../services/api/pages.service';
 import bookmarksService from '../services/api/bookmarks.service';
+
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 import { PostDetailSkeleton, CommentSkeletonList } from './skeletons';
 import { useToast } from './Toast';
 
@@ -541,12 +543,12 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                             className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg cursor-pointer hover:scale-110 transition-transform"
                           >
                             <img 
-                              src={pageData.logo || pageData.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`}
+                              src={pageData.logo || pageData.logoUrl || DEFAULT_PAGE_LOGO}
                               alt={pageData.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
-                                target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`;
+                                target.src = DEFAULT_PAGE_LOGO;
                               }}
                             />
                           </div>

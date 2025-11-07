@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { CompactPostCard } from './CompactPostCard';
@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SEOHead } from './SEOHead';
 import { useNavigate } from 'react-router-dom';
 import { PageViewSkeleton } from './skeletons';
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
 interface PageViewProps {
   pageId?: string;
@@ -26,6 +27,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowingLoading, setIsFollowingLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [pageData, setPageData] = useState<any>(null);
   const [pagePosts, setPagePosts] = useState<Post[]>([]);
@@ -41,12 +43,30 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
     pageData.owner?.id === user.id
   );
   
-  const isAdmin = pageData && user && (
+  const isAdmin = pageData && user && pageData.userRole && (
     pageData.userRole === 'admin' ||
-    (pageData.userRole && ['owner', 'admin'].includes(pageData.userRole))
+    pageData.userRole === 'owner'
   );
   
-  const canManage = isOwner || isAdmin || (pageData && pageData.userRole === 'moderator');
+  const isModerator = pageData && user && pageData.userRole === 'moderator';
+  
+  // Only hide Follow button if user is owner, admin, or moderator
+  // Default to showing Follow button if we can't determine role
+  const canManage = !!(isOwner || isAdmin || isModerator);
+  
+  // Debug logging (remove in production)
+  if (process.env.NODE_ENV === 'development' && pageData && user) {
+    console.log('PageView Debug:', {
+      userId: user.id,
+      pageOwnerId: pageData.ownerId,
+      userRole: pageData.userRole,
+      isOwner,
+      isAdmin,
+      isModerator,
+      canManage,
+      shouldShowFollowButton: !canManage
+    });
+  }
 
   // SEO metadata will be set via SEOHead component below
 
@@ -121,10 +141,19 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 
   // Handle follow toggle - REBUILT FROM SCRATCH
   const handleFollowToggle = async () => {
-    if (!pageData || !pageData.id) return;
+    if (!pageData || !pageData.id || !user) {
+      if (onLoginRequired) {
+        onLoginRequired();
+      }
+      return;
+    }
     
     const currentFollowing = isFollowing;
     const previousFollowerCount = pageData.followerCount || 0;
+    
+    // Optimistic update
+    setIsFollowing(!currentFollowing);
+    setIsFollowingLoading(true);
     
     try {
       let response;
@@ -141,15 +170,15 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
       const newIsFollowing = response?.isFollowing === true;
       const newFollowerCount = response?.followerCount ?? previousFollowerCount;
       
-      // Update state immediately
+      // Update state with actual API response
       setIsFollowing(newIsFollowing);
         
       // Update pageData to persist the change
-        setPageData({ 
-          ...pageData, 
+      setPageData({ 
+        ...pageData, 
         isFollowing: newIsFollowing,
         followerCount: newFollowerCount
-        });
+      });
       
     } catch (err: any) {
       // Revert on error
@@ -158,6 +187,8 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
       const errorMessage = err?.response?.data?.message || err?.message || 'Failed to update follow status';
       console.error('Error toggling follow:', err);
       alert(errorMessage);
+    } finally {
+      setIsFollowingLoading(false);
     }
   };
 
@@ -285,12 +316,12 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                 <div className="relative flex-shrink-0">
                   <div className={`w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden border-4 border-white dark:border-gray-900 shadow-2xl bg-white dark:bg-gray-800`}>
                     <img
-                      src={pageData.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`}
+                      src={pageData.logoUrl || DEFAULT_PAGE_LOGO}
                       alt={`${pageData.name} logo`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(pageData.name)}`;
+                        target.src = DEFAULT_PAGE_LOGO;
                       }}
                     />
                     {pageData.isVerified && (
@@ -336,29 +367,44 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {user ? (
                         <>
-                          {!canManage && (
+                          {/* Show Follow button if user cannot manage the page */}
+                          {!canManage && pageData ? (
                             <button
                               onClick={handleFollowToggle}
-                              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm ${
+                              disabled={isFollowingLoading}
+                              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isFollowing
                                   ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-600'
                                   : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105'
                               }`}
                             >
-                              <UserPlus size={18} />
-                              {isFollowing ? 'Following' : 'Follow'}
+                              {isFollowingLoading ? (
+                                <>
+                                  <Loader2 size={18} className="animate-spin" />
+                                  <span>Loading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus size={18} />
+                                  {isFollowing ? 'Following' : 'Follow'}
+                                </>
+                              )}
                             </button>
-                          )}
+                          ) : null}
                 </>
               ) : (
                 <button
-                  onClick={() => {/* Open login modal */}}
-                          className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30"
+                  onClick={() => {
+                    if (onLoginRequired) {
+                      onLoginRequired();
+                    }
+                  }}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30 hover:scale-105"
                 >
                   <UserPlus size={18} />
                   Follow to Join
-                        </button>
-                      )}
+                </button>
+              )}
                     </div>
                   </div>
 

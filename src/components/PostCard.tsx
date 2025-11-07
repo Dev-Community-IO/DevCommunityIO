@@ -16,6 +16,8 @@ import reactionsService from '../services/api/reactions.service';
 import bookmarksService from '../services/api/bookmarks.service';
 import { useNavigate } from 'react-router-dom';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface PostCardProps {
   post: Post;
   onClick: () => void;
@@ -342,12 +344,12 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         }}
                         className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 relative z-10 cursor-pointer touch-manipulation`}>
                         <img 
-                          src={postData.page.logo || postData.page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(postData.page.name)}`} 
+                          src={postData.page.logo || postData.page.logoUrl || DEFAULT_PAGE_LOGO} 
                           alt={postData.page.name} 
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(post.page.name)}`;
+                            target.src = DEFAULT_PAGE_LOGO;
                           }}
                         />
                         {postData.page.isVerified && (

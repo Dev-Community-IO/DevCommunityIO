@@ -8,6 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import usersService from '../services/api/users.service';
 import { useNavigate } from 'react-router-dom';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface UserHoverCardDropdownProps {
   user: {
     id: string;
@@ -236,12 +238,12 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
                 {page && (
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg">
                     <img 
-                      src={page.logo || page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name || '')}`}
+                      src={page.logo || page.logoUrl || DEFAULT_PAGE_LOGO}
                       alt={page.name || 'Page'}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name || '')}`;
+                        target.src = DEFAULT_PAGE_LOGO;
                       }}
                     />
                   </div>

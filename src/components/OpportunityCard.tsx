@@ -14,6 +14,8 @@ import bookmarksService from '../services/api/bookmarks.service';
 import { useNavigate } from 'react-router-dom';
 import { Opportunity } from '../services/api/opportunities.service';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface OpportunityCardProps {
   opportunity: Opportunity;
   onClick: () => void;
@@ -235,12 +237,12 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                       }}
                       className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
                       <img 
-                        src={opportunity.post?.page?.logo || opportunity.post?.page?.logoUrl || opportunity.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(opportunity.post?.page?.name || '')}`} 
+                        src={opportunity.post?.page?.logo || opportunity.post?.page?.logoUrl || opportunity.logoUrl || DEFAULT_PAGE_LOGO} 
                         alt={opportunity.post?.page?.name || ''} 
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(opportunity.post?.page?.name || '')}`;
+                          target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
                       {opportunity.post?.page?.isVerified && (

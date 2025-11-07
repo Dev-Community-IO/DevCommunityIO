@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Building2, 
   Search, 
@@ -29,6 +29,8 @@ import { Badge } from '../Badge';
 import { VerifiedBadge } from '../VerifiedBadge';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useToast } from '../Toast';
+
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
 interface Page {
   id: string;
@@ -118,12 +120,9 @@ export function AdminPages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterVerified, filterCategory, page, searchQuery]);
 
-  // Ensure data loads on initial mount (safety net)
+  // Initial load only
   useEffect(() => {
-    // Load on mount if no data exists yet
-    if (pages.length === 0) {
-      loadPages();
-    }
+    loadPages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -153,16 +152,23 @@ export function AdminPages() {
         verified: filterVerified !== 'all' ? filterVerified === 'verified' : undefined,
         category: filterCategory !== 'all' ? filterCategory : undefined,
       });
-      
-      const filteredPages = data.pages || data.data || [];
-      
-      if (page === 1) {
-        setPages(filteredPages);
-      } else {
-        setPages(prev => [...prev, ...filteredPages]);
-      }
-      
-      setHasMore(data.meta?.currentPage < data.meta?.lastPage);
+
+      const rawPages = Array.isArray(data?.pages)
+        ? data.pages
+        : Array.isArray(data?.pages?.data)
+          ? data.pages.data
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+      const nextPages = page === 1 ? rawPages : [...pages, ...rawPages];
+      setPages(nextPages);
+
+      const meta = data?.meta || data?.pages?.meta || data?.pages?.pagination;
+      const nextHasMore = meta ? (meta.currentPage ?? meta.page ?? page) < (meta.lastPage ?? meta.totalPages ?? meta.total_pages ?? meta.pages ?? page) : rawPages.length === 50;
+      setHasMore(nextHasMore);
     } catch (error) {
       console.error('Failed to load pages:', error);
       setPages([]);
@@ -445,6 +451,16 @@ export function AdminPages() {
 
   const categories = Array.from(new Set(pages.map(p => p.category).filter(Boolean))) as string[];
 
+  const uniquePages = useMemo(() => {
+    const seen = new Set<string>();
+    return pages.filter(page => {
+      if (!page.id) return false;
+      if (seen.has(page.id)) return false;
+      seen.add(page.id);
+      return true;
+    });
+  }, [pages]);
+
   return (
     <div className="space-y-6">
       {/* Filters */}
@@ -503,7 +519,7 @@ export function AdminPages() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
           </div>
-        ) : pages.length === 0 ? (
+        ) : uniquePages.length === 0 ? (
           <div className="text-center py-12">
             <Building2 size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
             <p className="text-gray-500 dark:text-gray-400">No pages found</p>
@@ -523,7 +539,7 @@ export function AdminPages() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {pages.map((page) => (
+                {uniquePages.map((page) => (
                   <tr 
                     key={page.id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
@@ -532,7 +548,7 @@ export function AdminPages() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
                           <img
-                            src={page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${page.name}`}
+                            src={page.logoUrl || DEFAULT_PAGE_LOGO}
                             alt={page.name}
                             className="w-full h-full object-cover"
                           />

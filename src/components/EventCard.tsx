@@ -14,6 +14,8 @@ import bookmarksService from '../services/api/bookmarks.service';
 import { useNavigate } from 'react-router-dom';
 import { Event } from '../services/api/events.service';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface EventCardProps {
   event: Event;
   onClick: () => void;
@@ -239,12 +241,12 @@ export function EventCard({ event, onClick, onLoginRequired }: EventCardProps) {
                       }}
                       className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
                       <img 
-                        src={event.post?.page?.logo || event.post?.page?.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(event.post?.page?.name || '')}`} 
+                        src={event.post?.page?.logo || event.post?.page?.logoUrl || DEFAULT_PAGE_LOGO} 
                         alt={event.post?.page?.name || ''} 
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(event.post?.page?.name || '')}`;
+                          target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
                       {event.post?.page?.isVerified && (

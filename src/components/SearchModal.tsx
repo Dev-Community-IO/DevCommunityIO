@@ -8,6 +8,8 @@ import { Post, User } from '../types';
 import { useNavigate } from 'react-router-dom';
 import searchService from '../services/api/search.service';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -513,7 +515,7 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                           >
                             <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all">
                               <img 
-                                src={page.logo || page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`}
+                                src={page.logo || page.logoUrl || DEFAULT_PAGE_LOGO}
                                 alt={page.name}
                                 className="w-full h-full object-cover"
                               />

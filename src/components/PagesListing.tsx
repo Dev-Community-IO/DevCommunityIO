@@ -7,6 +7,8 @@ import { pagesService, Page } from '../services/api/pages.service';
 import { useNavigate } from 'react-router-dom';
 import { PageCardSkeletonList } from './skeletons';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface PagesListingProps {
   onPageClick?: (pageId: string) => void;
   onBack?: () => void;
@@ -260,7 +262,7 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {shuffledPages.map((page) => {
                   const coverGradient = getDefaultCover();
-                  const logoUrl = page.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${page.name}`;
+                  const logoUrl = page.logoUrl || DEFAULT_PAGE_LOGO;
                   const coverUrl = page.coverImageUrl || '';
                   
                   return (
@@ -303,6 +305,12 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
                               src={logoUrl}
                               alt={page.name}
                               className="w-full h-full object-cover"
+                              onError={(event) => {
+                                const target = event.target as HTMLImageElement;
+                                if (target.src !== DEFAULT_PAGE_LOGO) {
+                                  target.src = DEFAULT_PAGE_LOGO;
+                                }
+                              }}
                             />
                           </div>
                         </div>

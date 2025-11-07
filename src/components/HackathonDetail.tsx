@@ -20,6 +20,8 @@ import { SEOHead } from './SEOHead';
 import { MentionTextarea } from './MentionTextarea';
 import { CommentSkeletonList } from './skeletons';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface HackathonDetailProps {
   hackathonId: string;
   onClose: () => void;
@@ -634,12 +636,12 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
                   >
                     <div className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
                       <img 
-                      src={hackathon.post?.page?.logo || hackathon.post?.page?.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(hackathon.post?.page?.name || '')}`}
+                      src={hackathon.post?.page?.logo || hackathon.post?.page?.logoUrl || DEFAULT_PAGE_LOGO}
                       alt={hackathon.post?.page?.name || ''}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(hackathon.post?.page?.name || '')}`;
+                          target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
                       {hackathon.post?.page?.isVerified && (

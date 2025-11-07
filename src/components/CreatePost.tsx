@@ -12,6 +12,8 @@ import opportunitiesService from '../services/api/opportunities.service';
 import adminService from '../services/api/admin.service';
 import tagsService, { Tag } from '../services/api/tags.service';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface CreatePostProps {
   onBack: () => void;
   pageId?: string;
@@ -2015,7 +2017,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                                 loading="lazy"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
-                                  target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(page.name)}`;
+                                  target.src = DEFAULT_PAGE_LOGO;
                                       target.className = 'w-full h-full object-cover';
                                 }}
                               />

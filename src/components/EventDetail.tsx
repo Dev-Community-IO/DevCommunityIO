@@ -19,6 +19,8 @@ import { SEOHead } from './SEOHead';
 import { MentionTextarea } from './MentionTextarea';
 import { CommentSkeletonList } from './skeletons';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface EventDetailProps {
   eventId: string;
   onClose: () => void;
@@ -500,12 +502,12 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
                   >
                     <div className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
                       <img 
-                        src={event.post?.page?.logo || event.post?.page?.logoUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(event.post?.page?.name || '')}`}
+                      src={event.post?.page?.logo || event.post?.page?.logoUrl || DEFAULT_PAGE_LOGO}
                         alt={event.post?.page?.name || ''}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(event.post?.page?.name || '')}`;
+                          target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
                       {event.post?.page?.isVerified && (
