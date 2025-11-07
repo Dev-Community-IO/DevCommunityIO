@@ -3,13 +3,96 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
 import axios from 'axios';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || process.env.VITE_PORT || 3000;
-const API_URL = process.env.VITE_API_URL || 'http://localhost:3333/api';
+
+// Get PORT from environment variables (prioritize PORT from .env)
+// PORT is the primary variable for the SEO server
+// VITE_PORT is used by Vite dev server, but we can use it as fallback
+const PORT = process.env.PORT
+    ? parseInt(process.env.PORT, 10)
+    : (process.env.VITE_PORT ? parseInt(process.env.VITE_PORT, 10) : 3000);
+
+// Log which port source is being used
+if (process.env.PORT) {
+    console.log(`[SEO Server] Using PORT from .env: ${PORT}`);
+} else if (process.env.VITE_PORT) {
+    console.log(`[SEO Server] Using VITE_PORT from .env: ${PORT} (consider setting PORT explicitly)`);
+} else {
+    console.warn(`[SEO Server] ⚠ No PORT found in .env, using default: ${PORT}`);
+    console.warn(`[SEO Server] ⚠ Please set PORT in your .env file (e.g., PORT=3000)`);
+}
+
+const PRODUCTION_DOMAINS = new Set([
+    'devcommunity.io',
+    'www.devcommunity.io',
+    'devcommunity.com',
+    'www.devcommunity.com',
+]);
+
+function normalizeApiBase(url) {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    const withoutTrailingSlash = trimmed.replace(/\/+$/, '');
+    if (withoutTrailingSlash.endsWith('/api')) {
+        return withoutTrailingSlash;
+    }
+    return `${withoutTrailingSlash}/api`;
+}
+
+function resolveApiBaseUrl(req) {
+    const engineEnvOrder = [
+        process.env.SEO_API_URL,
+        process.env.SEO_API_BASE_URL,
+        process.env.VITE_API_BASE_URL,
+        process.env.VITE_API_URL,
+    ];
+
+    for (const candidate of engineEnvOrder) {
+        const normalized = normalizeApiBase(candidate);
+        if (normalized) {
+            return normalized;
+        }
+    }
+
+    if (req) {
+        const host = req.get('host');
+        if (host && PRODUCTION_DOMAINS.has(host)) {
+            const baseDomain = host.replace(/^www\./, '');
+            return `https://api.${baseDomain}/api`;
+        }
+    }
+
+    const apiPort = process.env.SEO_API_PORT || process.env.VITE_API_PORT || process.env.API_PORT || 3333;
+    const protocol = process.env.SEO_API_PROTOCOL || 'http';
+    return `${protocol}://localhost:${apiPort}/api`;
+}
+
+const DEFAULT_API_BASE_URL = resolveApiBaseUrl();
+
+// Check if dist directory exists (important for preview mode)
+const distPath = join(__dirname, 'dist');
+const distIndexPath = join(distPath, 'index.html');
+try {
+    readFileSync(distIndexPath, 'utf-8');
+    console.log(`[SEO Server] ✓ Found dist directory at: ${distPath}`);
+} catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+        console.warn(`[SEO Server] ⚠ Warning: dist/index.html not found at ${distIndexPath}`);
+        console.warn(`[SEO Server] ⚠ Make sure to run 'npm run build' before preview or production`);
+        console.warn(`[SEO Server] ⚠ Server will start but may not serve files correctly`);
+    } else {
+        console.log(`[SEO Server] ℹ Development mode: dist will be created on first build`);
+    }
+}
 
 // Trust proxy for proper protocol detection
 app.set('trust proxy', true);
@@ -68,7 +151,8 @@ function fixLocalhostUrl(url, req, baseUrl) {
  */
 async function fetchSeoMetadata(type, identifier, req) {
     const cacheKey = `${type}:${identifier}`;
-    const apiUrl = `${API_URL}/seo/${type}/${identifier}`;
+    const apiBaseUrl = resolveApiBaseUrl(req) || DEFAULT_API_BASE_URL;
+    const apiUrl = `${apiBaseUrl}/seo/${type}/${identifier}`;
 
     // Check cache
     const cached = seoCache.get(cacheKey);
@@ -89,10 +173,14 @@ async function fetchSeoMetadata(type, identifier, req) {
         }
 
         const response = await axios.get(apiUrl, { headers, timeout: 10000 });
-        const data = response.data || null;
+        const contentType = response.headers?.['content-type'] || '';
+        const isJsonResponse = contentType.includes('application/json');
+        const data = isJsonResponse && response.data && typeof response.data === 'object' ? response.data : null;
 
         if (data) {
             seoCache.set(cacheKey, { data, timestamp: Date.now() });
+        } else if (!isJsonResponse && process.env.NODE_ENV !== 'production') {
+            console.warn(`[SEO] Expected JSON metadata from ${apiUrl}, received content-type: ${contentType}`);
         }
 
         return data;
@@ -275,9 +363,28 @@ async function handleSeoRoute(req, res, type) {
     const identifier = req.params.slug || req.params.id;
 
     try {
+        // Check if dist directory exists (for development, it might not exist yet)
+        const distPath = join(__dirname, 'dist', 'index.html');
+        let htmlExists = false;
+        try {
+            readFileSync(distPath, 'utf-8');
+            htmlExists = true;
+        } catch {
+            // dist/index.html doesn't exist yet - this is normal in dev mode
+            htmlExists = false;
+        }
+
+        if (!htmlExists) {
+            // In development, redirect to Vite dev server or return a simple response
+            if (process.env.NODE_ENV !== 'production') {
+                const vitePort = process.env.VITE_PORT || 5173;
+                return res.redirect(`http://localhost:${vitePort}${req.originalUrl}`);
+            }
+            return res.status(503).send('Application is building. Please try again in a moment.');
+        }
+
         const metadata = await fetchSeoMetadata(type, identifier, req);
-        const htmlPath = join(__dirname, 'dist', 'index.html');
-        let html = readFileSync(htmlPath, 'utf-8');
+        let html = readFileSync(distPath, 'utf-8');
 
         if (metadata) {
             html = injectMetaTags(html, metadata, req);
@@ -295,8 +402,18 @@ async function handleSeoRoute(req, res, type) {
     } catch (error) {
         // Fallback: serve HTML with minimal metadata
         try {
-            const htmlPath = join(__dirname, 'dist', 'index.html');
-            let html = readFileSync(htmlPath, 'utf-8');
+            const distPath = join(__dirname, 'dist', 'index.html');
+            // Check if dist exists
+            try {
+                readFileSync(distPath, 'utf-8');
+            } catch {
+                if (process.env.NODE_ENV !== 'production') {
+                    const vitePort = process.env.VITE_PORT || 5173;
+                    return res.redirect(`http://localhost:${vitePort}${req.originalUrl}`);
+                }
+                return res.status(503).send('Application is building. Please try again in a moment.');
+            }
+            let html = readFileSync(distPath, 'utf-8');
             const fallback = getFallbackMetadata(req);
             html = injectMetaTags(html, fallback, req);
 
@@ -305,8 +422,8 @@ async function handleSeoRoute(req, res, type) {
             return res.send(html);
         } catch (fallbackError) {
             // Last resort: serve plain HTML
-            const htmlPath = join(__dirname, 'dist', 'index.html');
-            res.sendFile(htmlPath);
+            const distPath = join(__dirname, 'dist', 'index.html');
+            res.sendFile(distPath);
         }
     }
 }
@@ -334,11 +451,22 @@ app.use(express.static(join(__dirname, 'dist')));
 
 // Catch all other routes - serve index.html for SPA routing
 app.get('*', (req, res) => {
-    const htmlPath = join(__dirname, 'dist', 'index.html');
-    res.sendFile(htmlPath);
+    const distPath = join(__dirname, 'dist', 'index.html');
+    // In development, if dist doesn't exist, redirect to Vite dev server
+    if (process.env.NODE_ENV !== 'production') {
+        try {
+            readFileSync(distPath, 'utf-8');
+        } catch {
+            const vitePort = process.env.VITE_PORT || 5173;
+            return res.redirect(`http://localhost:${vitePort}${req.originalUrl}`);
+        }
+    }
+    res.sendFile(distPath);
 });
 
 app.listen(PORT, () => {
-    console.log(`[SEO Server] Running on port ${PORT}`);
-    console.log(`[SEO Server] API: ${API_URL}`);
+    console.log(`[SEO Server] ✓ Server started successfully on port ${PORT}`);
+    console.log(`[SEO Server] API base: ${DEFAULT_API_BASE_URL}`);
+    console.log(`[SEO Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[SEO Server] Serving from: ${join(__dirname, 'dist')}`);
 });

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Upload, Camera, Image as ImageIcon, Globe, Twitter, Linkedin, Github, Loader, AlertCircle, CheckCircle, Award } from 'lucide-react';
+import { X, Upload, Camera, Image as ImageIcon, Globe, Twitter, Linkedin, Github, Loader, AlertCircle, CheckCircle, Award, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2 } from 'lucide-react';
 import pagesService from '../services/api/pages.service';
 import { apiClient } from '../services/api/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,9 +35,16 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
     username: '',
     url: '',
     socialLinks: {
+      website: '',
       twitter: '',
       linkedin: '',
       github: '',
+      discord: '',
+      telegram: '',
+      whatsapp: '',
+      facebook: '',
+      instagram: '',
+      youtube: '',
     },
   });
 
@@ -281,11 +288,19 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
         });
       }
 
-      // Prepare social links
+      // Prepare social links - include website and all social platforms
       const socialLinks: Record<string, string> = {};
+      if (formData.url) socialLinks.website = formData.url;
+      if (formData.socialLinks.website) socialLinks.website = formData.socialLinks.website;
       if (formData.socialLinks.twitter) socialLinks.twitter = formData.socialLinks.twitter;
       if (formData.socialLinks.linkedin) socialLinks.linkedin = formData.socialLinks.linkedin;
       if (formData.socialLinks.github) socialLinks.github = formData.socialLinks.github;
+      if (formData.socialLinks.discord) socialLinks.discord = formData.socialLinks.discord;
+      if (formData.socialLinks.telegram) socialLinks.telegram = formData.socialLinks.telegram;
+      if (formData.socialLinks.whatsapp) socialLinks.whatsapp = formData.socialLinks.whatsapp;
+      if (formData.socialLinks.facebook) socialLinks.facebook = formData.socialLinks.facebook;
+      if (formData.socialLinks.instagram) socialLinks.instagram = formData.socialLinks.instagram;
+      if (formData.socialLinks.youtube) socialLinks.youtube = formData.socialLinks.youtube;
 
       // Create page
       await pagesService.createPage({
@@ -324,9 +339,16 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
       username: '',
       url: '',
       socialLinks: {
+      website: '',
         twitter: '',
         linkedin: '',
         github: '',
+      discord: '',
+      telegram: '',
+      whatsapp: '',
+      facebook: '',
+      instagram: '',
+      youtube: '',
       },
     });
     setLogoFile(null);
@@ -595,9 +617,23 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
             <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
               Social Links <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
             </label>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="relative">
-                <Twitter size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400" />
+                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.website}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, website: e.target.value }
+                  })}
+                  placeholder="https://yourwebsite.com"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Twitter size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-900 dark:text-slate-100" />
                 <input
                   type="url"
                   value={formData.socialLinks.twitter}
@@ -605,9 +641,9 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
                     ...formData,
                     socialLinks: { ...formData.socialLinks, twitter: e.target.value }
                   })}
-                  placeholder="https://twitter.com/yourhandle"
+                  placeholder="https://twitter.com/yourhandle or @handle"
                   disabled={isSubmitting}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-slate-500 focus:ring-4 focus:ring-slate-500/20 outline-none transition-all"
                 />
               </div>
               <div className="relative">
@@ -625,7 +661,7 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
                 />
               </div>
               <div className="relative">
-                <Github size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300" />
+                <Github size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-900 dark:text-gray-100" />
                 <input
                   type="url"
                   value={formData.socialLinks.github}
@@ -635,7 +671,91 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
                   })}
                   placeholder="https://github.com/yourorg"
                   disabled={isSubmitting}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-gray-500 focus:ring-4 focus:ring-gray-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Gamepad2 size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.discord}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, discord: e.target.value }
+                  })}
+                  placeholder="https://discord.gg/invitecode or invitecode"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Send size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-500" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.telegram}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, telegram: e.target.value }
+                  })}
+                  placeholder="https://t.me/yourchannel or @channel"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <MessageCircle size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500" />
+                <input
+                  type="text"
+                  value={formData.socialLinks.whatsapp}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, whatsapp: e.target.value }
+                  })}
+                  placeholder="+1234567890 or https://wa.me/1234567890"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Facebook size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-700" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.facebook}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, facebook: e.target.value }
+                  })}
+                  placeholder="https://facebook.com/yourpage"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-700 focus:ring-4 focus:ring-blue-700/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Instagram size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-600" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.instagram}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, instagram: e.target.value }
+                  })}
+                  placeholder="https://instagram.com/yourhandle or @handle"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-pink-500 focus:ring-4 focus:ring-pink-500/20 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Youtube size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600" />
+                <input
+                  type="url"
+                  value={formData.socialLinks.youtube}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    socialLinks: { ...formData.socialLinks, youtube: e.target.value }
+                  })}
+                  placeholder="https://youtube.com/@yourchannel"
+                  disabled={isSubmitting}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all"
                 />
               </div>
             </div>

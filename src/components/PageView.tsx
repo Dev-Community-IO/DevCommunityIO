@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2, Loader2, Twitter, Linkedin, Github, Facebook, Instagram, Youtube, Send, MessageCircle, Gamepad2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { CompactPostCard } from './CompactPostCard';
@@ -12,6 +12,209 @@ import { SEOHead } from './SEOHead';
 import { useNavigate } from 'react-router-dom';
 import { PageViewSkeleton } from './skeletons';
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
+type SocialPlatform =
+  | 'website'
+  | 'twitter'
+  | 'linkedin'
+  | 'github'
+  | 'discord'
+  | 'telegram'
+  | 'whatsapp'
+  | 'facebook'
+  | 'instagram'
+  | 'youtube';
+
+interface SocialLinkConfig {
+  label: string;
+  icon: React.ReactNode;
+  iconBgClass: string;
+  cardClass: string;
+}
+
+const SOCIAL_LINKS_CONFIG: Record<SocialPlatform, SocialLinkConfig> = {
+  website: {
+    label: 'Website',
+    icon: <Globe size={18} className="text-white" />,
+    iconBgClass: 'bg-purple-500',
+    cardClass:
+      'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/30',
+  },
+  twitter: {
+    label: 'Twitter / X',
+    icon: <Twitter size={18} className="text-white" />,
+    iconBgClass: 'bg-slate-900',
+    cardClass:
+      'bg-slate-900/5 dark:bg-slate-900/40 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:bg-slate-900/10 dark:hover:bg-slate-900/60',
+  },
+  linkedin: {
+    label: 'LinkedIn',
+    icon: <Linkedin size={18} className="text-white" />,
+    iconBgClass: 'bg-blue-600',
+    cardClass:
+      'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30',
+  },
+  github: {
+    label: 'GitHub',
+    icon: <Github size={18} className="text-white" />,
+    iconBgClass: 'bg-gray-900',
+    cardClass:
+      'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700',
+  },
+  discord: {
+    label: 'Discord',
+    icon: <Gamepad2 size={18} className="text-white" />,
+    iconBgClass: 'bg-indigo-600',
+    cardClass:
+      'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/30',
+  },
+  telegram: {
+    label: 'Telegram',
+    icon: <Send size={18} className="text-white" />,
+    iconBgClass: 'bg-sky-500',
+    cardClass:
+      'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/30',
+  },
+  whatsapp: {
+    label: 'WhatsApp',
+    icon: <MessageCircle size={18} className="text-white" />,
+    iconBgClass: 'bg-emerald-500',
+    cardClass:
+      'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30',
+  },
+  facebook: {
+    label: 'Facebook',
+    icon: <Facebook size={18} className="text-white" />,
+    iconBgClass: 'bg-blue-700',
+    cardClass:
+      'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30',
+  },
+  instagram: {
+    label: 'Instagram',
+    icon: <Instagram size={18} className="text-white" />,
+    iconBgClass: 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600',
+    cardClass:
+      'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-800 hover:bg-pink-100 dark:hover:bg-pink-900/30',
+  },
+  youtube: {
+    label: 'YouTube',
+    icon: <Youtube size={18} className="text-white" />,
+    iconBgClass: 'bg-red-600',
+    cardClass:
+      'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30',
+  },
+};
+
+const ensureHttpsUrl = (value: string): string => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/^http:\/\//i, 'https://');
+  }
+  if (trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
+    return trimmed;
+  }
+  return `https://${trimmed.replace(/^\/+/, '')}`;
+};
+
+const buildSocialLinkUrl = (platform: SocialPlatform, rawValue?: string | null): string | null => {
+  if (!rawValue) return null;
+  const value = rawValue.trim();
+  if (!value) return null;
+
+  switch (platform) {
+    case 'twitter': {
+      if (/^https?:\/\//i.test(value) || value.includes('twitter.') || value.includes('x.com')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://twitter.com/${handle}`;
+    }
+    case 'linkedin': {
+      if (/^https?:\/\//i.test(value) || value.includes('linkedin.')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://www.linkedin.com/in/${handle}`;
+    }
+    case 'github': {
+      if (/^https?:\/\//i.test(value) || value.includes('github.')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://github.com/${handle}`;
+    }
+    case 'instagram': {
+      if (/^https?:\/\//i.test(value) || value.includes('instagram.')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://instagram.com/${handle}`;
+    }
+    case 'facebook': {
+      if (/^https?:\/\//i.test(value) || value.includes('facebook.')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://facebook.com/${handle}`;
+    }
+    case 'youtube': {
+      if (/^https?:\/\//i.test(value) || value.includes('youtube.') || value.includes('youtu.be')) {
+        return ensureHttpsUrl(value);
+      }
+      return `https://youtube.com/${value}`;
+    }
+    case 'discord': {
+      if (/^https?:\/\//i.test(value) || value.includes('discord.')) {
+        return ensureHttpsUrl(value);
+      }
+      if (value.startsWith('discord.gg/')) {
+        return ensureHttpsUrl(`https://${value}`);
+      }
+      return `https://discord.gg/${value}`;
+    }
+    case 'telegram': {
+      if (/^https?:\/\//i.test(value) || value.startsWith('t.me')) {
+        return ensureHttpsUrl(value);
+      }
+      const handle = value.replace(/^@/, '');
+      return `https://t.me/${handle}`;
+    }
+    case 'whatsapp': {
+      if (/^https?:\/\//i.test(value) || value.includes('wa.me') || value.includes('whatsapp.')) {
+        return ensureHttpsUrl(value);
+      }
+      const digits = value.replace(/[^\d]/g, '');
+      if (digits.length >= 8) {
+        return `https://wa.me/${digits}`;
+      }
+      return ensureHttpsUrl(value);
+    }
+    case 'website':
+    default:
+      return ensureHttpsUrl(value);
+  }
+};
+
+const getDisplayUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname.replace(/\/$/, '') : '';
+    return `${parsed.hostname}${pathname}`;
+  } catch {
+    return url;
+  }
+};
+
+interface SocialLinkEntry {
+  key: string;
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  iconBgClass: string;
+  cardClass: string;
+}
 
 interface PageViewProps {
   pageId?: string;
@@ -53,20 +256,83 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   // Only hide Follow button if user is owner, admin, or moderator
   // Default to showing Follow button if we can't determine role
   const canManage = !!(isOwner || isAdmin || isModerator);
-  
-  // Debug logging (remove in production)
-  if (process.env.NODE_ENV === 'development' && pageData && user) {
-    console.log('PageView Debug:', {
-      userId: user.id,
-      pageOwnerId: pageData.ownerId,
-      userRole: pageData.userRole,
-      isOwner,
-      isAdmin,
-      isModerator,
-      canManage,
-      shouldShowFollowButton: !canManage
+ 
+   // Debug logging (remove in production)
+   if (process.env.NODE_ENV === 'development' && pageData && user) {
+     console.log('PageView Debug:', {
+       userId: user.id,
+       pageOwnerId: pageData.ownerId,
+       userRole: pageData.userRole,
+       isOwner,
+       isAdmin,
+       isModerator,
+       canManage,
+       shouldShowFollowButton: !canManage
+     });
+   }
+
+  const socialLinkEntries = useMemo<SocialLinkEntry[]>(() => {
+    if (!pageData) return [];
+
+    const links = (pageData.socialLinks || {}) as Record<string, string>;
+    const entries: SocialLinkEntry[] = [];
+    const seen = new Set<string>();
+
+    const pushEntry = (key: string, href: string | null, config: SocialLinkConfig) => {
+      if (!href) return;
+      const normalizedHref = href.trim();
+      if (!normalizedHref || seen.has(normalizedHref)) return;
+
+      entries.push({
+        key,
+        href: normalizedHref,
+        label: config.label,
+        icon: config.icon,
+        iconBgClass: config.iconBgClass,
+        cardClass: config.cardClass,
+      });
+
+      seen.add(normalizedHref);
+    };
+
+    (Object.keys(SOCIAL_LINKS_CONFIG) as SocialPlatform[]).forEach((platform) => {
+      let rawValue: string | undefined;
+
+      if (platform === 'website') {
+        rawValue = links[platform] || pageData.url || (pageData as any)?.website || '';
+      } else {
+        rawValue = links[platform] ?? links[platform.toLowerCase()] ?? links[platform.toUpperCase()];
+      }
+
+      const href = buildSocialLinkUrl(platform, rawValue);
+      pushEntry(platform, href, SOCIAL_LINKS_CONFIG[platform]);
     });
-  }
+
+    Object.entries(links).forEach(([rawKey, value]) => {
+      const normalizedKey = rawKey.toLowerCase();
+      if ((SOCIAL_LINKS_CONFIG as Record<string, SocialLinkConfig>)[normalizedKey as SocialPlatform]) {
+        return;
+      }
+
+      const href = buildSocialLinkUrl('website', value);
+      if (!href) return;
+
+      const label = rawKey
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+
+      pushEntry(normalizedKey, href, {
+        label,
+        icon: <span className="text-white text-lg">🔗</span>,
+        iconBgClass: 'bg-gray-500',
+        cardClass:
+          'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-200/80 dark:hover:bg-gray-700/70',
+      });
+    });
+
+    return entries;
+  }, [pageData]);
 
   // SEO metadata will be set via SEOHead component below
 
@@ -88,6 +354,25 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         // API returns: { page: { ...pageData, isFollowing: boolean } }
         const pageDataFromApi = pageResponse.page || pageResponse;
         
+        // Parse socialLinks if needed
+        let parsedSocialLinks = null;
+        if (pageDataFromApi.socialLinks !== undefined && pageDataFromApi.socialLinks !== null) {
+          if (typeof pageDataFromApi.socialLinks === 'string') {
+            try {
+              parsedSocialLinks = JSON.parse(pageDataFromApi.socialLinks);
+            } catch (e) {
+              console.error('[PageView] Error parsing socialLinks:', e);
+              parsedSocialLinks = null;
+            }
+          } else if (typeof pageDataFromApi.socialLinks === 'object' && pageDataFromApi.socialLinks !== null) {
+            if (Object.keys(pageDataFromApi.socialLinks).length > 0) {
+              parsedSocialLinks = pageDataFromApi.socialLinks;
+            } else {
+              parsedSocialLinks = null;
+            }
+          }
+        }
+        
         // Extract isFollowing - MUST be boolean, default to false
         // API returns correct isFollowing based on authenticated user
         const isFollowingFromApi = pageDataFromApi?.isFollowing === true;
@@ -99,8 +384,17 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         const completePageData = {
           ...pageDataFromApi,
           isFollowing: isFollowingFromApi, // Explicitly set to ensure it's always boolean
-          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0
+          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0,
+          socialLinks: parsedSocialLinks, // Use parsed social links
         };
+        
+        console.log('[PageView] Page data loaded:', {
+          id: completePageData.id,
+          name: completePageData.name,
+          hasSocialLinks: !!completePageData.socialLinks,
+          socialLinksKeys: completePageData.socialLinks ? Object.keys(completePageData.socialLinks) : [],
+          socialLinksData: completePageData.socialLinks,
+        });
         
         setPageData(completePageData);
         
@@ -174,11 +468,11 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
       setIsFollowing(newIsFollowing);
         
       // Update pageData to persist the change
-      setPageData({ 
-        ...pageData, 
+        setPageData({ 
+          ...pageData, 
         isFollowing: newIsFollowing,
         followerCount: newFollowerCount
-      });
+        });
       
     } catch (err: any) {
       // Revert on error
@@ -385,10 +679,10 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                                 </>
                               ) : (
                                 <>
-                                  <UserPlus size={18} />
-                                  {isFollowing ? 'Following' : 'Follow'}
+                              <UserPlus size={18} />
+                              {isFollowing ? 'Following' : 'Follow'}
                                 </>
-                              )}
+                          )}
                             </button>
                           ) : null}
                 </>
@@ -403,8 +697,8 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                 >
                   <UserPlus size={18} />
                   Follow to Join
-                </button>
-              )}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -449,9 +743,35 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
             
                   {/* Description */}
                   {pageData.description && (
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
                       {pageData.description}
                     </p>
+                  )}
+                  
+                  {/* Social Links - Display in top card */}
+                  {socialLinkEntries.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {socialLinkEntries.map((entry: SocialLinkEntry, index: number) => {
+                          return (
+                            <a
+                              key={`${entry.key}-${index}`}
+                              href={entry.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all group hover:scale-105 ${entry.cardClass}`}
+                              title={entry.label}
+                            >
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${entry.iconBgClass}`}>
+                                {React.cloneElement(entry.icon as React.ReactElement, { size: 16 })}
+                              </div>
+                              <span className="font-medium text-xs hidden sm:inline">{entry.label}</span>
+                              <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -559,7 +879,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         )}
 
         {activeTab === 'about' && (
-          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} />
+          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} socialLinkEntries={socialLinkEntries} />
         )}
 
         {activeTab === 'followers' && (
@@ -575,7 +895,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 }
 
 // About Tab Component
-const AboutTab = ({ pageData, pageTeamMembers }: any) => {
+const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries }: { pageData: any; pageTeamMembers: any[]; socialLinkEntries: SocialLinkEntry[] }) => {
   return (
     <div className="space-y-6">
       <GlassCard className="p-6 md:p-8">
@@ -679,69 +999,34 @@ const AboutTab = ({ pageData, pageTeamMembers }: any) => {
       )}
 
       {/* Social Links */}
-      {pageData.socialLinks && Object.keys(pageData.socialLinks).length > 0 && (
+      {socialLinkEntries.length > 0 && (
         <GlassCard className="p-6 md:p-8">
           <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
             <Globe size={24} className="text-blue-500" />
             Social Links
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {pageData.socialLinks.twitter && (
+            {socialLinkEntries.map((entry: SocialLinkEntry, index: number) => {
+              const displayUrl = getDisplayUrl(entry.href);
+              return (
               <a
-                href={pageData.socialLinks.twitter}
+                  key={`${entry.key}-${index}`}
+                  href={entry.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
+                  className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all group ${entry.cardClass}`}
               >
-                <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
-                  <span className="text-white text-lg">🐦</span>
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${entry.iconBgClass}`}>
+                    {entry.icon}
                 </div>
-                <span className="font-semibold">Twitter</span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="font-semibold">{entry.label}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{displayUrl}</span>
+                </div>
                 <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
               </a>
-            )}
-            {pageData.socialLinks.linkedin && (
-              <a
-                href={pageData.socialLinks.linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all border border-blue-200 dark:border-blue-800 group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
-                  <span className="text-white text-lg">💼</span>
-                </div>
-                <span className="font-semibold">LinkedIn</span>
-                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-            )}
-            {pageData.socialLinks.github && (
-              <a
-                href={pageData.socialLinks.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-700 group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-gray-900 dark:bg-gray-100 flex items-center justify-center">
-                  <span className="text-white dark:text-gray-900 text-lg">💻</span>
-                </div>
-                <span className="font-semibold">GitHub</span>
-                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-            )}
-            {pageData.socialLinks.website && (
-              <a
-                href={pageData.socialLinks.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 px-5 py-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all border border-purple-200 dark:border-purple-800 group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
-                  <Globe size={18} className="text-white" />
-                </div>
-                <span className="font-semibold">Website</span>
-                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
-            )}
+              );
+            })}
           </div>
         </GlassCard>
       )}

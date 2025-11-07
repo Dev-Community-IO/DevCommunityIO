@@ -59,6 +59,9 @@ export interface Page {
   userRole?: string;
   createdAt?: string;
   updatedAt?: string;
+  url?: string;
+  shortBio?: string | null;
+  socialLinks?: Record<string, string> | null;
 }
 
 export interface Post {

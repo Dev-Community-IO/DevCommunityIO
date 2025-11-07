@@ -24,6 +24,9 @@ export interface Page {
     isTrending: boolean;
     createdAt: string;
     updatedAt: string;
+    url?: string;
+    socialLinks?: Record<string, string> | null;
+    shortBio?: string | null;
 }
 
 export const pagesService = {
@@ -34,6 +37,12 @@ export const pagesService = {
 
     getPage: async (slug: string) => {
         const response = await apiClient.get(`/pages/${slug}`);
+        return response.data;
+    },
+
+    checkUsername: async (username: string, pageId?: string) => {
+        const params = pageId ? { pageId } : {};
+        const response = await apiClient.get(`/pages/check-username/${username}`, { params });
         return response.data;
     },
 
@@ -131,9 +140,13 @@ export const pagesService = {
     updatePage: async (pageId: string, pageData: {
         name?: string;
         description?: string;
+        shortBio?: string;
         category?: string;
+        username?: string;
         logoUrl?: string;
         coverImageUrl?: string;
+        url?: string;
+        socialLinks?: Record<string, string>;
     }) => {
         const response = await apiClient.patch(`/pages/${pageId}`, pageData);
         return response.data;
