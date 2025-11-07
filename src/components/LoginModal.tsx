@@ -86,8 +86,14 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       const recaptchaToken = await executeRecaptcha('google_login');
+      if (!recaptchaToken) {
+        console.warn('Google login: reCAPTCHA token missing, continuing without token.');
+      } else {
+        console.debug('Google login: reCAPTCHA token retrieved.', { tokenLength: recaptchaToken.length });
+      }
       const authUrl = authService.getGoogleAuthUrl(recaptchaToken || undefined);
-      window.location.href = authUrl;
+      console.debug('Google login: redirecting to auth URL with reCAPTCHA token?', Boolean(recaptchaToken));
+    window.location.href = authUrl;
     } catch (err: any) {
       console.error('Google login reCAPTCHA error:', err);
       setError('Security verification failed. Please refresh and try again.');

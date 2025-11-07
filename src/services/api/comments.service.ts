@@ -41,6 +41,11 @@ export const commentsService = {
         return response.data;
     },
 
+    getRequirement: async () => {
+        const response = await apiClient.get('/comments/requirement');
+        return response.data;
+    },
+
     createComment: async (postId: string, data: CreateCommentData) => {
         const response = await apiClient.post(`/posts/${postId}/comments`, data);
         return response.data;
