@@ -30,6 +30,7 @@ import { ContactPage } from './components/ContactPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { TermsOfUsePage } from './components/TermsOfUsePage';
 import { CodeOfConductPage } from './components/CodeOfConductPage';
+import { ReputationSystemPage } from './components/ReputationSystemPage';
 import { FloatingCreateButton } from './components/FloatingCreateButton';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { MobileSidebar } from './components/MobileSidebar';
@@ -187,6 +188,7 @@ function App() {
         <Route path="/privacy-policy" element={<StaticPageLayout slug="privacy-policy" />} />
         <Route path="/terms-of-use" element={<StaticPageLayout slug="terms-of-use" />} />
         <Route path="/code-of-conduct" element={<StaticPageLayout slug="code-of-conduct" />} />
+        <Route path="/reputation-system" element={<ReputationSystemPageLayout />} />
 
         {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -1324,6 +1326,99 @@ function BookmarksPageLayout() {
             onPostClick={(post: Post) => navigate(`/post/${post.slug}`)}
             onLoginRequired={() => setIsLoginModalOpen(true)}
           />
+        </div>
+      </div>
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+    </>
+  );
+}
+
+// Reputation System Page Layout
+function ReputationSystemPageLayout() {
+  const navigate = useNavigate();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  return (
+    <>
+      <Navbar
+        onCreatePost={() => navigate('/create-post')}
+        onPostClick={() => {}}
+        onLogoClick={() => navigate('/')}
+        onNotificationsClick={() => navigate('/notifications')}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+      />
+      <MobileSidebar
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+        activeCategory=""
+        onCategoryChange={(cat) => {
+          const routes: Record<string, string> = {
+            'for-you': '/',
+            'following': '/following',
+            'latest': '/latest',
+            'trending': '/trending',
+            'pages': '/pages',
+            'bookmarks': '/bookmarks',
+            'tags': '/tags',
+            'podcast': '/podcast',
+            'hackathons': '/hackathons',
+            'events': '/events',
+            'opportunities': '/opportunities',
+            'about': '/about',
+            'contact': '/contact',
+            'privacy': '/privacy-policy',
+            'terms': '/terms-of-use',
+            'conduct': '/code-of-conduct',
+            'reputation-system': '/reputation-system',
+          };
+          navigate(routes[cat] || '/');
+        }}
+      />
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex gap-4 sm:gap-6 lg:gap-8">
+            {/* Left Sidebar */}
+            <div className="hidden lg:block w-16 xl:w-64 2xl:w-72 flex-shrink-0">
+              <Sidebar
+                activeCategory=""
+                forceIconOnly={false}
+                onCategoryChange={(cat) => {
+                  const routes: Record<string, string> = {
+                    'home': '/',
+                    'for-you': '/',
+                    'following': '/following',
+                    'latest': '/latest',
+                    'trending': '/trending',
+                    'pages': '/pages',
+                    'bookmarks': '/bookmarks',
+                    'tags': '/tags',
+                    'podcast': '/podcast',
+                    'hackathons': '/hackathons',
+                    'events': '/events',
+                    'opportunities': '/opportunities',
+                    'about': '/about',
+                    'contact': '/contact',
+                    'privacy': '/privacy-policy',
+                    'terms': '/terms-of-use',
+                    'conduct': '/code-of-conduct',
+                    'reputation-system': '/reputation-system',
+                  };
+                  navigate(routes[cat] || '/');
+                }}
+              />
+            </div>
+
+            {/* Main content */}
+            <div className="flex-1">
+              <ReputationSystemPage onBack={handleBack} />
+            </div>
+          </div>
         </div>
       </div>
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />

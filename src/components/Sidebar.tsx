@@ -1,4 +1,4 @@
-import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Star, Code2, Twitter, Github, Linkedin, Facebook, Instagram, Youtube } from 'lucide-react';
+import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Star, Code2, Twitter, Github, Linkedin, Facebook, Instagram, Youtube, Award } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Tooltip } from './Tooltip';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +36,7 @@ const otherMenuItems = [
   { id: 'conduct', icon: Shield, name: 'Code of Conduct' },
   { id: 'privacy', icon: Lock, name: 'Privacy Policy' },
   { id: 'terms', icon: File, name: 'Terms of Use' },
+  { id: 'reputation-system', icon: Award, name: 'Reputation System' },
   { id: 'contribute', icon: Code2, name: 'How to Contribute', external: true }
 ];
 
@@ -351,6 +352,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                       'conduct': '/code-of-conduct',
                       'privacy': '/privacy-policy',
                       'terms': '/terms-of-use',
+                      'reputation-system': '/reputation-system',
                     };
                     const route = routeMap[item.id];
                     if (route) {
