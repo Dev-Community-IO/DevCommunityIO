@@ -274,8 +274,50 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     let currentText = text;
     let key = 0;
 
+    // Badge markdown: [![text](badge-url)](link-url) - shields.io badges
+    currentText = currentText.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_, altText, badgeUrl, linkUrl) => {
+      const placeholder = `__BADGE_${key}__`;
+      parts.push(
+        <a 
+          key={`badge-${key++}`} 
+          href={linkUrl} 
+          className="inline-block transition-transform hover:scale-105" 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <img 
+            src={badgeUrl} 
+            alt={altText || 'Badge'} 
+            className="inline-block h-5 sm:h-6 align-middle"
+            loading="lazy"
+          />
+        </a>
+      );
+      return placeholder;
+    });
+
+    // Links with markdown syntax [text](url) - process before mentions to protect email addresses in link text
+    currentText = currentText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+      const placeholder = `__LINK_${key}__`;
+      parts.push(
+        <a key={`link-${key++}`} href={url} className="text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer">
+          {linkText}
+        </a>
+      );
+      return placeholder;
+    });
+
     // @mentions for users and pages (clickable)
-    currentText = currentText.replace(/@([a-zA-Z0-9_]+)/g, (_, username) => {
+    // Exclude email addresses by checking if @ is followed by a domain pattern (contains a dot)
+    currentText = currentText.replace(/@([a-zA-Z0-9_]+)/g, (match, username, offset) => {
+      // Check if this looks like an email address
+      // Email pattern: @username followed by .domain (dot followed by letters)
+      const afterMatch = currentText.substring(offset + match.length);
+      // If followed by something that looks like a domain (contains dot followed by letters), it's an email
+      if (/^[a-zA-Z0-9_.-]*\.[a-zA-Z]/.test(afterMatch)) {
+        return match; // Return as-is, it's part of an email
+      }
+      
       const placeholder = `__MENTION_${key}__`;
       parts.push(
         <a 
@@ -307,17 +349,6 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
             className="inline-block h-5 sm:h-6 align-middle"
             loading="lazy"
           />
-        </a>
-      );
-      return placeholder;
-    });
-
-    // Links with markdown syntax [text](url)
-    currentText = currentText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
-      const placeholder = `__LINK_${key}__`;
-      parts.push(
-        <a key={`link-${key++}`} href={url} className="text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer">
-          {linkText}
         </a>
       );
       return placeholder;
