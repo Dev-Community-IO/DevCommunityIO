@@ -625,19 +625,6 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                     }}
                   />
                 </div>
-              ) : pageData && (pageData.coverImage || pageData.coverImageUrl) ? (
-                <div className="relative w-full h-64 sm:h-80 lg:h-96 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 mb-6 shadow-lg">
-                  <img
-                    src={pageData.coverImage || pageData.coverImageUrl}
-                    alt={`${pageData.name} cover`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-                </div>
               ) : null}
 
 
