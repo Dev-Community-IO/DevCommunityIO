@@ -1,4 +1,4 @@
-import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye, HelpCircle, ChevronUp, Hash, AtSign, ExternalLink } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 import usersService from '../services/api/users.service';
@@ -15,6 +15,7 @@ const MAX_MENTIONS = 5;
 
 export function MarkdownEditor({ value, onChange, placeholder = 'Write your content...', minHeight = '300px' }: MarkdownEditorProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const [showTips, setShowTips] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -136,26 +137,67 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
       if (mentionMatch) {
         const query = mentionMatch[1];
         
-        // Get cursor position for dropdown
+        // Get cursor position for dropdown - position relative to editor container
         try {
           const coordinates = getCaretCoordinates(textarea, cursorPos);
-          const textareaRect = textarea.getBoundingClientRect();
           
-          // Calculate position relative to viewport
-          const topPos = textareaRect.top + coordinates.top + 25; // 25px below cursor
-          const leftPos = textareaRect.left + coordinates.left;
+          // Position relative to textarea within editor container
+          // coordinates.top and coordinates.left are relative to textarea content (accounting for padding)
+          const textareaPadding = 16; // p-4 = 16px
+          const dropdownWidth = 300;
+          const dropdownHeight = 200;
+          
+          // Position relative to textarea's content area (already accounts for padding)
+          let finalLeft = coordinates.left;
+          let finalTop = coordinates.top + 25; // 25px below cursor
+          
+          // Get textarea dimensions for boundary checking
+          const textareaWidth = textarea.offsetWidth;
+          const textareaHeight = textarea.clientHeight;
+          const textareaScrollTop = textarea.scrollTop || 0;
+          
+          // Adjust if dropdown would go off right edge of textarea
+          if (finalLeft + dropdownWidth > textareaWidth - textareaPadding) {
+            finalLeft = textareaWidth - dropdownWidth - textareaPadding;
+          }
+          
+          // Adjust if dropdown would go off left edge
+          if (finalLeft < textareaPadding) {
+            finalLeft = textareaPadding;
+          }
+          
+          // Adjust if dropdown would go off bottom edge (show above cursor instead)
+          // Account for textarea scroll position - coordinates.top is relative to textarea content
+          const relativeTop = coordinates.top - textareaScrollTop;
+          
+          if (relativeTop + dropdownHeight + 25 > textareaHeight - textareaPadding) {
+            // Show above cursor
+            finalTop = coordinates.top - dropdownHeight - 5;
+            // Ensure it doesn't go above visible area
+            if (finalTop < textareaPadding) {
+              finalTop = textareaPadding;
+            }
+          }
+          
+          // Ensure dropdown doesn't go off top edge
+          if (finalTop < textareaPadding) {
+            finalTop = coordinates.top + 25;
+            // If still too high, position at a safe location
+            if (finalTop < textareaPadding) {
+              finalTop = textareaPadding + 20;
+            }
+          }
           
           setMentionPosition({
-            top: topPos,
-            left: leftPos,
+            top: finalTop,
+            left: finalLeft,
           });
         } catch (err) {
           console.error('Failed to get caret coordinates:', err);
           // If coordinate calculation fails, use approximate position
-          const textareaRect = textarea.getBoundingClientRect();
           setMentionPosition({
-            top: textareaRect.top + 50,
-            left: textareaRect.left + 20,
+            top: 50,
+            left: 20,
           });
         }
 
@@ -365,7 +407,121 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
           <Eye size={18} />
           <span className="text-sm font-medium">{showPreview ? 'Edit' : 'Preview'}</span>
         </button>
+        <button
+          onClick={() => setShowTips(!showTips)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
+          type="button"
+          title="Editor Tips & Help"
+        >
+          <HelpCircle size={18} />
+          <span className="text-sm font-medium hidden sm:inline">Tips</span>
+        </button>
       </div>
+
+      {/* Tips Panel */}
+      {showTips && (
+        <div className="backdrop-blur-xl bg-blue-50/90 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HelpCircle size={20} className="text-blue-600 dark:text-blue-400" />
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">Editor Tips & Guide</h3>
+            </div>
+            <button
+              onClick={() => setShowTips(false)}
+              className="p-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <ChevronUp size={18} className="text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {/* Mentions */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <AtSign size={16} className="text-blue-600 dark:text-blue-400" />
+                <span>Mentions</span>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-xs leading-relaxed">
+                Type <code className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-xs">@username</code> to mention users. A dropdown will appear as you type. Use arrow keys to navigate and Enter/Tab to select. Max {MAX_MENTIONS} mentions per post.
+              </p>
+            </div>
+
+            {/* Badges */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <Hash size={16} className="text-purple-600 dark:text-purple-400" />
+                <span>Badges</span>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-xs leading-relaxed">
+                Add shields.io badges: <code className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded text-xs">[![GitHub](badge-url)](link-url)</code>. Perfect for GitHub, npm, and other project badges.
+              </p>
+              <div className="mt-2 p-2 bg-white dark:bg-gray-800 rounded border border-purple-200 dark:border-purple-800">
+                <code className="text-xs text-gray-600 dark:text-gray-400 break-all">
+                  [![GitHub](https://img.shields.io/...)](https://github.com/...)
+                </code>
+              </div>
+            </div>
+
+            {/* URL Embeds */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <ExternalLink size={16} className="text-green-600 dark:text-green-400" />
+                <span>URL Embeds</span>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-xs leading-relaxed">
+                Paste a URL on its own line to automatically create an embed preview card with title, description, and preview image.
+              </p>
+              <div className="mt-2 p-2 bg-white dark:bg-gray-800 rounded border border-green-200 dark:border-green-800">
+                <code className="text-xs text-gray-600 dark:text-gray-400 break-all">
+                  https://example.com/article
+                </code>
+              </div>
+            </div>
+
+            {/* Markdown Basics */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <Bold size={16} className="text-orange-600 dark:text-orange-400" />
+                <span>Markdown Basics</span>
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-700 dark:text-gray-300">
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">**bold**</code> or <code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">Ctrl+B</code></div>
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">*italic*</code> or <code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">Ctrl+I</code></div>
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">`code`</code> for inline code</div>
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded"># Heading</code> for headers</div>
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">- List</code> for bullet lists</div>
+                <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">[text](url)</code> for links</div>
+              </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <Code size={16} className="text-indigo-600 dark:text-indigo-400" />
+                <span>Toolbar</span>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-xs leading-relaxed">
+                Use the toolbar buttons above to quickly insert markdown formatting. Hover over each button to see its keyboard shortcut.
+              </p>
+            </div>
+
+            {/* Keyboard Shortcuts */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <Minus size={16} className="text-cyan-600 dark:text-cyan-400" />
+                <span>Keyboard Shortcuts</span>
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-700 dark:text-gray-300">
+                <div><kbd className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded border border-cyan-300 dark:border-cyan-700">Ctrl+B</kbd> Bold</div>
+                <div><kbd className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded border border-cyan-300 dark:border-cyan-700">Ctrl+I</kbd> Italic</div>
+                <div><kbd className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded border border-cyan-300 dark:border-cyan-700">↑↓</kbd> Navigate mentions</div>
+                <div><kbd className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded border border-cyan-300 dark:border-cyan-700">Enter/Tab</kbd> Select mention</div>
+                <div><kbd className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 rounded border border-cyan-300 dark:border-cyan-700">Esc</kbd> Close dropdown</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         className="relative rounded-b-xl backdrop-blur-xl bg-white/10 dark:bg-black/20 border border-white/20 dark:border-white/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all duration-300 overflow-hidden"
@@ -383,46 +539,98 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
             )}
           </div>
         ) : (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full h-full p-4 bg-transparent border-0 focus:outline-none resize-none overflow-y-auto"
-            style={{ minHeight }}
-            onKeyDown={(e) => {
-              // Handle mention dropdown navigation
-              if (showMentionDropdown && mentionUsers.length > 0) {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setSelectedMentionIndex((prev) => (prev + 1) % mentionUsers.length);
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setSelectedMentionIndex((prev) => (prev - 1 + mentionUsers.length) % mentionUsers.length);
-                } else if (e.key === 'Enter' || e.key === 'Tab') {
-                  e.preventDefault();
-                  if (mentionUsers[selectedMentionIndex]) {
-                    insertMention(mentionUsers[selectedMentionIndex].username);
+          <>
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              className="w-full h-full p-4 bg-transparent border-0 focus:outline-none resize-none overflow-y-auto"
+              style={{ minHeight }}
+              onKeyDown={(e) => {
+                // Handle mention dropdown navigation
+                if (showMentionDropdown && mentionUsers.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedMentionIndex((prev) => (prev + 1) % mentionUsers.length);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedMentionIndex((prev) => (prev - 1 + mentionUsers.length) % mentionUsers.length);
+                  } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    if (mentionUsers[selectedMentionIndex]) {
+                      insertMention(mentionUsers[selectedMentionIndex].username);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setShowMentionDropdown(false);
                   }
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setShowMentionDropdown(false);
+                  return;
                 }
-                return;
-              }
 
-              // Handle markdown shortcuts
-              if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'b') {
-                  e.preventDefault();
-                  insertMarkdown('**', '**', 'bold text');
-                } else if (e.key === 'i') {
-                  e.preventDefault();
-                  insertMarkdown('*', '*', 'italic text');
+                // Handle markdown shortcuts
+                if (e.ctrlKey || e.metaKey) {
+                  if (e.key === 'b') {
+                    e.preventDefault();
+                    insertMarkdown('**', '**', 'bold text');
+                  } else if (e.key === 'i') {
+                    e.preventDefault();
+                    insertMarkdown('*', '*', 'italic text');
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+            
+            {/* Mention Dropdown - positioned relative to editor container */}
+            {showMentionDropdown && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+                style={{
+                  top: `${mentionPosition.top}px`,
+                  left: `${mentionPosition.left}px`,
+                  minWidth: '280px',
+                  maxWidth: '320px',
+                }}
+              >
+                <div className="py-1">
+                  {mentionUsers.length > 0 ? (
+                    mentionUsers.map((user, index) => (
+                      <button
+                        key={user.id}
+                        onClick={() => insertMention(user.username)}
+                        className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left ${
+                          index === selectedMentionIndex ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                        onMouseEnter={() => setSelectedMentionIndex(index)}
+                      >
+                        <Avatar
+                          src={user.avatar || user.avatarUrl || ''}
+                          alt={user.username}
+                          size="sm"
+                          className="flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {user.pseudo || user.username}
+                          </div>
+                          {user.pseudo && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              @{user.username}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      Type to search users...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -432,56 +640,6 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
           <span className="text-orange-500 font-semibold ml-1">• Max mentions reached</span>
         )}
       </p>
-
-      {/* Mention Dropdown */}
-      {showMentionDropdown && (
-        <div
-          ref={dropdownRef}
-          className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"
-          style={{
-            top: `${mentionPosition.top}px`,
-            left: `${mentionPosition.left}px`,
-            minWidth: '280px',
-            maxWidth: '320px',
-          }}
-        >
-          <div className="py-1">
-            {mentionUsers.length > 0 ? (
-              mentionUsers.map((user, index) => (
-                <button
-                  key={user.id}
-                  onClick={() => insertMention(user.username)}
-                  className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left ${
-                    index === selectedMentionIndex ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                  onMouseEnter={() => setSelectedMentionIndex(index)}
-                >
-                  <Avatar
-                    src={user.avatar || user.avatarUrl || ''}
-                    alt={user.username}
-                    size="sm"
-                    className="flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {user.pseudo || user.username}
-                    </div>
-                    {user.pseudo && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        @{user.username}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                Type to search users...
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

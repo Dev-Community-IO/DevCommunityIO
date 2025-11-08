@@ -49,7 +49,7 @@ import { SEOHead } from './components/SEOHead';
 function App() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { showOnboarding, setShowOnboarding, checkAuth } = useAuth();
+  const { showOnboarding, setShowOnboarding, login } = useAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Handle OAuth callback
@@ -72,11 +72,11 @@ function App() {
         })
         .then(data => {
           if (data.user && data.token) {
-            localStorage.setItem('auth_token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            // Use login() function to properly set user state and check onboarding
+            // This ensures new users see onboarding immediately
+            login(data.user, data.token);
             console.log('✅ OAuth successful - user logged in');
-            // Don't reload - check auth and onboarding will be handled by AuthContext
-            checkAuth();
+            // Navigate away - onboarding will be shown by AuthContext if needed
             navigate('/', { replace: true });
           } else {
             // Only show alert if it's not a network error
@@ -119,7 +119,7 @@ function App() {
       }
       navigate('/', { replace: true });
     }
-  }, [searchParams, navigate, checkAuth]);
+  }, [searchParams, navigate, login]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -320,6 +320,7 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
   const [hasMore, setHasMore] = useState(true);
   const [postPaginationMeta, setPostPaginationMeta] = useState<{ currentPage: number; lastPage: number; perPage: number; total: number } | null>(null);
   const [supplementaryItems, setSupplementaryItems] = useState<FeedItem[]>([]); // Hackathons, events, opportunities
+  const [addedSupplementaryKeys, setAddedSupplementaryKeys] = useState<Set<string>>(new Set()); // Track which supplementary items have been added
 
   // Build post params based on category and filters
   const buildPostParams = (page: number = 1, excludeIds?: string[]) => {
@@ -449,6 +450,7 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
       setHasMore(true);
       setItems([]);
       setSupplementaryItems([]);
+      setAddedSupplementaryKeys(new Set()); // Reset added supplementary items tracking
       
       try {
         // Fetch tag info if tag filter is present
@@ -647,26 +649,43 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
       // Merge supplementary items periodically (every 3 pages)
       let mergedItems: FeedItem[] = [...items, ...newPostItems];
       if (nextPage % 3 === 0 && supplementaryItems.length > 0) {
-        // Remove duplicates based on postId
-        const seenPostIds = new Set<string>();
-        mergedItems = mergedItems.filter(item => {
-          const postId = 
-            item.type === 'post' ? item.data.id :
-            item.type === 'hackathon' ? item.data.postId :
-            item.type === 'event' ? item.data.postId :
-            item.data.postId;
-          
-          if (postId && seenPostIds.has(postId)) {
-            return false;
-          }
-          if (postId) {
-            seenPostIds.add(postId);
-          }
-          return true;
+        // Create a map of existing items by their unique keys (type + id)
+        const existingItemKeys = new Set<string>();
+        mergedItems.forEach(item => {
+          const key = 
+            item.type === 'post' ? `post-${item.data.id}` :
+            item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+            item.type === 'event' ? `event-${item.data.id}` :
+            `opportunity-${item.data.id}`;
+          existingItemKeys.add(key);
+        });
+        
+        // Filter out duplicates from supplementary items (both existing items and already added ones)
+        const newSupplementaryItems = supplementaryItems.filter(item => {
+          const key = 
+            item.type === 'post' ? `post-${item.data.id}` :
+            item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+            item.type === 'event' ? `event-${item.data.id}` :
+            `opportunity-${item.data.id}`;
+          // Check both existing items and previously added supplementary items
+          return !existingItemKeys.has(key) && !addedSupplementaryKeys.has(key);
         });
         
         // Interleave supplementary items (limit to first 5)
-        const limitedSupplementary = supplementaryItems.slice(0, 5);
+        const limitedSupplementary = newSupplementaryItems.slice(0, 5);
+        
+        // Track which supplementary items we're adding
+        const newAddedKeys = new Set(addedSupplementaryKeys);
+        limitedSupplementary.forEach(item => {
+          const key = 
+            item.type === 'post' ? `post-${item.data.id}` :
+            item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+            item.type === 'event' ? `event-${item.data.id}` :
+            `opportunity-${item.data.id}`;
+          newAddedKeys.add(key);
+        });
+        setAddedSupplementaryKeys(newAddedKeys);
+        
         const allItemsWithSupplementary = [...mergedItems, ...limitedSupplementary];
         
         // Sort if not "for-you" category
@@ -712,30 +731,49 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
 
   // Merge supplementary items with posts on initial load
   useEffect(() => {
-    if (items.length > 0 && supplementaryItems.length > 0 && currentPage === 1) {
-      const allItems: FeedItem[] = [...items, ...supplementaryItems];
-      
-      // Remove duplicates
-      const seenPostIds = new Set<string>();
-      const uniqueItems = allItems.filter(item => {
-        const postId = 
-          item.type === 'post' ? item.data.id :
-          item.type === 'hackathon' ? item.data.postId :
-          item.type === 'event' ? item.data.postId :
-          item.data.postId;
-        
-        if (postId && seenPostIds.has(postId)) {
-          return false;
-        }
-        if (postId) {
-          seenPostIds.add(postId);
-        }
-        return true;
+    // Only merge on initial load (page 1) and when we have both items and supplementary items
+    if (items.length > 0 && supplementaryItems.length > 0 && currentPage === 1 && addedSupplementaryKeys.size === 0) {
+      // Create a map of existing items by their unique keys (type + id)
+      const existingItemKeys = new Set<string>();
+      items.forEach(item => {
+        const key = 
+          item.type === 'post' ? `post-${item.data.id}` :
+          item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+          item.type === 'event' ? `event-${item.data.id}` :
+          `opportunity-${item.data.id}`;
+        existingItemKeys.add(key);
       });
+      
+      // Filter out duplicates from supplementary items
+      const newSupplementaryItems = supplementaryItems.filter(item => {
+        const key = 
+          item.type === 'post' ? `post-${item.data.id}` :
+          item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+          item.type === 'event' ? `event-${item.data.id}` :
+          `opportunity-${item.data.id}`;
+        return !existingItemKeys.has(key);
+      });
+      
+      // Limit to first 5 supplementary items
+      const limitedSupplementary = newSupplementaryItems.slice(0, 5);
+      
+      // Track which supplementary items we're adding
+      const newAddedKeys = new Set<string>();
+      limitedSupplementary.forEach(item => {
+        const key = 
+          item.type === 'post' ? `post-${item.data.id}` :
+          item.type === 'hackathon' ? `hackathon-${item.data.id}` :
+          item.type === 'event' ? `event-${item.data.id}` :
+          `opportunity-${item.data.id}`;
+        newAddedKeys.add(key);
+      });
+      setAddedSupplementaryKeys(newAddedKeys);
+      
+      const allItems: FeedItem[] = [...items, ...limitedSupplementary];
       
       // Sort if not "for-you" category
       if (category !== 'for-you') {
-        uniqueItems.sort((a, b) => {
+        allItems.sort((a, b) => {
           const dateA = new Date(
             a.type === 'post' ? (a.data.createdAt || a.data.publishedAt || 0) :
             a.type === 'hackathon' ? (a.data.createdAt || 0) :
@@ -754,9 +792,9 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
         });
       }
       
-      setItems(uniqueItems);
+      setItems(allItems);
     }
-  }, [supplementaryItems, category]);
+  }, [supplementaryItems, category, currentPage, addedSupplementaryKeys.size]);
 
   // Get active tag filter from URL
   const activeTagFilter = activeTagInfo?.name || searchParams.get('tags');

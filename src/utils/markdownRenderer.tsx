@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Copy, Check, ExternalLink } from 'lucide-react';
 
 interface MarkdownRendererProps {
   content: string;
@@ -244,11 +244,20 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
       flushTable();
       flushBlockquote();
       const paraSpacing = compact ? 'my-0 leading-snug' : 'my-3 leading-relaxed';
-      elements.push(
-        <p key={`p-${i}`} className={paraSpacing}>
-          {parseInlineMarkdown(line)}
-        </p>
-      );
+      
+      // Check if line is a standalone URL for embed
+      const urlPattern = /^https?:\/\/[^\s]+$/;
+      if (urlPattern.test(line.trim())) {
+        elements.push(
+          <UrlEmbed key={`url-${i}`} url={line.trim()} />
+        );
+      } else {
+        elements.push(
+          <p key={`p-${i}`} className={paraSpacing}>
+            {parseInlineMarkdown(line)}
+          </p>
+        );
+      }
     }
 
     // Flush any remaining blocks
@@ -276,6 +285,28 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
           className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded hover:underline transition-colors"
         >
           @{username}
+        </a>
+      );
+      return placeholder;
+    });
+
+    // Badge markdown: [![text](badge-url)](link-url) - shields.io badges
+    currentText = currentText.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_, altText, badgeUrl, linkUrl) => {
+      const placeholder = `__BADGE_${key}__`;
+      parts.push(
+        <a 
+          key={`badge-${key++}`} 
+          href={linkUrl} 
+          className="inline-block transition-transform hover:scale-105" 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <img 
+            src={badgeUrl} 
+            alt={altText || 'Badge'} 
+            className="inline-block h-5 sm:h-6 align-middle"
+            loading="lazy"
+          />
         </a>
       );
       return placeholder;
@@ -318,12 +349,13 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     });
 
     // Split by placeholders and reconstruct
-    const segments = currentText.split(/(__(?:MENTION|LINK|BOLD|ITALIC|CODE)_\d+__)/);
+    const segments = currentText.split(/(__(?:MENTION|LINK|BADGE|BOLD|ITALIC|CODE)_\d+__)/);
     const result: React.ReactNode[] = [];
 
     segments.forEach((segment, index) => {
       const mentionMatch = segment.match(/__MENTION_(\d+)__/);
       const linkMatch = segment.match(/__LINK_(\d+)__/);
+      const badgeMatch = segment.match(/__BADGE_(\d+)__/);
       const boldMatch = segment.match(/__BOLD_(\d+)__/);
       const italicMatch = segment.match(/__ITALIC_(\d+)__/);
       const codeMatch = segment.match(/__CODE_(\d+)__/);
@@ -332,6 +364,8 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
         result.push(parts.find(p => React.isValidElement(p) && p.key === `mention-${mentionMatch[1]}`));
       } else if (linkMatch) {
         result.push(parts.find(p => React.isValidElement(p) && p.key === `link-${linkMatch[1]}`));
+      } else if (badgeMatch) {
+        result.push(parts.find(p => React.isValidElement(p) && p.key === `badge-${badgeMatch[1]}`));
       } else if (boldMatch) {
         result.push(parts.find(p => React.isValidElement(p) && p.key === `bold-${boldMatch[1]}`));
       } else if (italicMatch) {
@@ -349,6 +383,98 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
       {renderMarkdown(content)}
+    </div>
+  );
+}
+
+// URL Embed component for previewing URLs
+function UrlEmbed({ url }: { url: string }) {
+  const [embedData, setEmbedData] = useState<{
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    // Extract domain for display
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '');
+      
+      // For now, show a simple link preview
+      // In production, you'd fetch oEmbed or Open Graph data
+      setEmbedData({
+        title: domain,
+        description: url,
+        siteName: domain,
+      });
+      setLoading(false);
+    } catch (err) {
+      setError(true);
+      setLoading(false);
+    }
+  }, [url]);
+
+  if (error || !embedData) {
+    return (
+      <a 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors my-2"
+      >
+        {url}
+        <ExternalLink size={14} />
+      </a>
+    );
+  }
+
+  return (
+    <div className="my-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+      <a 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="block"
+      >
+        {embedData.image && (
+          <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+            <img 
+              src={embedData.image} 
+              alt={embedData.title || 'Preview'} 
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+        <div className="p-4">
+          {embedData.siteName && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+              {embedData.siteName}
+            </div>
+          )}
+          {embedData.title && (
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-1 line-clamp-2">
+              {embedData.title}
+            </h4>
+          )}
+          {embedData.description && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+              {embedData.description}
+            </p>
+          )}
+          <div className="mt-2 text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1">
+            {url}
+            <ExternalLink size={12} />
+          </div>
+        </div>
+      </a>
     </div>
   );
 }

@@ -29,7 +29,7 @@ export function RightSidebar({ onHackathonClick, onEventClick, onOpportunityClic
   const navigate = useNavigate();
   const [trendingAuthors, setTrendingAuthors] = useState<any[]>([]);
   const [mostReputedAuthors, setMostReputedAuthors] = useState<any[]>([]);
-  const [trendingTimeframe, setTrendingTimeframe] = useState<Timeframe>('all');
+  const [trendingTimeframe, setTrendingTimeframe] = useState<Timeframe>('7d');
   const [upcomingHackathons, setUpcomingHackathons] = useState<any[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [upcomingOpportunities, setUpcomingOpportunities] = useState<any[]>([]);

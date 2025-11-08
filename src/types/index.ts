@@ -85,6 +85,7 @@ export interface Post {
   coverImageUrl?: string;
   coverImageSizes?: { thumb?: string; feed?: string; mobile?: string; full?: string } | null;
   ogImageUrl?: string;
+  autoGenerateImage?: boolean; // Whether user checked "Auto-generate social preview image"
   page?: Page;
   pageId?: string;
   postOrigin?: string | null;

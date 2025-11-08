@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User, AtSign, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { getApiBaseUrl } from '../utils/apiUrl';
@@ -26,21 +26,79 @@ export function ProfileSetup({
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameError, setUsernameError] = useState('');
 
-  // Sync with parent component changes (when initial props change)
+  // Track the last values we saved to parent, to prevent syncing when prop changes come from our own onSave
+  const lastSavedRef = useRef({ username: initialUsername, bio: initialBio, skills: initialSkills });
+  // Track current values with refs to avoid stale closures
+  const currentValuesRef = useRef({ username, bio, skills });
+  const isMountedRef = useRef(false);
+  
+  // Update refs when state changes
   useEffect(() => {
-    setUsername(initialUsername);
-    setBio(initialBio);
-    setSkills(initialSkills);
-    setUsernameValid(initialUsername ? true : null);
-    setUsernameError('');
+    currentValuesRef.current = { username, bio, skills };
+  }, [username, bio, skills]);
+  
+  useEffect(() => {
+    // On initial mount, sync all values
+    if (!isMountedRef.current) {
+      setUsername(initialUsername);
+      setBio(initialBio);
+      setSkills(initialSkills);
+      setUsernameValid(initialUsername ? true : null);
+      setUsernameError('');
+      lastSavedRef.current = { username: initialUsername, bio: initialBio, skills: initialSkills };
+      currentValuesRef.current = { username: initialUsername, bio: initialBio, skills: initialSkills };
+      isMountedRef.current = true;
+      return;
+    }
+    
+    // After mount, only sync if initial props changed from an external source
+    // If the prop equals what we last saved, it came from our own onSave callback - ignore it
+    // If the prop is different from what we last saved AND different from current state, it's external - sync it
+    const current = currentValuesRef.current;
+    if (initialUsername !== lastSavedRef.current.username && initialUsername !== current.username) {
+      setUsername(initialUsername);
+    }
+    if (initialBio !== lastSavedRef.current.bio && initialBio !== current.bio) {
+      setBio(initialBio);
+    }
+    const initialSkillsStr = JSON.stringify(initialSkills);
+    const lastSavedSkillsStr = JSON.stringify(lastSavedRef.current.skills);
+    const currentSkillsStr = JSON.stringify(current.skills);
+    if (initialSkillsStr !== lastSavedSkillsStr && initialSkillsStr !== currentSkillsStr) {
+      setSkills(initialSkills);
+    }
   }, [initialUsername, initialBio, initialSkills]);
 
-  // Sync with parent component changes (when local state changes)
+  // Debounce onSave callback to prevent excessive parent updates
+  // Only save when user stops typing for 300ms
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
-    if (username !== initialUsername || bio !== initialBio || JSON.stringify(skills) !== JSON.stringify(initialSkills)) {
-      onSave({ username, bio, skills });
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [username, bio, skills]);
+    
+    // Only save if values actually changed from what we last saved
+    const hasChanges = username !== lastSavedRef.current.username || 
+                       bio !== lastSavedRef.current.bio || 
+                       JSON.stringify(skills) !== JSON.stringify(lastSavedRef.current.skills);
+    
+    if (hasChanges) {
+      // Debounce the save
+      saveTimeoutRef.current = setTimeout(() => {
+        onSave({ username, bio, skills });
+        // Update last saved ref to track what we just saved
+        lastSavedRef.current = { username, bio, skills };
+      }, 300);
+    }
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [username, bio, skills, onSave]);
 
   // Common skills suggestions
   const suggestedSkills = [
@@ -123,13 +181,7 @@ export function ProfileSetup({
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4">
-          <User className="text-white" size={32} />
-        </div>
         <h3 className="text-2xl font-bold mb-2">Complete Your Profile</h3>
-        <p className="text-gray-600 dark:text-gray-400">
-          Tell us about yourself to personalize your experience
-        </p>
       </div>
 
       {/* Username Field */}
@@ -181,7 +233,7 @@ export function ProfileSetup({
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           placeholder="Tell us about yourself... (min 10 characters)"
-          rows={4}
+          rows={2}
           maxLength={500}
           className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-blue-500 dark:focus:border-blue-400 outline-none transition-all resize-none"
         />

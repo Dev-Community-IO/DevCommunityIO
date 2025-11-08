@@ -59,13 +59,25 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
       : 'post'
   );
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isSimplePost, setIsSimplePost] = useState(true); // Toggle between simple and long post (default: simple)
 
   // Update contentType when initialContentType prop changes (e.g., from URL query param)
   useEffect(() => {
     if (initialContentType && !isEditMode && ['post', 'hackathon', 'event', 'opportunity'].includes(initialContentType)) {
       setContentType(initialContentType);
+      // Disable simple post if switching to non-post content type
+      if (initialContentType !== 'post') {
+        setIsSimplePost(false);
+      }
     }
   }, [initialContentType, isEditMode]);
+
+  // Disable simple post mode when switching away from 'post' content type
+  useEffect(() => {
+    if (contentType !== 'post' && isSimplePost) {
+      setIsSimplePost(false);
+    }
+  }, [contentType]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -103,6 +115,46 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const organizerLogoInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
   const editDataRef = useRef<{ postId: string; hackathonId?: string; eventId?: string; opportunityId?: string } | null>(null);
+
+  // Helper function to generate title from content (first few words)
+  const generateTitleFromContent = (contentText: string, maxWords: number = 8): string => {
+    if (!contentText.trim()) return '';
+    
+    // Remove markdown formatting
+    let cleanText = contentText
+      .replace(/^#{1,6}\s+/gm, '') // Remove headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold
+      .replace(/\*([^*]+)\*/g, '$1') // Remove italic
+      .replace(/`([^`]+)`/g, '$1') // Remove inline code
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // Remove images
+      .trim();
+    
+    // Split into words and take first few
+    const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+    const titleWords = words.slice(0, maxWords);
+    
+    // Join and truncate to max length
+    let title = titleWords.join(' ');
+    if (title.length > TITLE_MAX_LENGTH) {
+      title = title.substring(0, TITLE_MAX_LENGTH).trim();
+      // Remove incomplete word at the end
+      const lastSpace = title.lastIndexOf(' ');
+      if (lastSpace > 0) {
+        title = title.substring(0, lastSpace);
+      }
+    }
+    
+    return title || 'Untitled Post';
+  };
+
+  // Auto-generate title when content changes in simple post mode
+  useEffect(() => {
+    if (isSimplePost && contentType === 'post' && content.trim() && !isEditMode) {
+      const generatedTitle = generateTitleFromContent(content);
+      setTitle(generatedTitle);
+    }
+  }, [content, isSimplePost, contentType, isEditMode]);
 
   const activeReputationRequirement = reputationRequirements[contentType] || 0;
   const bypassReputationRequirement = user ? (user.isTrusted || ['moderator', 'admin', 'super_admin'].includes(user.role)) : false;
@@ -660,7 +712,13 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     }
 
     // Validation
-    if (!title.trim()) {
+    // For simple post mode, auto-generate title if not set
+    let finalTitle = title.trim();
+    if (isSimplePost && contentType === 'post' && !finalTitle && content.trim()) {
+      finalTitle = generateTitleFromContent(content);
+    }
+    
+    if (!finalTitle) {
       setSubmitError('Title is required');
       isSubmittingRef.current = false;
       return;
@@ -688,13 +746,13 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
       if (contentType === 'post') {
         // Create or update regular post
         const postData = { 
-          title, 
+          title: finalTitle, 
           content, 
           category: contentType,
           tags: tagsList.map(t => t.tag),
-          coverImageUrl: coverImageUrl || null, // Use uploaded URL, not base64
-          coverImageSizes: coverImageSizes || null, // All image sizes
-          autoGenerateImage: autoGenerateImage, // Auto-generate OG image flag
+          coverImageUrl: isSimplePost ? null : (coverImageUrl || null), // No image for simple posts
+          coverImageSizes: isSimplePost ? null : (coverImageSizes || null), // No image for simple posts
+          autoGenerateImage: isSimplePost ? false : autoGenerateImage, // No auto-generate for simple posts
           pageId: selectedPageId || undefined,
           status: 'published',
           postOrigin: postOrigin || null,
@@ -1026,7 +1084,54 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
               )}
 
+            {/* Post Type Toggle - Only for regular posts */}
+            {contentType === 'post' && (
+              <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-200/50 dark:border-gray-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500">
+                      <FileText size={18} className="text-white" />
+                    </div>
+                    <div>
+                      <label className="text-sm sm:text-base font-bold text-gray-900 dark:text-white block">
+                        Post Type
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {isSimplePost ? 'Simple post - quick and easy' : 'Long post - full features'}
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSimplePost}
+                      onChange={(e) => {
+                        setIsSimplePost(e.target.checked);
+                        // Ensure contentType is 'post' when enabling simple post
+                        if (e.target.checked && contentType !== 'post') {
+                          setContentType('post');
+                        }
+                        // Clear cover image when switching to simple post
+                        if (e.target.checked) {
+                          setCoverImage(null);
+                          setCoverImageUrl(null);
+                          setCoverImageSizes(null);
+                          setAutoGenerateImage(false);
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-cyan-500"></div>
+                    <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {isSimplePost ? 'Simple' : 'Long'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {/* Common Fields - Title */}
+            {(!isSimplePost || contentType !== 'post') && (
             <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-200/50 dark:border-gray-800/50">
               <div className="flex items-center justify-between mb-3">
                 <label className="flex items-center gap-2 text-sm sm:text-base font-bold text-gray-900 dark:text-white">
@@ -1049,6 +1154,8 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 className="w-full px-4 py-3.5 sm:py-4 rounded-xl bg-gray-50/80 dark:bg-gray-800/80 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 text-base sm:text-lg touch-manipulation"
               />
             </div>
+            )}
+
 
             {/* Hackathon Specific Fields */}
             {contentType === 'hackathon' && (
@@ -1568,6 +1675,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
             )}
 
             {/* Cover Image */}
+            {(!isSimplePost || contentType !== 'post') && (
             <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg border border-gray-200/50 dark:border-gray-800/50">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
@@ -1673,6 +1781,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
               )}
             </div>
+            )}
 
             {/* Description */}
             <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg border border-gray-200/50 dark:border-gray-800/50">
@@ -1893,6 +2002,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
             <div className="hidden lg:block lg:absolute lg:right-0 lg:top-0 lg:w-72">
               <div className="sticky top-24 space-y-4">
                 {/* Content Type Selection - Right Sidebar */}
+                {!isSimplePost && (
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                   <label className="block text-xs font-medium mb-2 text-gray-600 dark:text-gray-400 uppercase tracking-wide">Content Type</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1902,7 +2012,15 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                       return (
                         <button
                           key={type.id}
-                          onClick={() => !isEditMode && setContentType(type.id)}
+                          onClick={() => {
+                            if (!isEditMode) {
+                              setContentType(type.id);
+                              // Disable simple post when switching away from 'post'
+                              if (type.id !== 'post') {
+                                setIsSimplePost(false);
+                              }
+                            }
+                          }}
                           disabled={isEditMode}
                           className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg text-xs transition-all ${
                             isActive
@@ -1919,6 +2037,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                     })}
                   </div>
                 </div>
+                )}
 
                 {/* Reputation Warning - Right Sidebar */}
                 {isReputationBlocked && (

@@ -3,6 +3,8 @@ import { Search, Users as UsersIcon, Check } from 'lucide-react';
 import onboardingService from '../services/api/onboarding.service';
 import { Avatar } from './Avatar';
 
+const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
 interface PageSuggestionsProps {
   selectedPages: string[];
   onPagesChange: (pages: string[]) => void;
@@ -11,7 +13,8 @@ interface PageSuggestionsProps {
 interface SuggestedPage {
   id: string;
   name: string;
-  logo: string;
+  logo?: string | null;
+  logoUrl?: string | null;
   description: string;
   category: string;
   members: number;
@@ -98,9 +101,15 @@ export function PageSuggestions({ selectedPages, onPagesChange }: PageSuggestion
                   <div className="flex items-start gap-4 mb-3">
                     <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       <img
-                        src={page.logo}
+                        src={page.logo || page.logoUrl || DEFAULT_PAGE_LOGO}
                         alt={page.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (target.src !== DEFAULT_PAGE_LOGO) {
+                            target.src = DEFAULT_PAGE_LOGO;
+                          }
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">

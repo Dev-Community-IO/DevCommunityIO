@@ -71,6 +71,10 @@ class AuthService {
     // Get current user session
     async getCurrentUser(): Promise<any> {
         const response = await apiClient.get('/auth/me');
+        // Ensure user data exists
+        if (!response.data || !response.data.user) {
+            throw new Error('No user data returned from server');
+        }
         return response.data.user;
     }
 

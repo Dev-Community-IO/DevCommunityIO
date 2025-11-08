@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Check, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import onboardingService from '../services/api/onboarding.service';
 import { InterestSelection } from './InterestSelection';
-import { UserSuggestions } from './UserSuggestions';
 import { PageSuggestions } from './PageSuggestions';
 import { ProfileSetup } from './ProfileSetup';
 import { GlassCard } from './GlassCard';
@@ -14,7 +13,7 @@ interface OnboardingWizardProps {
   onComplete: () => void;
 }
 
-type Step = 'profile' | 'interests' | 'users' | 'pages' | 'complete';
+type Step = 'profile' | 'interests' | 'pages' | 'complete';
 
 export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWizardProps) {
   const { user, updateUser, checkAuth, setShowOnboarding } = useAuth();
@@ -25,7 +24,6 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     skills: [] as string[]
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -34,7 +32,6 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
   const steps = [
     { id: 'profile', label: 'Profile', description: 'Set up your profile' },
     { id: 'interests', label: 'Interests', description: 'Pick topics' },
-    { id: 'users', label: 'People', description: 'Follow creators' },
     { id: 'pages', label: 'Communities', description: 'Join pages' },
     { id: 'complete', label: 'Done', description: 'All set!' },
   ];
@@ -50,11 +47,12 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
   }, [isOpen, currentStep]);
 
   // Load current data when modal opens and user is available
+  // Only reload when modal opens or user ID changes (not when user data changes)
   useEffect(() => {
     if (isOpen && user) {
       loadCurrentData();
     }
-  }, [isOpen, user?.id, user?.username, user?.bio, user?.skills]);
+  }, [isOpen, user?.id]);
 
   const loadCurrentData = async () => {
     if (!user) return;
@@ -68,10 +66,9 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         skills: user.skills || []
       });
 
-      // Load current onboarding data (interests, followed users, joined pages)
+      // Load current onboarding data (interests, joined pages)
       const currentData = await onboardingService.getCurrentData();
       setSelectedTags(currentData.interests || []);
-      setSelectedUsers(currentData.followedUsers || []);
       setSelectedPages(currentData.joinedPages || []);
     } catch (error) {
       console.error('Failed to load current onboarding data:', error);
@@ -86,6 +83,23 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     }
   };
 
+  // Memoize the onSave callback to prevent unnecessary re-renders
+  const handleProfileSave = useCallback((data: { username: string; bio: string; skills: string[] }) => {
+    setProfileData(data);
+  }, []);
+
+  const canProceed = () => {
+    if (currentStep === 'profile') {
+      return profileData.username.length >= 3 && 
+             profileData.bio.trim().length >= 10 && 
+             profileData.skills.length >= 3;
+    }
+    if (currentStep === 'interests') return selectedTags.length >= 3;
+    if (currentStep === 'pages') return selectedPages.length >= 1;
+    return true;
+  };
+
+  // Early return AFTER all hooks - this is safe now
   if (!isOpen) return null;
 
   const handleNext = async () => {
@@ -96,11 +110,9 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         setCurrentStep('interests');
       } else if (currentStep === 'interests') {
         await onboardingService.saveInterests(selectedTags);
-        setCurrentStep('users');
-      } else if (currentStep === 'users') {
         setCurrentStep('pages');
       } else if (currentStep === 'pages') {
-        await onboardingService.saveFollows(selectedUsers, selectedPages);
+        await onboardingService.saveFollows([], selectedPages);
         setCurrentStep('complete');
       } else if (currentStep === 'complete') {
         // Save profile and complete onboarding
@@ -148,8 +160,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   const handleBack = () => {
     if (currentStep === 'interests') setCurrentStep('profile');
-    else if (currentStep === 'users') setCurrentStep('interests');
-    else if (currentStep === 'pages') setCurrentStep('users');
+    else if (currentStep === 'pages') setCurrentStep('interests');
     else if (currentStep === 'complete') setCurrentStep('pages');
   };
 
@@ -179,18 +190,6 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const canProceed = () => {
-    if (currentStep === 'profile') {
-      return profileData.username.length >= 3 && 
-             profileData.bio.trim().length >= 10 && 
-             profileData.skills.length >= 3;
-    }
-    if (currentStep === 'interests') return selectedTags.length >= 3;
-    if (currentStep === 'users') return selectedUsers.length >= 1;
-    if (currentStep === 'pages') return selectedPages.length >= 1;
-    return true;
   };
 
   return (
@@ -295,23 +294,17 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
               <>
                 {currentStep === 'profile' && (
                   <ProfileSetup
-                    key={`profile-${user?.id}-${profileData.username}`}
+                    key={`profile-${user?.id}`}
                     initialUsername={profileData.username}
                     initialBio={profileData.bio}
                     initialSkills={profileData.skills}
-                    onSave={setProfileData}
+                    onSave={handleProfileSave}
                   />
                 )}
                 {currentStep === 'interests' && (
                   <InterestSelection
                     selectedTags={selectedTags}
                     onTagsChange={setSelectedTags}
-                  />
-                )}
-                {currentStep === 'users' && (
-                  <UserSuggestions
-                    selectedUsers={selectedUsers}
-                    onUsersChange={setSelectedUsers}
                   />
                 )}
                 {currentStep === 'pages' && (
@@ -327,18 +320,12 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
                       Your feed is now personalized based on your interests
                     </p>
-                    <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+                    <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                       <div className="p-4 rounded-xl bg-blue-500/10">
                         <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {selectedTags.length}
                         </p>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Topics</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-green-500/10">
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {selectedUsers.length}
-                        </p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Following</p>
                       </div>
                       <div className="p-4 rounded-xl bg-purple-500/10">
                         <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
@@ -367,7 +354,6 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
             <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center flex-1 mx-2">
               {currentStep === 'profile' && 'Complete your profile'}
               {currentStep === 'interests' && '3+ topics'}
-              {currentStep === 'users' && '1+ person'}
               {currentStep === 'pages' && '1+ community'}
               {currentStep === 'complete' && 'Ready!'}
             </div>

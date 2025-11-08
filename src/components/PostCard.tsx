@@ -499,11 +499,13 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
             {postData.title}
           </h3>
 
-          {/* Cover Image - Show cover image or OG image if auto-generated - Mobile Optimized */}
-          {(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes || postData.ogImageUrl) && (
+          {/* Cover Image - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
+          {/* Don't show auto-generated OG images unless user explicitly requested them */}
+          {((postData.autoGenerateImage && (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes || postData.ogImageUrl)) || 
+            (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes)) && (
             <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3">
               <ResponsivePostImage
-                coverImageUrl={postData.coverImage || postData.coverImageUrl || postData.ogImageUrl}
+                coverImageUrl={postData.coverImage || postData.coverImageUrl || (postData.autoGenerateImage ? postData.ogImageUrl : undefined)}
                 coverImageSizes={postData.coverImageSizes}
                 alt={postData.title}
                 className="w-full h-full object-cover"

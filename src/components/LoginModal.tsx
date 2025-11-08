@@ -14,7 +14,7 @@ interface LoginModalProps {
 type LoginStep = 'select' | 'connecting' | 'signing';
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
-  const { login } = useAuth();
+  const { login, checkAuth } = useAuth();
   const [step, setStep] = useState<LoginStep>('select');
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +67,10 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
       // Save auth state (this will check onboarding automatically)
       await login(response.user, response.token);
+
+      // Ensure onboarding is checked after wallet login
+      // This is important because wallet users might be new and need onboarding
+      await checkAuth();
 
       // Close modal - onboarding will be handled globally if needed
       onClose();

@@ -196,11 +196,12 @@ export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = fal
           </p>
         )}
 
-        {/* Cover Image - Small Thumbnail */}
-        {(post.coverImage || post.coverImageUrl) && (
+        {/* Cover Image - Small Thumbnail - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
+        {((post.autoGenerateImage && (post.coverImage || post.coverImageUrl || post.ogImageUrl)) || 
+          (post.coverImage || post.coverImageUrl)) && (
           <div className="relative w-full h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
             <img
-              src={post.coverImage || post.coverImageUrl}
+              src={post.coverImage || post.coverImageUrl || (post.autoGenerateImage ? post.ogImageUrl : undefined)}
               alt={post.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={(e) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2 } from 'lucide-react';
+import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2, Pencil, UserX, ArrowRightLeft } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
@@ -77,6 +77,15 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResultsRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<FilterType>('all');
+
+  // Member management states
+  const [selectedMemberForAction, setSelectedMemberForAction] = useState<any | null>(null);
+  const [showUpdateRoleModal, setShowUpdateRoleModal] = useState(false);
+  const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false);
+  const [showTransferOwnershipModal, setShowTransferOwnershipModal] = useState(false);
+  const [newRole, setNewRole] = useState<'admin' | 'moderator'>('moderator');
+  const [isProcessingMemberAction, setIsProcessingMemberAction] = useState(false);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState({
@@ -641,6 +650,92 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       setSearchError(err?.response?.data?.message || err?.message || 'Failed to add team member')
     }
   }
+
+  const handleUpdateMemberRole = async () => {
+    if (!selectedPageId || !selectedMemberForAction) return;
+
+    try {
+      setIsProcessingMemberAction(true);
+      setMemberActionError(null);
+      await pagesService.updateTeamMemberRole(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id, newRole);
+      
+      // Refresh members
+      const members = await pagesService.getMembers(selectedPageId);
+      setPageMembers(members.members || members || []);
+      
+      // Refresh pages list
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(normalizePages(pagesWithRoles));
+      
+      setShowUpdateRoleModal(false);
+      setSelectedMemberForAction(null);
+      setNewRole('moderator');
+    } catch (err: any) {
+      setMemberActionError(err?.response?.data?.message || err?.message || 'Failed to update member role');
+    } finally {
+      setIsProcessingMemberAction(false);
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!selectedPageId || !selectedMemberForAction) return;
+
+    try {
+      setIsProcessingMemberAction(true);
+      setMemberActionError(null);
+      await pagesService.removeTeamMember(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id);
+      
+      // Refresh members
+      const members = await pagesService.getMembers(selectedPageId);
+      setPageMembers(members.members || members || []);
+      
+      // Refresh pages list
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(normalizePages(pagesWithRoles));
+      
+      setShowRemoveMemberModal(false);
+      setSelectedMemberForAction(null);
+    } catch (err: any) {
+      setMemberActionError(err?.response?.data?.message || err?.message || 'Failed to remove member');
+    } finally {
+      setIsProcessingMemberAction(false);
+    }
+  };
+
+  const handleTransferOwnership = async () => {
+    if (!selectedPageId || !selectedMemberForAction) return;
+
+    try {
+      setIsProcessingMemberAction(true);
+      setMemberActionError(null);
+      await pagesService.transferOwnership(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id);
+      
+      // Refresh members and pages
+      const members = await pagesService.getMembers(selectedPageId);
+      setPageMembers(members.members || members || []);
+      
+      const pages = await usersService.getUserPages(username);
+      const pagesWithRoles = Array.isArray(pages) ? pages : [];
+      setUserPages(normalizePages(pagesWithRoles));
+      
+      // Update selectedPageId if needed (if user is no longer owner, switch to list view)
+      const updatedPage = pagesWithRoles.find((p: any) => p.id === selectedPageId);
+      if (!updatedPage || !canManage(updatedPage)) {
+        setViewMode('list');
+        setSelectedPageId(null);
+        setActiveTab('dashboard');
+      }
+      
+      setShowTransferOwnershipModal(false);
+      setSelectedMemberForAction(null);
+    } catch (err: any) {
+      setMemberActionError(err?.response?.data?.message || err?.message || 'Failed to transfer ownership');
+    } finally {
+      setIsProcessingMemberAction(false);
+    }
+  };
 
   const renderAddTeamMemberModal = () => {
     if (!showAddTeamMemberModal || !selectedPageForTeam) {
@@ -1938,21 +2033,73 @@ export function ProfilePages({ username }: ProfilePagesProps) {
 
               {pageMembers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pageMembers.map((member: any) => (
-                    <GlassCard key={member.id} className="p-4">
+                  {pageMembers.map((member: any) => {
+                    const isOwner = selectedPage?.ownerId === (member.userId || member.id) || member.role === 'owner';
+                    const canEdit = canManage(selectedPage) && !isOwner; // Only owner/admin can edit, but not themselves if owner
+                    const isCurrentUser = authUser?.id === (member.userId || member.id);
+                    
+                    return (
+                    <GlassCard key={member.id || member.userId} className="p-4 hover:shadow-xl transition-all">
                       <div className="flex items-center gap-4">
                         <Avatar src={member.avatar || member.avatarUrl} alt={member.username || member.name} size="lg" />
                       <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
                           <p className="font-bold text-gray-900 dark:text-white truncate">
                             {member.username || member.name}
                           </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {member.role || 'Member'}
-                          </p>
+                            {isOwner && <Crown size={16} className="text-yellow-500 flex-shrink-0" />}
                     </div>
+                          <Badge 
+                            variant={isOwner ? 'gradient' : member.role === 'admin' ? 'default' : 'default'}
+                            className="text-xs"
+                          >
+                            {isOwner ? 'Owner' : member.role === 'admin' ? 'Admin' : member.role === 'moderator' ? 'Moderator' : 'Member'}
+                          </Badge>
+                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            setSelectedMemberForAction(member);
+                            setNewRole(member.role === 'admin' ? 'moderator' : 'admin');
+                            setShowUpdateRoleModal(true);
+                          }}
+                          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          title="Update Role"
+                        >
+                          <Pencil size={16} className="text-gray-600 dark:text-gray-400" />
+                        </button>
+                        {!isCurrentUser && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedMemberForAction(member);
+                                setShowRemoveMemberModal(true);
+                              }}
+                              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="Remove Member"
+                            >
+                              <UserX size={16} className="text-red-600 dark:text-red-400" />
+                            </button>
+                            {selectedPage?.ownerId === authUser?.id && (
+                              <button
+                                onClick={() => {
+                                  setSelectedMemberForAction(member);
+                                  setShowTransferOwnershipModal(true);
+                                }}
+                                className="p-2 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
+                                title="Transfer Ownership"
+                              >
+                                <ArrowRightLeft size={16} className="text-yellow-600 dark:text-yellow-400" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                     </GlassCard>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <GlassCard className="p-12 text-center">
@@ -2463,9 +2610,276 @@ export function ProfilePages({ username }: ProfilePagesProps) {
             )}
         </div>
         {renderAddTeamMemberModal()}
+        
+        {/* Update Role Modal */}
+        {showUpdateRoleModal && selectedMemberForAction && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowUpdateRoleModal(false);
+                setSelectedMemberForAction(null);
+                setMemberActionError(null);
+              }
+            }}
+          >
+            <GlassCard className="w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Update Member Role</h3>
+                <button
+                  onClick={() => {
+                    setShowUpdateRoleModal(false);
+                    setSelectedMemberForAction(null);
+                    setMemberActionError(null);
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X size={20} className="text-gray-600 dark:text-gray-400" />
+                </button>
+      </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                  <Avatar src={selectedMemberForAction.avatar || selectedMemberForAction.avatarUrl} alt={selectedMemberForAction.username || selectedMemberForAction.name} size="md" />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white">{selectedMemberForAction.username || selectedMemberForAction.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Current role: {selectedMemberForAction.role || 'Member'}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    New Role
+                  </label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value as 'admin' | 'moderator')}
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none text-base"
+                    disabled={isProcessingMemberAction}
+                  >
+                    <option value="moderator">Moderator</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {memberActionError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-600 dark:text-red-400">{memberActionError}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={handleUpdateMemberRole}
+                    disabled={isProcessingMemberAction}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingMemberAction ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Update Role
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUpdateRoleModal(false);
+                      setSelectedMemberForAction(null);
+                      setMemberActionError(null);
+                    }}
+                    className="px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium"
+                    disabled={isProcessingMemberAction}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        )}
+
+        {/* Remove Member Modal */}
+        {showRemoveMemberModal && selectedMemberForAction && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowRemoveMemberModal(false);
+                setSelectedMemberForAction(null);
+                setMemberActionError(null);
+              }
+            }}
+          >
+            <GlassCard className="w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Remove Team Member</h3>
+                <button
+                  onClick={() => {
+                    setShowRemoveMemberModal(false);
+                    setSelectedMemberForAction(null);
+                    setMemberActionError(null);
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X size={20} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                  <Avatar src={selectedMemberForAction.avatar || selectedMemberForAction.avatarUrl} alt={selectedMemberForAction.username || selectedMemberForAction.name} size="md" />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white">{selectedMemberForAction.username || selectedMemberForAction.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Role: {selectedMemberForAction.role || 'Member'}</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    Are you sure you want to remove this member from the team? They will lose access to manage this page.
+                  </p>
+                </div>
+
+                {memberActionError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-600 dark:text-red-400">{memberActionError}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={handleRemoveMember}
+                    disabled={isProcessingMemberAction}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl hover:from-red-600 hover:to-rose-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingMemberAction ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Removing...
+                      </>
+                    ) : (
+                      <>
+                        <UserX size={18} />
+                        Remove Member
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRemoveMemberModal(false);
+                      setSelectedMemberForAction(null);
+                      setMemberActionError(null);
+                    }}
+                    className="px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium"
+                    disabled={isProcessingMemberAction}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        )}
+
+        {/* Transfer Ownership Modal */}
+        {showTransferOwnershipModal && selectedMemberForAction && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowTransferOwnershipModal(false);
+                setSelectedMemberForAction(null);
+                setMemberActionError(null);
+              }
+            }}
+          >
+            <GlassCard className="w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Crown size={24} className="text-yellow-500" />
+                  Transfer Ownership
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowTransferOwnershipModal(false);
+                    setSelectedMemberForAction(null);
+                    setMemberActionError(null);
+                  }}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X size={20} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                  <Avatar src={selectedMemberForAction.avatar || selectedMemberForAction.avatarUrl} alt={selectedMemberForAction.username || selectedMemberForAction.name} size="md" />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-white">{selectedMemberForAction.username || selectedMemberForAction.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Current role: {selectedMemberForAction.role || 'Member'}</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-2">⚠️ Important Warning</p>
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    You are about to transfer ownership of this page to <strong>{selectedMemberForAction.username || selectedMemberForAction.name}</strong>. 
+                    After this action:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-yellow-800 dark:text-yellow-300 mt-2 space-y-1">
+                    <li>They will become the new owner</li>
+                    <li>You will become an admin member</li>
+                    <li>You will lose the ability to transfer ownership again</li>
+                    <li>This action cannot be undone</li>
+                  </ul>
+                </div>
+
+                {memberActionError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-600 dark:text-red-400">{memberActionError}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={handleTransferOwnership}
+                    disabled={isProcessingMemberAction}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white rounded-xl hover:from-yellow-600 hover:to-amber-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingMemberAction ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Transferring...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRightLeft size={18} />
+                        Transfer Ownership
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowTransferOwnershipModal(false);
+                      setSelectedMemberForAction(null);
+                      setMemberActionError(null);
+                    }}
+                    className="px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium"
+                    disabled={isProcessingMemberAction}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        )}
       </div>
     );
   }
-
-  return null;
 }

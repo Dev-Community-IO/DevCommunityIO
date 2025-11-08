@@ -608,11 +608,13 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
               <div>
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6 leading-tight">{post.title}</h1>
 
-              {/* Cover Image - Show post cover first, only fallback to page cover if post has none */}
-              {(post.coverImage || post.coverImageUrl || post.coverImageSizes || post.ogImageUrl) ? (
+              {/* Cover Image - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
+              {/* Don't show auto-generated OG images unless user explicitly requested them */}
+              {((post.autoGenerateImage && (post.coverImage || post.coverImageUrl || post.coverImageSizes || post.ogImageUrl)) || 
+                (post.coverImage || post.coverImageUrl || post.coverImageSizes)) ? (
                 <div className="relative w-full h-48 sm:h-64 md:h-80 lg:h-96 xl:h-[28rem] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 sm:mb-6 shadow-lg">
                   <ResponsivePostImage
-                    coverImageUrl={post.coverImage || post.coverImageUrl || post.ogImageUrl}
+                    coverImageUrl={post.coverImage || post.coverImageUrl || (post.autoGenerateImage ? post.ogImageUrl : undefined)}
                     coverImageSizes={post.coverImageSizes}
                     alt={post.title}
                     className="w-full h-full object-cover"

@@ -81,6 +81,11 @@ export const pagesService = {
         return response.data;
     },
 
+    transferOwnership: async (id: string, userId: string) => {
+        const response = await apiClient.post(`/pages/${id}/transfer-ownership/${userId}`);
+        return response.data;
+    },
+
     searchUsers: async (query: string) => {
         const response = await apiClient.get('/users/search', { params: { q: query, limit: 10 } });
         return response.data.users || response.data || [];
