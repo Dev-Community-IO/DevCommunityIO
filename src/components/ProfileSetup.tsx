@@ -169,12 +169,6 @@ export function ProfileSetup({
     setSkills(skills.filter(s => s !== skillToRemove));
   };
 
-  const handleSubmit = () => {
-    if (usernameValid && username && bio.trim()) {
-      onSave({ username, bio, skills });
-    }
-  };
-
   const isValid = usernameValid && username.length >= 3 && bio.trim().length >= 10 && skills.length >= 3;
 
   return (
