@@ -2,13 +2,107 @@ import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Brief
 import { GlassCard } from './GlassCard';
 import { Tooltip } from './Tooltip';
 import { useAuth } from '../contexts/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import bookmarksService from '../services/api/bookmarks.service';
 import tagsService, { Tag } from '../services/api/tags.service';
 import { useNavigate } from 'react-router-dom';
 import siteSettingsService from '../services/api/siteSettings.service';
 import { isNetworkError } from '../services/api/config';
 import { getVersion, getGitTag, getCommitHash } from '../utils/version';
+
+// Helper function to determine platform and icon from URL
+interface SocialLinkInfo {
+  url: string;
+  platform: string;
+  icon: any;
+  label: string;
+  className: string;
+}
+
+const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
+  if (!url || typeof url !== 'string' || url.trim() === '') return null;
+  
+  const lowerUrl = url.toLowerCase().trim();
+  
+  // Twitter/X
+  if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
+    return {
+      url,
+      platform: 'twitter',
+      icon: Twitter,
+      label: 'Twitter',
+      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+    };
+  }
+  
+  // GitHub
+  if (lowerUrl.includes('github.com')) {
+    return {
+      url,
+      platform: 'github',
+      icon: Github,
+      label: 'GitHub',
+      className: 'p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all'
+    };
+  }
+  
+  // Discord
+  if (lowerUrl.includes('discord.com') || lowerUrl.includes('discord.gg')) {
+    return {
+      url,
+      platform: 'discord',
+      icon: null, // Custom SVG
+      label: 'Discord',
+      className: 'p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 active:scale-95 transition-all'
+    };
+  }
+  
+  // LinkedIn
+  if (lowerUrl.includes('linkedin.com')) {
+    return {
+      url,
+      platform: 'linkedin',
+      icon: Linkedin,
+      label: 'LinkedIn',
+      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+    };
+  }
+  
+  // Facebook
+  if (lowerUrl.includes('facebook.com') || lowerUrl.includes('fb.com')) {
+    return {
+      url,
+      platform: 'facebook',
+      icon: Facebook,
+      label: 'Facebook',
+      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+    };
+  }
+  
+  // Instagram
+  if (lowerUrl.includes('instagram.com')) {
+    return {
+      url,
+      platform: 'instagram',
+      icon: Instagram,
+      label: 'Instagram',
+      className: 'p-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all'
+    };
+  }
+  
+  // YouTube
+  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
+    return {
+      url,
+      platform: 'youtube',
+      icon: Youtube,
+      label: 'YouTube',
+      className: 'p-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all'
+    };
+  }
+  
+  return null;
+};
 
 interface SidebarProps {
   activeCategory: string;
@@ -122,7 +216,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
     const fetchSettings = async () => {
       try {
         const [url, settings] = await Promise.all([
-          siteSettingsService.getSetting('github_contribute_url').catch(() => null),
+          siteSettingsService.getSetting('github_contribute_url', false).catch(() => null), // Load without cache for fresh data
           siteSettingsService.getSettings([
             'site_name',
             'email_footer_html',
@@ -136,9 +230,15 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
             'email_footer_social_facebook',
             'email_footer_social_instagram',
             'email_footer_social_youtube'
-          ]).catch(() => ({} as Record<string, string | null>))
+          ], false).catch(() => ({} as Record<string, string | null>)) // Load without cache for fresh data
         ]);
-        setGithubContributeUrl(url);
+        
+        // Handle URL: use null if empty string or null, otherwise use the URL
+        const contributeUrl = url && url.trim() !== '' ? url.trim() : null;
+        setGithubContributeUrl(contributeUrl);
+        
+        console.log('[Sidebar] Loaded GitHub contribute URL:', contributeUrl);
+        
         const settingsRecord = settings as Record<string, string | null>;
         
         setSiteSettings({
@@ -160,6 +260,8 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
         if (!isNetworkError(err)) {
         console.error('Error fetching settings:', err);
         }
+        // Set to null on error so button is disabled
+        setGithubContributeUrl(null);
       }
     };
 
@@ -172,6 +274,40 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
 
   // Combine menu items based on authentication
   const allMenuItems = isAuthenticated ? [...mainMenuItems, ...authenticatedMenuItems] : mainMenuItems;
+
+  // Build social links array from database settings, dynamically determining icons from URLs
+  const socialLinks = useMemo(() => {
+    const links: SocialLinkInfo[] = [];
+    
+    // Collect all social URLs from settings
+    const socialUrls = [
+      siteSettings.emailFooterSocialTwitter,
+      siteSettings.emailFooterSocialGithub,
+      siteSettings.emailFooterSocialDiscord,
+      siteSettings.emailFooterSocialLinkedin,
+      siteSettings.emailFooterSocialFacebook,
+      siteSettings.emailFooterSocialInstagram,
+      siteSettings.emailFooterSocialYoutube,
+    ].filter((url): url is string => url !== null && url !== undefined && url.trim() !== '');
+    
+    // Determine platform and icon for each URL
+    socialUrls.forEach((url) => {
+      const platformInfo = getSocialPlatformFromUrl(url);
+      if (platformInfo) {
+        links.push(platformInfo);
+      }
+    });
+    
+    return links;
+  }, [
+    siteSettings.emailFooterSocialTwitter,
+    siteSettings.emailFooterSocialGithub,
+    siteSettings.emailFooterSocialDiscord,
+    siteSettings.emailFooterSocialLinkedin,
+    siteSettings.emailFooterSocialFacebook,
+    siteSettings.emailFooterSocialInstagram,
+    siteSettings.emailFooterSocialYoutube
+  ]);
 
   return (
     <aside className={`${isMobileSidebar ? '' : `hidden lg:block left-4 sm:left-6 lg:left-12 xl:left-24 2xl:left-48 ${forceIconOnly ? 'w-16' : 'w-16 xl:w-64 2xl:w-72'} z-40`}`}>
@@ -452,94 +588,31 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                   <span>{siteSettings.emailFooterMadeWithText || 'by developers'}</span>
                 </div>
               )}
-              {/* Social Media Links */}
-              {(siteSettings.emailFooterSocialTwitter || 
-                siteSettings.emailFooterSocialGithub || 
-                siteSettings.emailFooterSocialDiscord || 
-                siteSettings.emailFooterSocialLinkedin || 
-                siteSettings.emailFooterSocialFacebook || 
-                siteSettings.emailFooterSocialInstagram || 
-                siteSettings.emailFooterSocialYoutube) && (
+              {/* Social Media Links - Dynamically rendered from database URLs */}
+              {socialLinks.length > 0 && (
                 <div className="flex items-center justify-center gap-2 pt-2">
-                  {siteSettings.emailFooterSocialTwitter && (
-                    <a
-                      href={siteSettings.emailFooterSocialTwitter}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
-                      aria-label="Twitter"
-                    >
-                      <Twitter size={14} />
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialGithub && (
-                    <a
-                      href={siteSettings.emailFooterSocialGithub}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all"
-                      aria-label="GitHub"
-                    >
-                      <Github size={14} />
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialDiscord && (
-                    <a
-                      href={siteSettings.emailFooterSocialDiscord}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 active:scale-95 transition-all"
-                      aria-label="Discord"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
-                      </svg>
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialLinkedin && (
-                    <a
-                      href={siteSettings.emailFooterSocialLinkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
-                      aria-label="LinkedIn"
-                    >
-                      <Linkedin size={14} />
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialFacebook && (
-                    <a
-                      href={siteSettings.emailFooterSocialFacebook}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all"
-                      aria-label="Facebook"
-                    >
-                      <Facebook size={14} />
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialInstagram && (
-                    <a
-                      href={siteSettings.emailFooterSocialInstagram}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all"
-                      aria-label="Instagram"
-                    >
-                      <Instagram size={14} />
-                    </a>
-                  )}
-                  {siteSettings.emailFooterSocialYoutube && (
-                    <a
-                      href={siteSettings.emailFooterSocialYoutube}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all"
-                      aria-label="YouTube"
-                    >
-                      <Youtube size={14} />
-                    </a>
-                  )}
+                  {socialLinks.map((link, index) => {
+                    const IconComponent = link.icon;
+                    return (
+                      <a
+                        key={`${link.platform}-${index}`}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={link.className}
+                        aria-label={link.label}
+                        title={link.label}
+                      >
+                        {link.platform === 'discord' ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                          </svg>
+                        ) : IconComponent ? (
+                          <IconComponent size={14} />
+                        ) : null}
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>

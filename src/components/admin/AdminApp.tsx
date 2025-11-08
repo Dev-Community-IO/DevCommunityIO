@@ -203,17 +203,21 @@ export function AdminApp() {
 
   const loadGithubUrls = async () => {
     try {
+      // Load without cache to ensure fresh data
       const settings = await siteSettingsService.getSettings([
         'github_repo_url',
         'github_issues_url',
         'github_frontend_repo_url',
         'github_contribute_url'
-      ]);
+      ], false); // Don't use cache
+      
+      console.log('[AdminApp] Loaded GitHub settings:', settings);
+      
       setGithubUrls({
-        repo: settings.github_repo_url || '',
-        issues: settings.github_issues_url || '',
-        frontend: settings.github_frontend_repo_url || '',
-        contribute: settings.github_contribute_url || ''
+        repo: settings.github_repo_url ?? '',
+        issues: settings.github_issues_url ?? '',
+        frontend: settings.github_frontend_repo_url ?? '',
+        contribute: settings.github_contribute_url ?? ''
       });
     } catch (error) {
       console.error('Failed to load GitHub URLs:', error);
@@ -518,19 +522,18 @@ export function AdminApp() {
     try {
       setSavingGithub(true);
       
-      // Save GitHub URLs to site_settings
-      if (githubUrls.repo) {
-        await adminService.updateSiteSetting('github_repo_url', githubUrls.repo);
-      }
-      if (githubUrls.issues) {
-        await adminService.updateSiteSetting('github_issues_url', githubUrls.issues);
-      }
-      if (githubUrls.frontend) {
-        await adminService.updateSiteSetting('github_frontend_repo_url', githubUrls.frontend);
-      }
-      if (githubUrls.contribute) {
-        await adminService.updateSiteSetting('github_contribute_url', githubUrls.contribute);
-      }
+      // Save GitHub URLs to site_settings (save all values, including empty strings to allow clearing)
+      await adminService.updateSiteSetting('github_repo_url', githubUrls.repo || '');
+      await adminService.updateSiteSetting('github_issues_url', githubUrls.issues || '');
+      await adminService.updateSiteSetting('github_frontend_repo_url', githubUrls.frontend || '');
+      await adminService.updateSiteSetting('github_contribute_url', githubUrls.contribute || '');
+      
+      // Invalidate cache and reload GitHub URLs to ensure UI reflects saved values
+      // Use a small delay to ensure backend has processed the updates
+      siteSettingsService.invalidateCache();
+      setTimeout(async () => {
+        await loadGithubUrls();
+      }, 100);
       
       setSaveSuccessGithub(true);
       setTimeout(() => setSaveSuccessGithub(false), 3000);
