@@ -284,7 +284,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
 
   if (loading || !mockUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <ProfileHeaderSkeleton />
         </div>
@@ -294,7 +294,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
 
   if (userNotFound) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
           <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
             <UserPlus size={40} className="text-red-500" />
@@ -306,7 +306,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           {onBack && (
             <button
               onClick={onBack}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg shadow-blue-500/25"
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-all"
             >
               Go Back
             </button>
@@ -317,7 +317,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 pb-20 sm:pb-24">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 sm:pb-24">
       {/* Hero Section - Mobile Optimized */}
       <div className="relative">
         {/* Cover Image - Responsive Height */}
@@ -329,17 +329,17 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                 alt="Cover" 
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+              <div className="absolute inset-0 bg-black/20"></div>
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
+            <div className="w-full h-full bg-gray-200 dark:bg-gray-800"></div>
           )}
           
           {/* Edit Cover Button - Mobile Optimized */}
           {isOwnProfile && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all shadow-lg touch-manipulation"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-95 transition-all touch-manipulation"
             >
               <Edit3 size={16} className="sm:w-[18px] sm:h-[18px]" />
               <span className="text-xs sm:text-sm hidden xs:inline">Edit Profile</span>
@@ -350,7 +350,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
         {/* Profile Card - Mobile Optimized */}
         <div className="relative px-4 sm:px-6 md:px-8 -mt-12 sm:-mt-16 md:-mt-20 z-10">
           <div className="max-w-7xl mx-auto">
-            <GlassCard className="p-4 sm:p-6 md:p-8 lg:p-10 shadow-2xl border-2 border-gray-200/50 dark:border-gray-700/50">
+            <GlassCard className="p-4 sm:p-6 md:p-8 lg:p-10 border border-gray-200 dark:border-gray-700">
               <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6 md:gap-8">
                 {/* Left Section - Avatar & Basic Info - Mobile Optimized */}
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 md:gap-6 items-center sm:items-start w-full sm:w-auto">
@@ -360,7 +360,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                       src={mockUser.avatar}
                       alt={mockUser.username}
                       size="xl"
-                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 ring-4 ring-white dark:ring-gray-900 shadow-2xl"
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 ring-4 ring-white dark:ring-gray-900"
                       isTrusted={mockUser.isTrusted}
                     />
                   </div>
@@ -454,7 +454,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                             href={`https://twitter.com/${mockUser.socialLinks.twitter}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 touch-manipulation"
+                            className="p-2 sm:p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all touch-manipulation"
                             aria-label="Twitter"
                           >
                             <Twitter size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -465,7 +465,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                             href={mockUser.socialLinks.linkedin}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 touch-manipulation"
+                            className="p-2 sm:p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all touch-manipulation"
                             aria-label="LinkedIn"
                           >
                             <Linkedin size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -476,7 +476,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                             href={`https://github.com/${mockUser.socialLinks.github}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 sm:p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation"
+                            className="p-2 sm:p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all touch-manipulation"
                             aria-label="GitHub"
                           >
                             <Github size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -491,32 +491,32 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                 <div className="flex-shrink-0 lg:ml-auto w-full lg:w-auto">
                   {/* Stats Grid - Mobile Optimized */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
-                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
-                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{mockUser.stats.posts.toLocaleString()}</p>
+                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">{mockUser.stats.posts.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 font-medium">Posts</p>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
-                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600 dark:text-purple-400">{mockUser.stats.replies.toLocaleString()}</p>
+                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">{mockUser.stats.replies.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 font-medium">Replies</p>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
-                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-green-600 dark:text-green-400">{mockUser.reputation.toLocaleString()}</p>
+                    <div className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 active:scale-95 transition-transform touch-manipulation cursor-pointer min-h-[70px] sm:min-h-[80px]">
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">{mockUser.reputation.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 font-medium">Rep</p>
                     </div>
                     <div 
                       ref={followersRef}
                       onClick={() => setShowFollowersDropdown(true)}
-                      className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-lg active:scale-95 transition-all touch-manipulation min-h-[70px] sm:min-h-[80px]"
+                      className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 cursor-pointer active:scale-95 transition-all touch-manipulation min-h-[70px] sm:min-h-[80px]"
                     >
-                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-orange-600 dark:text-orange-400">{mockUser.stats.followers.toLocaleString()}</p>
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">{mockUser.stats.followers.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 font-medium">Followers</p>
                     </div>
                     <div 
                       ref={followingRef}
                       onClick={() => setShowFollowingDropdown(true)}
-                      className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 border border-pink-200 dark:border-pink-800 cursor-pointer hover:shadow-lg active:scale-95 transition-all touch-manipulation min-h-[70px] sm:min-h-[80px]"
+                      className="flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 cursor-pointer active:scale-95 transition-all touch-manipulation min-h-[70px] sm:min-h-[80px]"
                     >
-                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-pink-600 dark:text-pink-400">{mockUser.stats.following.toLocaleString()}</p>
+                      <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100">{mockUser.stats.following.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 font-medium">Following</p>
                     </div>
                   </div>
@@ -526,7 +526,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                     {!isAuthenticated ? (
                       <button
                         onClick={() => onOpenLoginModal?.()}
-                        className="flex items-center justify-center gap-2 px-5 sm:px-6 md:px-8 py-3 sm:py-3.5 rounded-xl font-semibold text-sm sm:text-base transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 hover:shadow-xl hover:shadow-blue-500/30 active:scale-95 w-full sm:w-auto min-h-[44px] touch-manipulation"
+                        className="flex items-center justify-center gap-2 px-5 sm:px-6 md:px-8 py-3 sm:py-3.5 rounded-lg font-semibold text-sm sm:text-base transition-all bg-blue-500 text-white hover:bg-blue-600 active:scale-95 w-full sm:w-auto min-h-[44px] touch-manipulation"
                       >
                         <LogIn size={18} className="sm:w-5 sm:h-5 flex-shrink-0" />
                         <span className="truncate">Connect to Follow</span>
@@ -535,10 +535,10 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                       <>
                         <button
                           onClick={handleFollowToggle}
-                          className={`flex items-center justify-center gap-2 px-5 sm:px-6 md:px-8 py-3 sm:py-3.5 rounded-xl font-semibold text-sm sm:text-base transition-all shadow-lg active:scale-95 touch-manipulation flex-1 sm:flex-none min-w-[140px] sm:min-w-[160px] min-h-[44px] ${
+                          className={`flex items-center justify-center gap-2 px-5 sm:px-6 md:px-8 py-3 sm:py-3.5 rounded-lg font-semibold text-sm sm:text-base transition-all active:scale-95 touch-manipulation flex-1 sm:flex-none min-w-[140px] sm:min-w-[160px] min-h-[44px] ${
                             isFollowing
-                              ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-600'
-                              : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 hover:shadow-xl hover:shadow-blue-500/30'
+                              ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
                           }`}
                         >
                           <UserPlus size={18} className="sm:w-5 sm:h-5 flex-shrink-0" />
@@ -550,7 +550,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                           type="post"
                           description={mockUser.bio || ''}
                           trigger={
-                        <button className="p-3 sm:p-3.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
+                        <button className="p-3 sm:p-3.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all border border-gray-200 dark:border-gray-700 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
                           <Share2 size={18} className="sm:w-5 sm:h-5 text-gray-700 dark:text-gray-300" />
                         </button>
                           }
@@ -566,7 +566,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
       </div>
 
       {/* Tabs Navigation - Mobile Optimized */}
-      <div className="sticky top-16 sm:top-20 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
+      <div className="sticky top-16 sm:top-20 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="flex items-center justify-between overflow-x-auto scrollbar-hide pb-1">
             <div className="flex gap-1 sm:gap-2 min-w-0 flex-1">
@@ -589,7 +589,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
                     <Icon size={18} className={`sm:w-5 sm:h-5 flex-shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />
                     <span className="hidden xs:inline">{tab.label}</span>
                     {isActive && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-t-full"></span>
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-blue-500 rounded-t-full"></span>
                     )}
                   </button>
                 );

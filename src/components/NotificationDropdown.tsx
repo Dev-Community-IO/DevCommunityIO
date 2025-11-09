@@ -47,8 +47,8 @@ const mapApiNotification = (apiNotif: Notification): AppNotification => {
     user: apiNotif.relatedUser ? {
       id: apiNotif.relatedUser.id,
       username: apiNotif.relatedUser.username || apiNotif.relatedUser.pseudo || '',
-      avatar: apiNotif.relatedUser.avatar_url || undefined,
-      avatarUrl: apiNotif.relatedUser.avatar_url || undefined,
+      avatar: (apiNotif.relatedUser as any).avatarUrl || (apiNotif.relatedUser as any).avatar_url || undefined,
+      avatarUrl: (apiNotif.relatedUser as any).avatarUrl || (apiNotif.relatedUser as any).avatar_url || undefined,
       walletAddress: '',
       reputation: 0,
     } : undefined,

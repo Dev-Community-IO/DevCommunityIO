@@ -20,6 +20,7 @@ export interface Notification {
         id: string;
         username: string;
         avatar_url?: string;
+        avatarUrl?: string;
         pseudo?: string;
     };
     relatedPost?: {

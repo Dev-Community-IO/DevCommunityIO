@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, SlidersHorizontal, Edit2, Trash2, Trophy, Calendar, Briefcase, FileText, MoreVertical, X } from 'lucide-react';
+import { Search, SlidersHorizontal, Edit2, Trash2, Trophy, Calendar, Briefcase, FileText, MoreVertical } from 'lucide-react';
 import { PostCard } from './PostCard';
-import { GlassCard } from './GlassCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Post } from '../types';
 import usersService from '../services/api/users.service';
@@ -153,108 +152,149 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
   }, [filteredPosts, sortBy]);
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Category Tabs - Mobile Optimized */}
-      <div className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-3 sm:-mx-0 px-3 sm:px-0">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1">
+            Posts
+          </h2>
+          {!loading && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {sortedPosts.length === 0 
+                ? 'No posts found'
+                : `${sortedPosts.length} ${sortedPosts.length === 1 ? 'post' : 'posts'}${searchQuery ? ` matching "${searchQuery}"` : ''}`
+              }
+            </p>
+          )}
+        </div>
+        {isOwnProfile && sortedPosts.length > 0 && (
+          <button
+            onClick={() => navigate('/create-post')}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg font-medium text-sm hover:bg-blue-600 active:scale-95 transition-all touch-manipulation w-full sm:w-auto"
+          >
+            <FileText size={16} />
+            <span>New Post</span>
+          </button>
+        )}
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-3 sm:-mx-0 px-3 sm:px-0">
         <button
           onClick={() => setCategoryFilter('all')}
-          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all active:scale-95 touch-manipulation ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
             categoryFilter === 'all'
-              ? 'bg-blue-500 text-white shadow-md'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
           }`}
         >
-          <FileText size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-          <span className="hidden xs:inline">All Posts</span>
-          <span className="xs:hidden">All</span>
+          <FileText size={16} className="flex-shrink-0" />
+          <span>All</span>
+          {categoryFilter === 'all' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
+          )}
         </button>
         <button
           onClick={() => setCategoryFilter('hackathon')}
-          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all active:scale-95 touch-manipulation ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
             categoryFilter === 'hackathon'
-              ? 'bg-blue-500 text-white shadow-md'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
           }`}
         >
-          <Trophy size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-          <span className="hidden xs:inline">Hackathons</span>
-          <span className="xs:hidden">Hacks</span>
+          <Trophy size={16} className="flex-shrink-0" />
+          <span>Hackathons</span>
+          {categoryFilter === 'hackathon' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
+          )}
         </button>
         <button
           onClick={() => setCategoryFilter('event')}
-          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all active:scale-95 touch-manipulation ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
             categoryFilter === 'event'
-              ? 'bg-blue-500 text-white shadow-md'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
           }`}
         >
-          <Calendar size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-          <span className="hidden xs:inline">Events</span>
-          <span className="xs:hidden">Events</span>
+          <Calendar size={16} className="flex-shrink-0" />
+          <span>Events</span>
+          {categoryFilter === 'event' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
+          )}
         </button>
         <button
           onClick={() => setCategoryFilter('opportunity')}
-          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm whitespace-nowrap transition-all active:scale-95 touch-manipulation ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
             categoryFilter === 'opportunity'
-              ? 'bg-blue-500 text-white shadow-md'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
           }`}
         >
-          <Briefcase size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-          <span className="hidden xs:inline">Opportunities</span>
-          <span className="xs:hidden">Jobs</span>
+          <Briefcase size={16} className="flex-shrink-0" />
+          <span>Opportunities</span>
+          {categoryFilter === 'opportunity' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
+          )}
         </button>
       </div>
 
-      {/* Filters - Mobile Optimized */}
-      <GlassCard className="p-3 sm:p-4">
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[18px] sm:h-[18px]" />
-            <input
-              type="text"
-              placeholder="Search posts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 rounded-lg bg-white/50 dark:bg-black/20 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-sm sm:text-base"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={16} className="text-gray-400 sm:w-[18px] sm:h-[18px] flex-shrink-0" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-white/50 dark:bg-black/20 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-sm sm:text-base flex-1 sm:flex-none min-w-[140px]"
-            >
-              <option value="recent">Most Recent</option>
-              <option value="popular">Most Popular</option>
-              <option value="controversial">Most Controversial</option>
-            </select>
-          </div>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search posts by title or content..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all text-sm"
+          />
         </div>
-      </GlassCard>
+        <div className="flex items-center gap-2 sm:w-48">
+          <SlidersHorizontal size={18} className="text-gray-400 flex-shrink-0" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="flex-1 px-3 py-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all text-sm"
+          >
+            <option value="recent">Most Recent</option>
+            <option value="popular">Most Popular</option>
+            <option value="controversial">Most Controversial</option>
+          </select>
+        </div>
+      </div>
 
-      {/* Posts List - Mobile Optimized */}
+      {/* Posts List */}
       {loading ? (
         <PostSkeletonList count={3} />
       ) : sortedPosts.length === 0 ? (
-        <GlassCard className="p-8 sm:p-12 text-center space-y-4">
-          <div className="text-4xl sm:text-6xl">📝</div>
-          <div>
-            <h3 className="text-lg sm:text-xl font-bold mb-2">No Posts Yet</h3>
-            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mb-4">
-              {isOwnProfile ? "You haven't published any posts yet." : "This user hasn't published any posts yet."}
-            </p>
-            {isOwnProfile && (
-              <button
-                onClick={() => navigate('/create-post')}
-                className="px-4 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold text-sm sm:text-base hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all shadow-lg hover:shadow-xl touch-manipulation"
-              >
-                Create Your First Post
-              </button>
-            )}
+        <div className="py-12 sm:py-16 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+            <FileText size={32} className="text-gray-400 dark:text-gray-500" />
           </div>
-        </GlassCard>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            {searchQuery || categoryFilter !== 'all' ? 'No posts found' : 'No posts yet'}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
+            {searchQuery || categoryFilter !== 'all'
+              ? isOwnProfile
+                ? "Try adjusting your filters or search terms to find what you're looking for."
+                : "This user hasn't published any posts matching your criteria."
+              : isOwnProfile
+                ? "Start sharing your thoughts and connect with the community."
+                : "This user hasn't published any posts yet."}
+          </p>
+          {isOwnProfile && (
+            <button
+              onClick={() => navigate('/create-post')}
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-500 text-white rounded-lg font-medium text-sm hover:bg-blue-600 active:scale-95 transition-all"
+            >
+              <FileText size={16} />
+              Create Your First Post
+            </button>
+          )}
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
@@ -272,8 +312,8 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
               };
 
               return (
-                <div key={`${post.id}-${post.slug}`} className="relative group">
-                  <div className="h-full">
+                <div key={`${post.id}-${post.slug}`} className="relative group flex flex-col">
+                  <div className="flex-1 flex flex-col">
                     <PostCard 
                       post={post} 
                       onClick={() => navigate(getNavigationUrl())}
@@ -283,7 +323,7 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity z-10">
                       <div className="relative">
                         <button
-                          className="p-2 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800 active:scale-95 transition-all touch-manipulation"
+                          className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 active:scale-95 transition-all touch-manipulation"
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowDropdown(showDropdown === post.id ? null : post.id);
@@ -295,7 +335,7 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
                         
                         {showDropdown === post.id && (
                           <>
-                            <div className="absolute top-full right-0 mt-2 w-44 sm:w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-20">
+                            <div className="absolute top-full right-0 mt-2 w-44 sm:w-48 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-20">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -354,58 +394,56 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
 
           {/* Pagination */}
           {paginationMeta.lastPage > 1 && (
-            <GlassCard className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing {((currentPage - 1) * paginationMeta.perPage) + 1} to{' '}
-                  {Math.min(currentPage * paginationMeta.perPage, paginationMeta.total)} of{' '}
-                  {paginationMeta.total} posts
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, paginationMeta.lastPage) }, (_, i) => {
-                      let pageNum;
-                      if (paginationMeta.lastPage <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= paginationMeta.lastPage - 2) {
-                        pageNum = paginationMeta.lastPage - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 rounded-lg transition-colors ${
-                            currentPage === pageNum
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(paginationMeta.lastPage, prev + 1))}
-                    disabled={currentPage === paginationMeta.lastPage}
-                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Showing <span className="font-medium text-gray-900 dark:text-white">{((currentPage - 1) * paginationMeta.perPage) + 1}</span> to{' '}
+                <span className="font-medium text-gray-900 dark:text-white">{Math.min(currentPage * paginationMeta.perPage, paginationMeta.total)}</span> of{' '}
+                <span className="font-medium text-gray-900 dark:text-white">{paginationMeta.total}</span> posts
               </div>
-            </GlassCard>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, paginationMeta.lastPage) }, (_, i) => {
+                    let pageNum;
+                    if (paginationMeta.lastPage <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= paginationMeta.lastPage - 2) {
+                      pageNum = paginationMeta.lastPage - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(paginationMeta.lastPage, prev + 1))}
+                  disabled={currentPage === paginationMeta.lastPage}
+                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           )}
         </>
       )}

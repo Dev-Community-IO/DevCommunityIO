@@ -321,12 +321,12 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
   };
 
   return (
-    <GlassCard hover className="p-3 sm:p-4 md:p-5 overflow-hidden active:scale-[0.98] transition-transform duration-150 touch-manipulation" onClick={onClick}>
-      <div className="space-y-2 sm:space-y-3">
+    <GlassCard hover className="p-3 sm:p-4 md:p-5 overflow-hidden active:scale-[0.98] transition-transform duration-150 touch-manipulation h-full flex flex-col" onClick={onClick}>
+      <div className="flex-1 flex flex-col space-y-2 sm:space-y-3">
         {/* Main Content */}
-        <div className="space-y-2 sm:space-y-3 min-w-0">
+        <div className="space-y-2 sm:space-y-3 min-w-0 flex-1 flex flex-col">
           {/* Header with Author Info - Mobile Optimized */}
-          <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-3 flex-shrink-0">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               {/* Page Logo and Author Avatar - With Hover Cards - Mobile Optimized */}
               {postData.page ? (
@@ -502,8 +502,8 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
           {/* Cover Image - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
           {/* Don't show auto-generated OG images unless user explicitly requested them */}
           {((postData.autoGenerateImage && (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes || postData.ogImageUrl)) || 
-            (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes)) && (
-            <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3">
+            (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes)) ? (
+            <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3 flex-shrink-0">
               <ResponsivePostImage
                 coverImageUrl={postData.coverImage || postData.coverImageUrl || (postData.autoGenerateImage ? postData.ogImageUrl : undefined)}
                 coverImageSizes={postData.coverImageSizes}
@@ -516,10 +516,12 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                 }}
               />
             </div>
+          ) : (
+            <div className="w-full h-36 sm:h-40 md:h-48 mb-2 sm:mb-3 flex-shrink-0"></div>
           )}
 
           {/* Content Preview - Clean Text with Formatted Mentions - Mobile Optimized */}
-          <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-2 sm:line-clamp-3 leading-relaxed">
+          <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-2 sm:line-clamp-3 leading-relaxed flex-1">
             {formatContentPreview(getCleanPreview(postData.content, 250))}
           </div>
 
@@ -540,7 +542,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
           )}
 
           {/* Actions Footer - Mobile Optimized */}
-          <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200 dark:border-white/5">
+          <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200 dark:border-white/5 flex-shrink-0">
             <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap flex-1 min-w-0">
               {/* Emoji Reactions - Inline and Compact - Mobile Optimized */}
               {emojis.length > 0 && (

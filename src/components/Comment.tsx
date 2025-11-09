@@ -1,4 +1,4 @@
-import { MessageCircle, MoreHorizontal, Bold, Italic, Code, Link as LinkIcon, Eye, Trash2, AlertTriangle, Smile } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Trash2, AlertTriangle, Smile } from 'lucide-react';
 import { Comment as CommentType } from '../types';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
@@ -7,6 +7,7 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { Tooltip } from './Tooltip';
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
+import { MarkdownEditor } from './MarkdownEditor';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import commentsService from '../services/api/comments.service';
@@ -25,7 +26,6 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
   const navigate = useNavigate();
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -33,7 +33,6 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [authorReputation, setAuthorReputation] = useState(comment.author.reputation);
@@ -111,24 +110,6 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
     return `${days}d ago`;
   };
 
-  const insertMarkdown = (before: string, after: string = '', placeholder: string = '') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = replyText.substring(start, end);
-    const textToInsert = selectedText || placeholder;
-
-    const newText = replyText.substring(0, start) + before + textToInsert + after + replyText.substring(end);
-    setReplyText(newText);
-
-    setTimeout(() => {
-      textarea.focus();
-      const newCursorPos = start + before.length + textToInsert.length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -179,7 +160,6 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
       });
       setReplyText('');
       setShowReply(false);
-      setShowPreview(false);
       onReplySuccess?.();
     } catch (error) {
       console.error('Failed to submit reply:', error);
@@ -347,93 +327,22 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
 
             {showReply && (
               <div className="mt-3 space-y-2">
-                <div className="rounded-lg overflow-hidden backdrop-blur-xl bg-white/5 dark:bg-black/10 border border-white/20 dark:border-white/10">
-                  <div className="flex items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-gray-900 border-b border-white/20 dark:border-white/10">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => insertMarkdown('**', '**', 'bold')}
-                        title="Bold (Ctrl+B)"
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
-                        type="button"
-                      >
-                        <Bold size={16} />
-                      </button>
-                      <button
-                        onClick={() => insertMarkdown('*', '*', 'italic')}
-                        title="Italic (Ctrl+I)"
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
-                        type="button"
-                      >
-                        <Italic size={16} />
-                      </button>
-                      <button
-                        onClick={() => insertMarkdown('`', '`', 'code')}
-                        title="Code"
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
-                        type="button"
-                      >
-                        <Code size={16} />
-                      </button>
-                      <button
-                        onClick={() => insertMarkdown('[', '](url)', 'link')}
-                        title="Link"
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
-                        type="button"
-                      >
-                        <LinkIcon size={16} />
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setShowPreview(!showPreview)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300"
-                      type="button"
-                    >
-                      <Eye size={14} />
-                      {showPreview ? 'Edit' : 'Preview'}
-                    </button>
-                  </div>
-
-                  {showPreview ? (
-                    <div className="p-3 min-h-[100px] max-h-[200px] overflow-y-auto prose prose-sm dark:prose-invert">
-                      {replyText ? (
-                        <MarkdownRenderer content={replyText} />
-                      ) : (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">Nothing to preview...</p>
-                      )}
-                    </div>
-                  ) : (
-                    <textarea
-                      ref={textareaRef}
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Write a reply with markdown support..."
-                      rows={4}
-                      className="w-full px-3 py-2 text-sm bg-transparent border-0 focus:outline-none resize-none"
-                      onKeyDown={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          if (e.key === 'b') {
-                            e.preventDefault();
-                            insertMarkdown('**', '**', 'bold');
-                          } else if (e.key === 'i') {
-                            e.preventDefault();
-                            insertMarkdown('*', '*', 'italic');
-                          }
-                        }
-                      }}
-                    />
-                  )}
-                </div>
+                <MarkdownEditor
+                  value={replyText}
+                  onChange={setReplyText}
+                  placeholder="Write a reply... (Use @ to mention users)"
+                  minHeight="150px"
+                />
 
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Markdown supported
+                    Markdown supported • Use @ to mention users
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
                         setShowReply(false);
                         setReplyText('');
-                        setShowPreview(false);
                       }}
                       className="px-3 py-1.5 text-sm rounded-lg hover:bg-white/10 dark:hover:bg-white/5 transition-all duration-300"
                     >
