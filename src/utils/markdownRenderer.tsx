@@ -15,6 +15,24 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     window.location.href = `/profile/${username}`;
   };
 
+  // Helper function to decode HTML entities in text (but preserve actual & characters)
+  const decodeHtmlEntities = (text: string): string => {
+    // Decode common HTML entities
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+  };
+
+  // Helper function to safely render text with & characters
+  const renderText = (text: string): string => {
+    // Decode HTML entities but preserve plain & characters
+    return decodeHtmlEntities(text);
+  };
+
   const renderMarkdown = (text: string): JSX.Element[] => {
     const lines = text.split('\n');
     const elements: JSX.Element[] = [];
@@ -290,17 +308,83 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     return elements;
   };
 
+  // Helper function to recursively parse nested markdown (for bold links, etc.)
+  const parseInlineMarkdownRecursive = (text: string, parentElementMap: Map<string, React.ReactNode>, startKey: number): React.ReactNode => {
+    const localParts: React.ReactNode[] = [];
+    const localElementMap = new Map<string, React.ReactNode>();
+    let localText = text;
+    let localKey = startKey;
+
+    // Process links first
+    localText = localText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+      const currentKey = localKey++;
+      const placeholder = `__LINK_${currentKey}__`;
+      const element = (
+        <a key={`link-${currentKey}`} href={url} className="text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer">
+          {linkText}
+        </a>
+      );
+      localParts.push(element);
+      localElementMap.set(placeholder, element);
+      parentElementMap.set(placeholder, element);
+      return placeholder;
+    });
+
+    // Process bold (but skip if it contains a link placeholder)
+    localText = localText.replace(/\*\*((?:(?!__LINK_).)+?)\*\*/g, (_, boldText) => {
+      const currentKey = localKey++;
+      const placeholder = `__BOLD_${currentKey}__`;
+      const element = <strong key={`bold-${currentKey}`}>{boldText}</strong>;
+      localParts.push(element);
+      localElementMap.set(placeholder, element);
+      parentElementMap.set(placeholder, element);
+      return placeholder;
+    });
+
+    // Process italic
+    localText = localText.replace(/\*((?:(?!__LINK_|__BOLD_).)+?)\*/g, (_, italicText) => {
+      const currentKey = localKey++;
+      const placeholder = `__ITALIC_${currentKey}__`;
+      const element = <em key={`italic-${currentKey}`}>{italicText}</em>;
+      localParts.push(element);
+      localElementMap.set(placeholder, element);
+      parentElementMap.set(placeholder, element);
+      return placeholder;
+    });
+
+    // Split and reconstruct
+    const segments = localText.split(/(__(?:LINK|BOLD|ITALIC)_\d+__)/);
+    const result: React.ReactNode[] = [];
+
+    segments.forEach((segment, index) => {
+      if (!segment) return;
+      const placeholderMatch = segment.match(/^__(LINK|BOLD|ITALIC)_(\d+)__$/);
+      if (placeholderMatch) {
+        const element = localElementMap.get(segment) || parentElementMap.get(segment);
+        if (element) result.push(element);
+      } else {
+        // Regular text segment - decode HTML entities
+        const decodedText = renderText(segment);
+        result.push(<React.Fragment key={`text-${index}`}>{decodedText}</React.Fragment>);
+      }
+    });
+
+    return result.filter(item => item !== undefined && item !== null);
+  };
+
   const parseInlineMarkdown = (text: string): React.ReactNode => {
     const parts: React.ReactNode[] = [];
+    const elementMap = new Map<string, React.ReactNode>();
     let currentText = text;
     let key = 0;
 
-    // Badge markdown: [![text](badge-url)](link-url) - shields.io badges
+    // Badge markdown: [![text](badge-url)](link-url) - shields.io badges - process FIRST
     currentText = currentText.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_, altText, badgeUrl, linkUrl) => {
-      const placeholder = `__BADGE_${key}__`;
-      parts.push(
+      const currentKey = key++;
+      const placeholder = `__BADGE_${currentKey}__`;
+      const element = (
         <a 
-          key={`badge-${key++}`} 
+          key={`badge-${currentKey}`} 
           href={linkUrl} 
           className="inline-block transition-transform hover:scale-105" 
           target="_blank" 
@@ -314,15 +398,18 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
           />
         </a>
       );
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
     // Images: ![alt text](url) - process before links to avoid conflicts
     currentText = currentText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, altText, url) => {
-      const placeholder = `__IMAGE_${key}__`;
-      parts.push(
+      const currentKey = key++;
+      const placeholder = `__IMAGE_${currentKey}__`;
+      const element = (
         <img 
-          key={`image-${key++}`} 
+          key={`image-${currentKey}`} 
           src={url} 
           alt={altText || 'Image'} 
           className="max-w-full h-auto rounded-lg my-4 block"
@@ -333,17 +420,24 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
           }}
         />
       );
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
     // Links with markdown syntax [text](url) - process before mentions to protect email addresses in link text
     currentText = currentText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
-      const placeholder = `__LINK_${key}__`;
-      parts.push(
-        <a key={`link-${key++}`} href={url} className="text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer">
-          {linkText}
+      const currentKey = key++;
+      const placeholder = `__LINK_${currentKey}__`;
+      // Parse link text for nested formatting (like bold)
+      const parsedLinkText = parseInlineMarkdownRecursive(linkText, elementMap, key);
+      const element = (
+        <a key={`link-${currentKey}`} href={url} className="text-blue-500 hover:text-blue-600 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer">
+          {parsedLinkText}
         </a>
       );
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
@@ -358,10 +452,11 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
         return match; // Return as-is, it's part of an email
       }
       
-      const placeholder = `__MENTION_${key}__`;
-      parts.push(
+      const currentKey = key++;
+      const placeholder = `__MENTION_${currentKey}__`;
+      const element = (
         <a 
-          key={`mention-${key++}`} 
+          key={`mention-${currentKey}`} 
           href={`/profile/${username}`}
           onClick={(e) => handleMentionClick(username, e)}
           className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded hover:underline transition-colors"
@@ -369,53 +464,61 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
           @{username}
         </a>
       );
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
-    // Badge markdown: [![text](badge-url)](link-url) - shields.io badges
-    currentText = currentText.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_, altText, badgeUrl, linkUrl) => {
-      const placeholder = `__BADGE_${key}__`;
-      parts.push(
-        <a 
-          key={`badge-${key++}`} 
-          href={linkUrl} 
-          className="inline-block transition-transform hover:scale-105" 
-          target="_blank" 
-          rel="noopener noreferrer"
-        >
-          <img 
-            src={badgeUrl} 
-            alt={altText || 'Badge'} 
-            className="inline-block h-5 sm:h-6 align-middle"
-            loading="lazy"
-          />
-        </a>
-      );
-      return placeholder;
-    });
-
-    // Bold
-    currentText = currentText.replace(/\*\*(.+?)\*\*/g, (_, boldText) => {
-      const placeholder = `__BOLD_${key}__`;
-      parts.push(<strong key={`bold-${key++}`}>{boldText}</strong>);
+    // Bold - handle bold links by processing links first, then wrapping in bold
+    // Match bold markers and check if content contains a link placeholder
+    // Use a more flexible pattern that handles placeholders: **text** or **__PLACEHOLDER__**
+    currentText = currentText.replace(/\*\*((?:[^*]|__[A-Z_]+_\d+__)+?)\*\*/g, (match, boldText) => {
+      const currentKey = key++;
+      const placeholder = `__BOLD_${currentKey}__`;
+      
+      // Check if boldText is exactly a link placeholder or contains one
+      const linkPlaceholderMatch = boldText.match(/__(LINK_\d+)__/);
+      if (linkPlaceholderMatch) {
+        const linkPlaceholder = `__${linkPlaceholderMatch[1]}__`;
+        const linkElement = elementMap.get(linkPlaceholder);
+        if (linkElement) {
+          // Wrap the link element in bold
+          const element = <strong key={`bold-${currentKey}`}>{linkElement}</strong>;
+          parts.push(element);
+          elementMap.set(placeholder, element);
+          return placeholder;
+        }
+      }
+      
+      // Regular bold text - parse for any nested formatting
+      const parsedBoldText = parseInlineMarkdownRecursive(boldText, elementMap, key);
+      const element = <strong key={`bold-${currentKey}`}>{parsedBoldText}</strong>;
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
     // Italic
     currentText = currentText.replace(/\*(.+?)\*/g, (_, italicText) => {
-      const placeholder = `__ITALIC_${key}__`;
-      parts.push(<em key={`italic-${key++}`}>{italicText}</em>);
+      const currentKey = key++;
+      const placeholder = `__ITALIC_${currentKey}__`;
+      const element = <em key={`italic-${currentKey}`}>{italicText}</em>;
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
     // Inline code
     currentText = currentText.replace(/`([^`]+)`/g, (_, codeText) => {
-      const placeholder = `__CODE_${key}__`;
-      parts.push(
-        <code key={`code-${key++}`} className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-sm font-mono">
+      const currentKey = key++;
+      const placeholder = `__CODE_${currentKey}__`;
+      const element = (
+        <code key={`code-${currentKey}`} className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-sm font-mono">
           {codeText}
         </code>
       );
+      parts.push(element);
+      elementMap.set(placeholder, element);
       return placeholder;
     });
 
@@ -424,34 +527,26 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     const result: React.ReactNode[] = [];
 
     segments.forEach((segment, index) => {
-      const mentionMatch = segment.match(/__MENTION_(\d+)__/);
-      const linkMatch = segment.match(/__LINK_(\d+)__/);
-      const badgeMatch = segment.match(/__BADGE_(\d+)__/);
-      const imageMatch = segment.match(/__IMAGE_(\d+)__/);
-      const boldMatch = segment.match(/__BOLD_(\d+)__/);
-      const italicMatch = segment.match(/__ITALIC_(\d+)__/);
-      const codeMatch = segment.match(/__CODE_(\d+)__/);
-
-      if (mentionMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `mention-${mentionMatch[1]}`));
-      } else if (linkMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `link-${linkMatch[1]}`));
-      } else if (badgeMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `badge-${badgeMatch[1]}`));
-      } else if (imageMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `image-${imageMatch[1]}`));
-      } else if (boldMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `bold-${boldMatch[1]}`));
-      } else if (italicMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `italic-${italicMatch[1]}`));
-      } else if (codeMatch) {
-        result.push(parts.find(p => React.isValidElement(p) && p.key === `code-${codeMatch[1]}`));
-      } else if (segment) {
-        result.push(<React.Fragment key={`text-${index}`}>{segment}</React.Fragment>);
+      // Skip empty segments
+      if (!segment) return;
+      
+      // Check if this segment is a placeholder
+      const placeholderMatch = segment.match(/^__(MENTION|LINK|BADGE|IMAGE|BOLD|ITALIC|CODE)_(\d+)__$/);
+      
+      if (placeholderMatch) {
+        const element = elementMap.get(segment);
+        if (element) {
+          result.push(element);
+        }
+      } else {
+        // Regular text segment - decode HTML entities and render safely
+        const decodedText = renderText(segment);
+        result.push(<React.Fragment key={`text-${index}`}>{decodedText}</React.Fragment>);
       }
     });
 
-    return result;
+    // Filter out any undefined values
+    return result.filter(item => item !== undefined && item !== null);
   };
 
   return (
