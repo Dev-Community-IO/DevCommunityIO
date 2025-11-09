@@ -245,6 +245,27 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
       flushBlockquote();
       const paraSpacing = compact ? 'my-0 leading-snug' : 'my-3 leading-relaxed';
       
+      // Check if line is a standalone image: ![alt](url)
+      const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imageMatch) {
+        const [, altText, url] = imageMatch;
+        elements.push(
+          <div key={`img-${i}`} className="my-4">
+            <img 
+              src={url} 
+              alt={altText || 'Image'} 
+              className="max-w-full h-auto rounded-lg mx-auto block"
+              loading="lazy"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          </div>
+        );
+        continue;
+      }
+      
       // Check if line is a standalone URL for embed
       const urlPattern = /^https?:\/\/[^\s]+$/;
       if (urlPattern.test(line.trim())) {
@@ -292,6 +313,25 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
             loading="lazy"
           />
         </a>
+      );
+      return placeholder;
+    });
+
+    // Images: ![alt text](url) - process before links to avoid conflicts
+    currentText = currentText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, altText, url) => {
+      const placeholder = `__IMAGE_${key}__`;
+      parts.push(
+        <img 
+          key={`image-${key++}`} 
+          src={url} 
+          alt={altText || 'Image'} 
+          className="max-w-full h-auto rounded-lg my-4 block"
+          loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+          }}
+        />
       );
       return placeholder;
     });
@@ -380,13 +420,14 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     });
 
     // Split by placeholders and reconstruct
-    const segments = currentText.split(/(__(?:MENTION|LINK|BADGE|BOLD|ITALIC|CODE)_\d+__)/);
+    const segments = currentText.split(/(__(?:MENTION|LINK|BADGE|IMAGE|BOLD|ITALIC|CODE)_\d+__)/);
     const result: React.ReactNode[] = [];
 
     segments.forEach((segment, index) => {
       const mentionMatch = segment.match(/__MENTION_(\d+)__/);
       const linkMatch = segment.match(/__LINK_(\d+)__/);
       const badgeMatch = segment.match(/__BADGE_(\d+)__/);
+      const imageMatch = segment.match(/__IMAGE_(\d+)__/);
       const boldMatch = segment.match(/__BOLD_(\d+)__/);
       const italicMatch = segment.match(/__ITALIC_(\d+)__/);
       const codeMatch = segment.match(/__CODE_(\d+)__/);
@@ -397,6 +438,8 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
         result.push(parts.find(p => React.isValidElement(p) && p.key === `link-${linkMatch[1]}`));
       } else if (badgeMatch) {
         result.push(parts.find(p => React.isValidElement(p) && p.key === `badge-${badgeMatch[1]}`));
+      } else if (imageMatch) {
+        result.push(parts.find(p => React.isValidElement(p) && p.key === `image-${imageMatch[1]}`));
       } else if (boldMatch) {
         result.push(parts.find(p => React.isValidElement(p) && p.key === `bold-${boldMatch[1]}`));
       } else if (italicMatch) {

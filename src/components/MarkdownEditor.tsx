@@ -1,8 +1,10 @@
-import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye, HelpCircle, ChevronUp, Hash, AtSign, ExternalLink } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye, HelpCircle, ChevronUp, Hash, AtSign, ExternalLink, GripVertical } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 import usersService from '../services/api/users.service';
+import postsService from '../services/api/posts.service';
 import { Avatar } from './Avatar';
+import { useToast } from './Toast';
 
 interface MarkdownEditorProps {
   value: string;
@@ -11,7 +13,9 @@ interface MarkdownEditorProps {
   minHeight?: string;
 }
 
-const MAX_MENTIONS = 5;
+const MAX_MENTIONS = 2;
+
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 5MB limit
 
 export function MarkdownEditor({ value, onChange, placeholder = 'Write your content...', minHeight = '300px' }: MarkdownEditorProps) {
   const [showPreview, setShowPreview] = useState(false);
@@ -19,11 +23,18 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const resizeHandleRef = useRef<HTMLDivElement>(null);
   const [isToolbarSticky, setIsToolbarSticky] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
   const [mentionUsers, setMentionUsers] = useState<Array<{ id: string; username: string; avatar?: string; avatarUrl?: string; pseudo?: string }>>([]);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [editorHeight, setEditorHeight] = useState<string>(minHeight);
+  const [isResizing, setIsResizing] = useState(false);
+  const toast = useToast();
 
   // Count existing mentions in content
   const countMentions = (text: string): number => {
@@ -89,6 +100,11 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
     return coordinates;
   };
 
+  // Initialize editor height from minHeight prop
+  useEffect(() => {
+    setEditorHeight(minHeight);
+  }, [minHeight]);
+
   useEffect(() => {
     const handleScroll = () => {
       if (toolbarRef.current) {
@@ -97,12 +113,50 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
       }
     };
 
-    const editorContainer = document.getElementById('editor-container');
+    const editorContainer = editorContainerRef.current;
     if (editorContainer) {
       editorContainer.addEventListener('scroll', handleScroll);
       return () => editorContainer.removeEventListener('scroll', handleScroll);
     }
   }, []);
+
+  // Handle resize
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !editorContainerRef.current) return;
+      
+      const containerRect = editorContainerRef.current.getBoundingClientRect();
+      const newHeight = e.clientY - containerRect.top;
+      const minHeightPx = parseInt(minHeight) || 200;
+      
+      if (newHeight >= minHeightPx) {
+        setEditorHeight(`${newHeight}px`);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, minHeight]);
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
 
   // Handle mention detection and search
   useEffect(() => {
@@ -316,6 +370,67 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
     }, 0);
   };
 
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast.error('Image size must be less than 2MB. Please compress your image before uploading.');
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload a valid image file');
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const result = await postsService.uploadPostImage(file);
+      const imageUrl = result.url || result.sizes?.full || result.sizes?.large || '';
+      
+      if (imageUrl) {
+        // Insert markdown image syntax at cursor position
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const imageMarkdown = `![${file.name.replace(/\.[^/.]+$/, '')}](${imageUrl})`;
+          const newText = value.substring(0, start) + imageMarkdown + value.substring(end);
+          onChange(newText);
+
+          setTimeout(() => {
+            textarea.focus();
+            const newCursorPos = start + imageMarkdown.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+          }, 0);
+          
+          toast.success('Image uploaded successfully!');
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to upload image:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  const triggerImageUpload = () => {
+    imageInputRef.current?.click();
+  };
+
   const insertAtLineStart = (prefix: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -363,7 +478,7 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
     { icon: Code, action: () => insertMarkdown('`', '`', 'code'), title: 'Inline Code' },
     { icon: Code, action: () => insertMarkdown('\n```\n', '\n```\n', 'code block'), title: 'Code Block', label: '{}' },
     { icon: LinkIcon, action: () => insertMarkdown('[', '](url)', 'link text'), title: 'Link' },
-    { icon: ImageIcon, action: () => insertMarkdown('![', '](url)', 'alt text'), title: 'Image' },
+    { icon: ImageIcon, action: triggerImageUpload, title: 'Upload Image', isUpload: true },
     { icon: Table, action: () => insertMarkdown('\n| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n', ''), title: 'Table' },
     { icon: Minus, action: () => insertMarkdown('\n---\n', ''), title: 'Horizontal Rule' },
   ];
@@ -384,13 +499,14 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
                 key={index}
                 onClick={button.action}
                 title={button.title}
-                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300 group relative"
+                disabled={isUploadingImage && (button as any).isUpload}
+                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-300 group relative disabled:opacity-50 disabled:cursor-not-allowed"
                 type="button"
               >
                 {button.label ? (
                   <span className="text-sm font-bold">{button.label}</span>
                 ) : (
-                  <Icon size={18} />
+                  <Icon size={18} className={isUploadingImage && (button as any).isUpload ? 'animate-pulse' : ''} />
                 )}
                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                   {button.title}
@@ -398,6 +514,13 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
               </button>
             );
           })}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
         </div>
         <button
           onClick={() => setShowPreview(!showPreview)}
@@ -524,13 +647,13 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
       )}
 
       <div
+        ref={editorContainerRef}
         className="relative rounded-b-xl backdrop-blur-xl bg-white/10 dark:bg-black/20 border border-white/20 dark:border-white/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all duration-300 overflow-hidden"
-        style={{ minHeight }}
+        style={{ height: editorHeight }}
       >
         {showPreview ? (
           <div
-            className="p-4 overflow-y-auto"
-            style={{ maxHeight: minHeight }}
+            className="p-4 overflow-y-auto h-full"
           >
             {value ? (
               <MarkdownRenderer content={value} />
@@ -546,7 +669,7 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
               className="w-full h-full p-4 bg-transparent border-0 focus:outline-none resize-none overflow-y-auto"
-              style={{ minHeight }}
+              style={{ height: `calc(${editorHeight} - 8px)` }}
               onKeyDown={(e) => {
                 // Handle mention dropdown navigation
                 if (showMentionDropdown && mentionUsers.length > 0) {
@@ -632,6 +755,23 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
             )}
           </>
         )}
+        
+        {/* Resize Handle */}
+        <div
+          ref={resizeHandleRef}
+          onMouseDown={handleResizeStart}
+          className={`absolute bottom-0 left-0 right-0 h-2 cursor-row-resize hover:bg-blue-500/20 dark:hover:bg-blue-400/20 transition-colors flex items-center justify-center group ${
+            isResizing ? 'bg-blue-500/30 dark:bg-blue-400/30' : ''
+          }`}
+          title="Drag to resize editor height"
+        >
+          <GripVertical 
+            size={12} 
+            className={`text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors ${
+              isResizing ? 'text-blue-500 dark:text-blue-400' : ''
+            }`} 
+          />
+        </div>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 px-2">
