@@ -389,8 +389,9 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           setCompany(opportunity.companyName || '');
           setLocation(opportunity.location || '');
           setOpportunityCategory(opportunity.category || '');
-          setJobType(opportunity.type || 'full-time');
-          setSalary(opportunity.salary || '');
+          setJobType(opportunity.type || '');
+          setCompensation(opportunity.salary || '');
+          setCompensationPeriod(opportunity.salaryPeriod || '');
           setExperience(opportunity.experience || '');
           setRemote(opportunity.remote !== undefined ? opportunity.remote : true);
           setApplicationUrl(opportunity.applicationUrl || '');
@@ -473,8 +474,9 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [applicationUrl, setApplicationUrl] = useState('');
   const [ctaButtonTextOpportunity, setCtaButtonTextOpportunity] = useState('');
   const [company, setCompany] = useState('');
-  const [salary, setSalary] = useState('');
-  const [jobType, setJobType] = useState('full-time');
+  const [compensation, setCompensation] = useState('');
+  const [compensationPeriod, setCompensationPeriod] = useState('');
+  const [jobType, setJobType] = useState('');
   const [experience, setExperience] = useState('');
   const [remote, setRemote] = useState(true);
   const [opportunityCategory, setOpportunityCategory] = useState('');
@@ -890,22 +892,28 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         }
       } else if (contentType === 'opportunity') {
         // Create or update opportunity
-        if (!company || !location) {
-          setSubmitError('Company name and location are required');
+        if (!location) {
+          setSubmitError('Location is required');
           setIsSubmitting(false);
           isSubmittingRef.current = false;
           return;
         }
 
+        // Build compensation string if both fields are provided
+        let salaryValue = undefined;
+        if (compensation) {
+          salaryValue = compensationPeriod ? `${compensation} ${compensationPeriod}` : compensation;
+        }
+
         const opportunityData = {
           title,
           description: content,
-          companyName: company,
+          companyName: company || undefined,
           logoUrl: companyLogoImage || undefined,
           location,
-          type: jobType as 'full-time' | 'part-time' | 'contract' | 'internship',
+          type: (jobType || undefined) as 'full-time' | 'part-time' | 'contract' | 'internship' | undefined,
           category: opportunityCategory || 'general',
-          salary: salary || undefined,
+          salary: salaryValue,
           experience: experience || 'Not specified',
           remote,
           applicationUrl: applicationUrl || undefined,
@@ -927,7 +935,21 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
           }
           navigate(`/opportunities/${identifier}`, { replace: true });
         } else {
-          const result = await opportunitiesService.createOpportunity(opportunityData);
+          const result = await opportunitiesService.createOpportunity({
+            title,
+            description: content,
+            ...(company && { companyName: company }),
+            ...(companyLogoImage && { logoUrl: companyLogoImage }),
+            location,
+            ...(jobType && { type: jobType as 'full-time' | 'part-time' | 'contract' | 'internship' | string }),
+            category: opportunityCategory || 'general',
+            ...(salaryValue && { salary: salaryValue }),
+            experience: experience || 'Not specified',
+            remote,
+            ...(applicationUrl && { applicationUrl }),
+            ...(ctaButtonTextOpportunity && { ctaButtonText: ctaButtonTextOpportunity }),
+            ...(postOrigin && { postOrigin, originSource, originUrl }),
+          });
           const opportunity = result.opportunity || result;
           if (!opportunity) {
             throw new Error('Failed to create opportunity: No response from server');
@@ -1471,13 +1493,12 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Company Name</label>
                     <input
                       type="text"
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
-                      placeholder="Company Name"
-                      required
+                      placeholder="Company Name (Optional)"
                       className="w-full px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-all duration-300 text-base sm:text-lg touch-manipulation"
                     />
                   </div>
@@ -1495,14 +1516,23 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Salary Range</label>
-                    <input
-                      type="text"
-                      value={salary}
-                      onChange={(e) => setSalary(e.target.value)}
-                      placeholder="$100k - $150k"
-                      className="w-full px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-all duration-300 text-base sm:text-lg touch-manipulation"
-                    />
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Compensation</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={compensation}
+                        onChange={(e) => setCompensation(e.target.value)}
+                        placeholder="e.g., $100k - $150k"
+                        className="flex-1 px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-all duration-300 text-base sm:text-lg touch-manipulation"
+                      />
+                      <input
+                        type="text"
+                        value={compensationPeriod}
+                        onChange={(e) => setCompensationPeriod(e.target.value)}
+                        placeholder="e.g., annually, monthly, hourly"
+                        className="w-32 px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-all duration-300 text-base sm:text-lg touch-manipulation"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
@@ -1551,17 +1581,23 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Job Type</label>
-                    <select
+                    <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">
+                      Job Type
+                      <span className="text-xs text-gray-400 ml-2 font-normal">(max 50 characters)</span>
+                    </label>
+                    <input
+                      type="text"
                       value={jobType}
-                      onChange={(e) => setJobType(e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 50) {
+                          setJobType(e.target.value);
+                        }
+                      }}
+                      placeholder="e.g., Full-Time, Part-Time, Contract"
+                      maxLength={50}
                       className="w-full px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-all duration-300 text-base sm:text-lg touch-manipulation"
-                    >
-                      <option value="full-time">Full-Time</option>
-                      <option value="part-time">Part-Time</option>
-                      <option value="contract">Contract</option>
-                      <option value="internship">Internship</option>
-                    </select>
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{jobType.length}/50</p>
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-2 text-gray-900 dark:text-white">Experience Level</label>
