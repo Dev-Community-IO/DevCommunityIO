@@ -73,6 +73,7 @@ export interface Hackathon {
     };
     seoTitle?: string;
     seoDescription?: string;
+    ogImageUrl?: string;
     createdAt: string;
     updatedAt: string;
 }

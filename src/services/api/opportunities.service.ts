@@ -60,6 +60,7 @@ export interface Opportunity {
     };
     seoTitle?: string;
     seoDescription?: string;
+    ogImageUrl?: string;
     postedAt: string;
     expiresAt?: string;
     createdAt: string;
@@ -80,14 +81,19 @@ export const opportunitiesService = {
     createOpportunity: async (data: {
         title: string;
         description: string;
-        companyName: string;
+        companyName?: string;
         logoUrl?: string;
         location: string;
-        type: 'full-time' | 'part-time' | 'contract' | 'internship';
+        type?: 'full-time' | 'part-time' | 'contract' | 'internship' | string;
         category: string;
         salary?: string;
         experience: string;
         remote: boolean;
+        applicationUrl?: string;
+        ctaButtonText?: string;
+        postOrigin?: string | null;
+        originSource?: string | null;
+        originUrl?: string | null;
     }) => {
         const response = await apiClient.post('/opportunities', data);
         return response.data;
@@ -101,16 +107,19 @@ export const opportunitiesService = {
     updateOpportunity: async (id: string, data: Partial<{
         title: string;
         description: string;
-        companyName: string;
+        companyName?: string;
         logoUrl?: string;
         location: string;
-        type: 'full-time' | 'part-time' | 'contract' | 'internship';
+        type?: 'full-time' | 'part-time' | 'contract' | 'internship' | string;
         category: string;
         salary?: string;
         experience: string;
         remote: boolean;
         applicationUrl?: string;
         ctaButtonText?: string;
+        postOrigin?: string | null;
+        originSource?: string | null;
+        originUrl?: string | null;
     }>) => {
         const response = await apiClient.patch(`/opportunities/${id}`, data);
         return response.data;

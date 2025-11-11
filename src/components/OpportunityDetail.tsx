@@ -293,7 +293,7 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
         <SEOHead
           title={opportunity.seoTitle || opportunity.title}
           description={opportunity.seoDescription || opportunity.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Opportunity'}
-          image={opportunity.ogImageUrl || opportunity.logoUrl}
+          image={(opportunity as any).ogImageUrl || opportunity.logoUrl}
           url={`${window.location.origin}/opportunities/${opportunity.slug || opportunityId}`}
           type="article"
         />
@@ -385,9 +385,6 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
                   <span>Posted {getDaysAgo(opportunity.postedAt)}</span>
               </div>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm sm:text-base">
-              {opportunity.description}
-            </p>
           </div>
         </div>
       </GlassCard>
@@ -397,7 +394,7 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Full Description */}
           <GlassCard className="p-4 sm:p-6 lg:p-8">
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6">About The Role</h2>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6">About The Opportunity</h2>
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <MarkdownRenderer content={opportunity.description} />
             </div>
@@ -413,7 +410,6 @@ export function OpportunityDetail({ opportunityId, onClose }: OpportunityDetailP
                   <div className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-2">
                 {opportunity.salary}
               </div>
-              <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">annual salary</div>
             </div>
               )}
             {opportunity.applicationUrl && (

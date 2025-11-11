@@ -61,6 +61,7 @@ export interface Event {
     };
     seoTitle?: string;
     seoDescription?: string;
+    ogImageUrl?: string;
     createdAt: string;
     updatedAt: string;
 }

@@ -296,7 +296,7 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
         <SEOHead
           title={event.seoTitle || event.title}
           description={event.seoDescription || event.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Event'}
-          image={event.ogImageUrl || event.imageUrl}
+          image={(event as any).ogImageUrl || event.imageUrl}
           url={`${window.location.origin}/events/${event.slug || eventId}`}
           type="article"
         />

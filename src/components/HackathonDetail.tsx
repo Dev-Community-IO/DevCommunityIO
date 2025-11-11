@@ -302,7 +302,7 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
         <SEOHead
           title={hackathon.seoTitle || hackathon.title}
           description={hackathon.seoDescription || hackathon.description?.substring(0, 160).replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim() || 'DevCommunity Hackathon'}
-          image={hackathon.ogImageUrl || hackathon.imageUrl}
+          image={(hackathon as any).ogImageUrl || hackathon.imageUrl}
           url={`${window.location.origin}/hackathons/${hackathon.slug || hackathonId}`}
           type="article"
         />
