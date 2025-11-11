@@ -4,9 +4,10 @@ import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
+import { Tooltip } from './Tooltip';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Comment } from './Comment';
-import { Comment as CommentType } from '../types';
+import { Comment as CommentType, Page } from '../types';
 import { PostOriginDisplay } from './PostOriginDisplay';
 import { ShareDropdown } from './ShareDropdown';
 import hackathonsService, { Hackathon } from '../services/api/hackathons.service';
@@ -16,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import bookmarksService from '../services/api/bookmarks.service';
 import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
+import pagesService from '../services/api/pages.service';
 import { SEOHead } from './SEOHead';
 import { MentionTextarea } from './MentionTextarea';
 import { CommentSkeletonList } from './skeletons';
@@ -43,6 +45,7 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
   const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
   const [userEmojis, setUserEmojis] = useState<string[]>([]);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [pageData, setPageData] = useState<Page | null>((hackathon as any)?.post?.page || null);
 
   useEffect(() => {
     const fetchHackathon = async () => {
@@ -52,6 +55,26 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
         const data = await hackathonsService.getHackathon(hackathonId);
         const hackathonData = data.hackathon || data;
         setHackathon(hackathonData);
+        
+        // Set page data if available
+        if ((hackathonData as any)?.post?.page) {
+          const page = (hackathonData as any).post.page as any;
+          setPageData({
+            ...page,
+            isFollowing: page?.isFollowing === true
+          } as Page);
+        } else if ((hackathonData as any)?.post?.pageId) {
+          try {
+            const pageResponse = await pagesService.getPage((hackathonData as any).post.pageId);
+            const pageDataFromApi = pageResponse.page || pageResponse;
+            setPageData({
+              ...pageDataFromApi,
+              isFollowing: pageDataFromApi?.isFollowing === true
+            });
+          } catch (error) {
+            console.error('Failed to fetch page data:', error);
+          }
+        }
         
         // Check bookmark status if authenticated and hackathon has postId
         if (isAuthenticated && hackathonData.postId) {
@@ -371,6 +394,83 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
         </div>
       </div>
 
+      {/* Author and Page Info */}
+      {(hackathon as any)?.post?.author && (
+        <GlassCard className="p-4 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex-shrink-0">
+              {(hackathon as any).post.author && (
+                <Tooltip content={`@${(hackathon as any).post.author.username || (hackathon as any).post.author.pseudo || 'unknown'}`}>
+                  <div 
+                    onClick={() => navigate(`/profile/${(hackathon as any).post.author.username || (hackathon as any).post.author.pseudo || ''}`)}
+                    className="relative cursor-pointer hover:scale-105 transition-transform"
+                  >
+                    <Avatar 
+                      src={((hackathon as any).post.author.avatar || (hackathon as any).post.author.avatarUrl) || ''} 
+                      alt={(hackathon as any).post.author.username || (hackathon as any).post.author.pseudo || 'Unknown'} 
+                      size="md" 
+                      className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
+                      isTrusted={(hackathon as any).post.author.isTrusted}
+                    />
+                    {/* Page Logo under avatar if post is for a page */}
+                    {pageData && (
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (pageData.slug) {
+                            navigate(`/pages/${pageData.slug}`);
+                          }
+                        }}
+                        className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg cursor-pointer hover:scale-110 transition-transform"
+                      >
+                        <img 
+                          src={pageData.logo || pageData.logoUrl || DEFAULT_PAGE_LOGO}
+                          alt={pageData.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = DEFAULT_PAGE_LOGO;
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </Tooltip>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              {(hackathon as any).post.author && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span 
+                    onClick={() => navigate(`/profile/${(hackathon as any).post.author.username || (hackathon as any).post.author.pseudo || ''}`)}
+                    className="font-bold text-sm sm:text-base cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {(hackathon as any).post.author.username || (hackathon as any).post.author.pseudo || 'Unknown'}
+                  </span>
+                  {(hackathon as any).post.author.isVerified && (
+                    <VerifiedBadge size={16} />
+                  )}
+                  {pageData && (
+                    <>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">posted for</span>
+                      <button
+                        onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
+                        className="font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer"
+                      >
+                        {pageData.name}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                <span>Posted {formatDate(hackathon.startDate)}</span>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
         {/* Hero Section */}
       <GlassCard className="p-0 overflow-hidden">
           <div className="relative h-64 sm:h-80 md:h-96 lg:h-[32rem] xl:h-[36rem]">
@@ -413,6 +513,32 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <MarkdownRenderer content={hackathon.description} />
               </div>
+            {/* Tags */}
+            {(hackathon.post as any)?.tags && (hackathon.post as any).tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                {(hackathon.post as any).tags.map((tag: any) => {
+                  const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
+                  const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
+                  const tagLogoUrl = typeof tag === 'string' ? null : (tag?.logoUrl || tag?.logo_url);
+                  return (
+                    <span
+                      key={tagKey}
+                      onClick={() => navigate(`/tags/${typeof tag === 'string' ? tag : (tag?.slug || tagName)}`)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                    >
+                      {tagLogoUrl ? (
+                        <>
+                          <img src={tagLogoUrl} alt={tagName} className="w-4 h-4 rounded" />
+                          <span>{tagName}</span>
+                        </>
+                      ) : (
+                        <span>#{tagName}</span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             </GlassCard>
 
             {/* Requirements */}

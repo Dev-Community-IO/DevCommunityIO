@@ -879,7 +879,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         )}
 
         {activeTab === 'about' && (
-          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} socialLinkEntries={socialLinkEntries} />
+          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} socialLinkEntries={socialLinkEntries} pagePosts={pagePosts} />
         )}
 
         {activeTab === 'followers' && (
@@ -895,7 +895,24 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 }
 
 // About Tab Component
-const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries }: { pageData: any; pageTeamMembers: any[]; socialLinkEntries: SocialLinkEntry[] }) => {
+const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries, pagePosts }: { pageData: any; pageTeamMembers: any[]; socialLinkEntries: SocialLinkEntry[]; pagePosts: Post[] }) => {
+  const navigate = useNavigate();
+  
+  // Collect unique tags from all page posts
+  const allTags = new Map<string, any>();
+  pagePosts.forEach((post: Post) => {
+    if (post.tags && Array.isArray(post.tags)) {
+      post.tags.forEach((tag: any) => {
+        const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
+        const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
+        if (!allTags.has(tagKey)) {
+          allTags.set(tagKey, typeof tag === 'string' ? { name: tag, slug: tag } : tag);
+        }
+      });
+    }
+  });
+  const uniqueTags = Array.from(allTags.values());
+  
   return (
     <div className="space-y-6">
       <GlassCard className="p-6 md:p-8">
@@ -908,6 +925,36 @@ const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries }: { pageData: 
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-lg">
           {pageData.description || pageData.shortBio || 'No description available.'}
         </p>
+        
+        {/* Tags */}
+        {uniqueTags.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Tags</h3>
+            <div className="flex flex-wrap gap-2">
+              {uniqueTags.map((tag: any) => {
+                const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
+                const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
+                const tagLogoUrl = typeof tag === 'string' ? null : (tag?.logoUrl || tag?.logo_url);
+                return (
+                  <span
+                    key={tagKey}
+                    onClick={() => navigate(`/tags/${typeof tag === 'string' ? tag : (tag?.slug || tagName)}`)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                  >
+                    {tagLogoUrl ? (
+                      <>
+                        <img src={tagLogoUrl} alt={tagName} className="w-4 h-4 rounded" />
+                        <span>{tagName}</span>
+                      </>
+                    ) : (
+                      <span>#{tagName}</span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </GlassCard>
 
       {/* Page Details Grid */}
