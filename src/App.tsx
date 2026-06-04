@@ -1210,8 +1210,8 @@ function TagsPageLayout() {
     return (
       <>
       <NavbarWrapper />
-        <div className="min-h-screen pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
+        <div className="mx-auto max-w-7xl">
           <TagsPage />
         </div>
       </div>

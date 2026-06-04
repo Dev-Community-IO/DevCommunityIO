@@ -7,9 +7,17 @@ interface TooltipProps {
   delay?: number;
   /** Preferred side for sidebar / compact rails */
   side?: 'right' | 'left';
+  /** Stretch trigger to full width (sidebar nav rows) */
+  fullWidth?: boolean;
 }
 
-export function Tooltip({ content, children, delay = 300, side = 'right' }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  delay = 300,
+  side = 'right',
+  fullWidth = false,
+}: TooltipProps) {
   const [show, setShow] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, transform: 'translateY(-50%)' });
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -88,7 +96,11 @@ export function Tooltip({ content, children, delay = 300, side = 'right' }: Tool
         ref={triggerRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className="inline-flex items-center justify-center"
+        className={
+          fullWidth
+            ? 'flex w-full min-w-0 items-center justify-start text-left'
+            : 'inline-flex items-center justify-center'
+        }
       >
         {children}
       </span>

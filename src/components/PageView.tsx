@@ -237,7 +237,7 @@ interface PageViewProps {
   onLoginRequired?: () => void;
 }
 
-type TabType = 'posts' | 'about' | 'followers' | 'manage' | 'stats';
+type TabType = 'posts' | 'about' | 'members' | 'followers' | 'manage' | 'stats';
 
 export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequired }: PageViewProps) {
   const navigate = useNavigate();
@@ -407,6 +407,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           ...pageDataFromApi,
           isFollowing: isFollowingFromApi, // Explicitly set to ensure it's always boolean
           followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0,
+          memberCount: Number(pageDataFromApi?.memberCount ?? pageDataFromApi?.member_count ?? 0),
           socialLinks: parsedSocialLinks, // Use parsed social links
         };
         
@@ -536,9 +537,15 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
     );
   }
 
+  const membersCount =
+    pageData.memberCount ??
+    pageData.member_count ??
+    (Array.isArray(pageTeamMembers) ? pageTeamMembers.length : 0);
+
   const tabs = [
     { id: 'posts', label: 'Posts', icon: MessageSquare, count: pagePosts.length },
     { id: 'about', label: 'About', icon: FileText },
+    { id: 'members', label: 'Members', icon: Shield, count: membersCount },
     { id: 'followers', label: 'Followers', icon: Users, count: pageData.followerCount || pageData.follower_count || 0 },
   ];
 
@@ -819,15 +826,12 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
         )}
 
         {activeTab === 'about' && (
-          <AboutTab pageData={pageData} pageTeamMembers={pageTeamMembers} socialLinkEntries={socialLinkEntries} pagePosts={pagePosts} />
+          <AboutTab pageData={pageData} socialLinkEntries={socialLinkEntries} pagePosts={pagePosts} />
         )}
 
-        {activeTab === 'followers' && (
-          <FollowersTab 
-            pageFollowers={pageFollowers}
-            pageData={pageData}
-          />
-        )}
+        {activeTab === 'members' && <MembersTab pageTeamMembers={pageTeamMembers} />}
+
+        {activeTab === 'followers' && <FollowersTab pageFollowers={pageFollowers} />}
       </div>
     </div>
     </>
@@ -904,12 +908,10 @@ const teamRoleLabel: Record<string, string> = {
 // About Tab Component
 const AboutTab = ({
   pageData,
-  pageTeamMembers,
   socialLinkEntries,
   pagePosts,
 }: {
   pageData: any;
-  pageTeamMembers: any[];
   socialLinkEntries: SocialLinkEntry[];
   pagePosts: Post[];
 }) => {
@@ -930,9 +932,6 @@ const AboutTab = ({
   const uniqueTags = Array.from(allTags.values());
 
   const description = pageData.description || pageData.shortBio || 'No description available.';
-  const teamMembers = (pageTeamMembers || []).filter((m: any) =>
-    ['owner', 'admin', 'moderator'].includes(m.role)
-  );
   const createdLabel = pageData.createdAt
     ? new Date(pageData.createdAt).toLocaleDateString('en-US', {
         month: 'short',
@@ -1008,57 +1007,6 @@ const AboutTab = ({
           </AboutMetaTile>
         )}
       </div>
-
-      {teamMembers.length > 0 && (
-        <section className={`${asidePanelClass} p-3 sm:p-4`}>
-          <AboutSectionHeader
-            icon={Shield}
-            title="Team"
-            subtitle="Owners and moderators"
-            count={teamMembers.length}
-          />
-          <div className={memberGridClass}>
-            {teamMembers.map((member: any) => (
-              <article
-                key={member.id}
-                role="link"
-                tabIndex={0}
-                onClick={() => navigate(`/profile/${member.username}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate(`/profile/${member.username}`);
-                  }
-                }}
-                className={`${postCardSurfaceClass} h-full`}
-              >
-                <div className="flex h-full items-center gap-3 p-3">
-                  <Avatar
-                    src={
-                      member.avatarUrl ||
-                      member.avatar_url ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(member.username)}`
-                    }
-                    alt={member.username}
-                    size="sm"
-                    className="h-10 w-10 shrink-0 ring-2 ring-white dark:ring-zinc-900"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex min-w-0 items-center gap-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      {member.username}
-                      {member.is_verified && <VerifiedBadge size={11} className="shrink-0" />}
-                    </p>
-                    <span className={`${postTagClass} mt-1 capitalize`}>
-                      {teamRoleLabel[member.role] || member.role}
-                    </span>
-                  </div>
-                  <ChevronRight size={14} strokeWidth={2} className="shrink-0 text-zinc-400" aria-hidden />
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
 
       {socialLinkEntries.length > 0 && (
         <section className={`${asidePanelClass} p-3 sm:p-4`}>
@@ -1198,7 +1146,163 @@ function FollowerMemberCard({
   );
 }
 
-// Followers Tab — page followers (team members live under About / manage)
+const memberRoleOrder: Record<string, number> = {
+  owner: 0,
+  admin: 1,
+  moderator: 2,
+  member: 3,
+};
+
+function dedupePageMembers(members: any[]): any[] {
+  const seen = new Set<string>();
+  return members.filter((m) => {
+    if (!m?.id || seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+}
+
+function sortPageMembers(members: any[]): any[] {
+  return [...members].sort((a, b) => {
+    const aOrder = memberRoleOrder[a.role] ?? 99;
+    const bOrder = memberRoleOrder[b.role] ?? 99;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a.username || '').localeCompare(String(b.username || ''));
+  });
+}
+
+function TeamMemberCard({ member, onClick }: { member: any; onClick: () => void }) {
+  const joined = formatMemberJoined(member.created_at || member.createdAt);
+  const verified = member.is_verified || member.isVerified;
+  const reputation =
+    member.reputation !== undefined && member.reputation !== null
+      ? Number(member.reputation)
+      : null;
+
+  return (
+    <article
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`${postCardSurfaceClass} h-full`}
+    >
+      <div className="flex h-full items-center gap-3 p-3 sm:p-3.5">
+        <Avatar
+          src={
+            member.avatarUrl ||
+            member.avatar_url ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(member.username)}`
+          }
+          alt={member.username}
+          size="sm"
+          className="h-10 w-10 shrink-0 ring-2 ring-white dark:ring-zinc-900"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-1 text-sm font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
+            <span className="truncate">{member.username}</span>
+            {verified && <VerifiedBadge size={11} className="shrink-0" />}
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span className={`${postTagClass} capitalize`}>
+              {teamRoleLabel[member.role] || member.role || 'Member'}
+            </span>
+            {reputation !== null && (
+              <>
+                <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-0.5 tabular-nums">
+                  <Award size={10} strokeWidth={2} className="shrink-0 opacity-70" />
+                  {reputation.toLocaleString()}
+                </span>
+              </>
+            )}
+            {joined && (
+              <>
+                <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
+                  ·
+                </span>
+                <span>Joined {joined}</span>
+              </>
+            )}
+          </p>
+          {member.bio && (
+            <p className="mt-1 line-clamp-1 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+              {member.bio}
+            </p>
+          )}
+        </div>
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          className="shrink-0 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+          aria-hidden
+        />
+      </div>
+    </article>
+  );
+}
+
+const MembersTab = ({ pageTeamMembers }: { pageTeamMembers?: unknown[] }) => {
+  const navigate = useNavigate();
+  const members = sortPageMembers(dedupePageMembers((pageTeamMembers || []) as any[]));
+
+  return (
+    <div className="space-y-4">
+      <div className={`${asidePanelClass} flex items-center justify-between gap-3 p-3 sm:p-4`}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+            aria-hidden
+          >
+            <Shield size={15} strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Members</h2>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              Team who can post and manage this community
+            </p>
+          </div>
+        </div>
+        <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs text-zinc-600 dark:text-zinc-400`}>
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+            {members.length.toLocaleString()}
+          </span>
+        </span>
+      </div>
+
+      {members.length > 0 ? (
+        <div className={memberGridClass}>
+          {members.map((member) => (
+            <TeamMemberCard
+              key={member.id}
+              member={member}
+              onClick={() => navigate(`/profile/${member.username}`)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+          <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+            <Shield size={20} strokeWidth={1.75} />
+          </span>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">No team members yet</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Owners and moderators will appear here when added.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Followers Tab — people following the page (not team)
 const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
   const navigate = useNavigate();
   const followers = (pageFollowers || []) as Array<{
@@ -1226,7 +1330,7 @@ const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Followers</h2>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Members following this community</p>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">People following this community</p>
           </div>
         </div>
         <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs text-zinc-600 dark:text-zinc-400`}>

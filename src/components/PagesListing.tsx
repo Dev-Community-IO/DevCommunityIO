@@ -27,8 +27,14 @@ import {
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
-const statChipClass =
-  'flex min-w-0 flex-1 flex-col items-center rounded-lg border border-zinc-200/70 bg-zinc-50/90 px-2 py-1.5 dark:border-white/10 dark:bg-white/[0.04]';
+const communityGridClass =
+  'grid items-stretch gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))]';
+
+const trendingPillClass =
+  'inline-flex items-center gap-0.5 rounded-md border border-orange-200/80 bg-orange-50/95 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800 backdrop-blur-sm dark:border-orange-500/30 dark:bg-orange-950/80 dark:text-orange-200';
+
+const followingPillClass =
+  'inline-flex items-center gap-0.5 rounded-md border border-zinc-200/80 bg-white/95 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 backdrop-blur-sm dark:border-white/15 dark:bg-zinc-900/90 dark:text-zinc-300';
 
 interface PagesListingProps {
   onPageClick?: (pageId: string) => void;
@@ -41,6 +47,16 @@ function formatCategoryLabel(category: string): string {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
+}
+
+function normalizePageFromApi(page: Page): Page {
+  return {
+    ...page,
+    isFollowing: page?.isFollowing === true,
+    postCount: Number(page.postCount ?? 0),
+    memberCount: Number(page.memberCount ?? page.member_count ?? 0),
+    followerCount: Number(page.followerCount ?? page.follower_count ?? 0),
+  };
 }
 
 function CommunitiesPageHeader({
@@ -238,7 +254,7 @@ function PageListCard({ page, onClick }: { page: Page; onClick: () => void }) {
   const coverUrl = page.coverImageUrl || page.coverImage;
   const bio = page.shortBio || page.description;
   const handle = page.username || page.slug;
-  const followers = page.followerCount ?? page.follower_count ?? 0;
+  const followers = page.followerCount ?? 0;
   const posts = page.postCount ?? 0;
   const members = page.memberCount ?? 0;
 
@@ -253,9 +269,9 @@ function PageListCard({ page, onClick }: { page: Page; onClick: () => void }) {
           onClick();
         }
       }}
-      className={`${postCardSurfaceClass} h-full`}
+      className={`${postCardSurfaceClass} h-full overflow-hidden`}
     >
-      <div className="relative h-24 shrink-0 overflow-hidden bg-zinc-100 dark:bg-[#0a1020]">
+      <div className="relative h-[4.5rem] shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-900/60 sm:h-20">
         {coverUrl ? (
           <img
             src={coverUrl}
@@ -265,28 +281,35 @@ function PageListCard({ page, onClick }: { page: Page; onClick: () => void }) {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />
-        ) : null}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+        ) : (
+          <div
+            className="h-full w-full bg-gradient-to-br from-zinc-100 via-zinc-50 to-zinc-200/60 dark:from-zinc-900 dark:via-zinc-900/80 dark:to-zinc-800"
+            aria-hidden
+          />
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
 
-        <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
-          {page.isTrending && (
-            <span className="inline-flex items-center gap-0.5 rounded-md border border-orange-200/80 bg-orange-50/95 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800 backdrop-blur-sm dark:border-orange-500/30 dark:bg-orange-950/80 dark:text-orange-200">
-              <TrendingUp size={10} strokeWidth={2.5} />
-              Trending
-            </span>
-          )}
-          {page.isFollowing && (
-            <span className="inline-flex items-center gap-0.5 rounded-md border border-zinc-200/80 bg-white/95 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 backdrop-blur-sm dark:border-white/15 dark:bg-zinc-900/90 dark:text-zinc-300">
-              <UserCheck size={10} strokeWidth={2.5} />
-              Following
-            </span>
-          )}
-        </div>
+        {(page.isTrending || page.isFollowing) && (
+          <div className="absolute left-2 top-2 flex flex-wrap gap-1">
+            {page.isTrending && (
+              <span className={trendingPillClass}>
+                <TrendingUp size={10} strokeWidth={2.5} aria-hidden />
+                Trending
+              </span>
+            )}
+            {page.isFollowing && (
+              <span className={followingPillClass}>
+                <UserCheck size={10} strokeWidth={2.5} aria-hidden />
+                Following
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="relative flex flex-1 flex-col px-4 pb-3.5 pt-9">
-        <div className="absolute -top-7 left-4 z-10">
-          <div className="relative h-14 w-14 overflow-hidden rounded-xl border-2 border-white bg-zinc-100 shadow-md ring-1 ring-zinc-200/80 dark:border-zinc-900 dark:bg-zinc-800 dark:ring-white/10">
+      <div className="relative flex flex-1 flex-col px-3.5 pb-3.5 pt-7 sm:px-4 sm:pb-4">
+        <div className="absolute -top-5 left-3.5 z-10 sm:left-4">
+          <div className="h-11 w-11 overflow-hidden rounded-xl border-2 border-white bg-zinc-100 shadow-sm ring-1 ring-zinc-200/80 dark:border-zinc-900 dark:bg-zinc-800 dark:ring-white/10 sm:h-12 sm:w-12">
             <img
               src={logoUrl}
               alt=""
@@ -299,61 +322,56 @@ function PageListCard({ page, onClick }: { page: Page; onClick: () => void }) {
           </div>
         </div>
 
-        <div className="mb-2 min-w-0">
-          <div className="flex min-w-0 items-center gap-1">
-            <h3 className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
-              {page.name}
-            </h3>
-            {page.isVerified && (
-              <VerifiedBadge variant="page" size={14} className="shrink-0" />
+        <div className="mb-1.5 flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 pr-1">
+            <div className="inline-flex min-w-0 max-w-full items-center gap-0.5">
+              <h3 className="min-w-0 truncate text-sm font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
+                {page.name}
+              </h3>
+              {page.isVerified && <VerifiedBadge variant="page" size={12} className="shrink-0" />}
+            </div>
+            {handle && (
+              <p className="mt-0.5 truncate text-left text-[11px] text-zinc-500 dark:text-zinc-400">
+                @{handle}
+              </p>
             )}
           </div>
-          {handle && (
-            <p className="mt-0.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">@{handle}</p>
-          )}
+          <ChevronRight
+            size={16}
+            strokeWidth={2}
+            className="mt-0.5 shrink-0 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+            aria-hidden
+          />
         </div>
 
-        <p className="mb-3 line-clamp-2 flex-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <p className="mb-2.5 line-clamp-2 flex-1 text-left text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
           {bio || 'No description yet.'}
         </p>
 
-        {page.category && (
-          <div className="mb-3">
-            <span className={postTagClass}>{page.category}</span>
-          </div>
-        )}
-
-        <div className="mb-3 flex gap-1.5">
-          <div className={statChipClass}>
-            <Users size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
-            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {followers.toLocaleString()}
+        <div className="mt-auto flex flex-wrap items-center gap-1.5">
+          {page.category && (
+            <span className={`${postTagClass} capitalize`}>{formatCategoryLabel(page.category)}</span>
+          )}
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Users size={11} strokeWidth={2} className="opacity-70" aria-hidden />
+              {followers.toLocaleString()} followers
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Followers</span>
-          </div>
-          <div className={statChipClass}>
-            <FileText size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
-            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {posts.toLocaleString()}
+            <span className="mx-1 text-zinc-300 dark:text-zinc-600" aria-hidden>
+              ·
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Posts</span>
-          </div>
-          <div className={statChipClass}>
-            <Building2 size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
-            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {members.toLocaleString()}
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <FileText size={11} strokeWidth={2} className="opacity-70" aria-hidden />
+              {posts.toLocaleString()} posts
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Members</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-zinc-100 pt-2.5 dark:border-white/[0.06]">
-          <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">View community</span>
-          <ChevronRight
-            size={14}
-            className="text-zinc-400 transition-transform group-hover:translate-x-0.5 dark:text-zinc-500"
-            strokeWidth={2}
-          />
+            <span className="mx-1 text-zinc-300 dark:text-zinc-600" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Building2 size={11} strokeWidth={2} className="opacity-70" aria-hidden />
+              {members.toLocaleString()} members
+            </span>
+          </span>
         </div>
       </div>
     </article>
@@ -440,13 +458,7 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         const pagesData = response.data || [];
         const meta = response.meta || {};
 
-        setPages(
-          pagesData.map((page: Page) => ({
-            ...page,
-            isFollowing: page?.isFollowing === true,
-            postCount: Number(page.postCount ?? 0),
-          }))
-        );
+        setPages(pagesData.map((page: Page) => normalizePageFromApi(page)));
         setHasMore(meta.currentPage < meta.lastPage);
         setTotal(meta.total || 0);
       } catch (err: unknown) {
@@ -484,14 +496,7 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
       const pagesData = response.data || [];
       const meta = response.meta || {};
 
-      setPages((prev) => [
-        ...prev,
-        ...pagesData.map((page: Page) => ({
-          ...page,
-          isFollowing: page?.isFollowing === true,
-          postCount: Number(page.postCount ?? 0),
-        })),
-      ]);
+      setPages((prev) => [...prev, ...pagesData.map((page: Page) => normalizePageFromApi(page))]);
       setCurrentPage(nextPage);
       setHasMore(meta.currentPage < meta.lastPage);
     } catch (err: unknown) {
@@ -565,7 +570,7 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         <>
           {pages.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">
+              <div className={communityGridClass}>
                 {pages.map((page) => (
                   <PageListCard
                     key={page.id}

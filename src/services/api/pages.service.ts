@@ -21,6 +21,7 @@ export interface Page {
     username?: string | null;
     ownerId: string;
     memberCount?: number;
+    member_count?: number;
     postCount?: number;
     followerCount?: number;
     follower_count?: number;

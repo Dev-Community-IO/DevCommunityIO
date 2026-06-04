@@ -10,6 +10,7 @@ import InfiniteScroll from 'react-infinite-scroll-component';
 import adsService, { PublicAd } from '../services/api/ads.service';
 import { InFeedAd } from './ads/InFeedAd';
 import { PostSkeletonList } from './skeletons';
+import { asidePanelClass } from './postCardSurface';
 import { Hackathon } from '../services/api/hackathons.service';
 import { Event } from '../services/api/events.service';
 import { Opportunity } from '../services/api/opportunities.service';
@@ -179,40 +180,49 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-5">
-      {/* Active Tag Filter Banner - Mobile Optimized */}
       {activeTagFilter && (
-        <div className="flex items-center justify-between p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <div
+          className="sticky top-[calc(var(--layout-header-offset)+0.5rem)] z-30 -mx-px pb-2 sm:pb-3"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className={`${asidePanelClass} flex items-center gap-3 p-3 shadow-sm backdrop-blur-md sm:p-3.5 dark:bg-zinc-900/90`}
+          >
             {activeTagLogo ? (
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                <img
-                  src={activeTagLogo}
-                  alt={activeTagFilter}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <img
+                src={activeTagLogo}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-lg border border-zinc-200/80 object-cover dark:border-white/10 sm:h-10 sm:w-10"
+              />
             ) : (
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-sm flex-shrink-0">
-                <Hash size={16} className="text-white sm:w-[18px] sm:h-[18px]" />
-              </div>
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 dark:border-white/10 dark:bg-white/[0.04] sm:h-10 sm:w-10"
+                aria-hidden
+              >
+                <Hash size={16} strokeWidth={2} className="text-zinc-500 dark:text-zinc-400" />
+              </span>
             )}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 truncate">Filtered by tag</p>
-              <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent truncate">
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                Filtered by tag
+              </p>
+              <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100 sm:text-base">
                 #{activeTagFilter}
               </p>
             </div>
+            {onClearTagFilter && (
+              <button
+                type="button"
+                onClick={onClearTagFilter}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-50/90 px-2.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100 sm:px-3 touch-manipulation"
+                title="Clear tag filter"
+              >
+                <X size={14} strokeWidth={2} aria-hidden />
+                <span>Clear</span>
+              </button>
+            )}
           </div>
-          {onClearTagFilter && (
-            <button
-              onClick={onClearTagFilter}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 active:scale-95 border border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 transition-all duration-200 hover:shadow-sm flex-shrink-0 touch-manipulation"
-              title="Clear filter"
-            >
-              <X size={14} className="sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Clear</span>
-            </button>
-          )}
         </div>
       )}
 

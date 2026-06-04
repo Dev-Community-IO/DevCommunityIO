@@ -17,6 +17,7 @@ export interface Tag {
     category?: string;
     usageCount: number;
     followersCount?: number;
+    followers_count?: number;
     trending?: boolean;
     featured?: boolean;
     logoUrl?: string;

@@ -305,7 +305,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
     const tone = active
       ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
       : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100';
-    return `flex items-center rounded-lg text-sm font-medium transition-colors touch-manipulation ${layout} ${tone}`;
+    return `flex items-center text-left rounded-lg text-sm font-medium transition-colors touch-manipulation ${layout} ${tone}`;
   };
 
   const sectionLabelClass =
@@ -330,14 +330,14 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   const showNavTooltips = isIconRail || isNavRail || !showText || forceIconOnly;
 
   const wrapWithTooltip = (label: string, node: React.ReactNode) =>
-    isIconRail ? (
+    isIconRail || isNavRail ? (
       <div className="relative flex w-full justify-center">
         <Tooltip content={label} delay={200} side="right">
           {node}
         </Tooltip>
       </div>
     ) : (
-      <Tooltip content={label} delay={200} side="right">
+      <Tooltip content={label} delay={200} side="right" fullWidth>
         {node}
       </Tooltip>
     );
@@ -425,7 +425,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                   >
                     <Icon size={17} strokeWidth={2} className="shrink-0 opacity-90" />
                     {showText && !forceIconOnly && (isMobileSidebar || isLgUp) && (
-                      <span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-left text-start">{item.name}</span>
                     )}
                     {showText && !forceIconOnly && item.id === 'bookmarks' && bookmarkCount !== null && (
                       <span
@@ -442,7 +442,9 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                 );
                 return (
                   <li key={item.id} className={menuListItemClass}>
-                    {showNavTooltips ? wrapWithTooltip(item.name, button) : button}
+                    <div className="w-full">
+                      {showNavTooltips ? wrapWithTooltip(item.name, button) : button}
+                    </div>
                   </li>
                 );
               })}
@@ -465,7 +467,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                         className={
                           isIconRail
                             ? tagIconBtnClass
-                            : 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100'
+                            : 'flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100'
                         }
                       >
                         {tag.logoUrl ? (
@@ -480,13 +482,15 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                           </span>
                         )}
                         {(isMobileSidebar || isLgUp) && (
-                          <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-left text-start">{tag.name}</span>
                         )}
                       </button>
                     );
                     return (
                       <li key={tag.id} className={menuListItemClass}>
-                        {useTagTooltips ? wrapWithTooltip(tag.name, tagBtn) : tagBtn}
+                        <div className="w-full">
+                          {useTagTooltips ? wrapWithTooltip(tag.name, tagBtn) : tagBtn}
+                        </div>
                       </li>
                     );
                   })}
@@ -595,13 +599,15 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                       >
                         <Icon size={17} strokeWidth={2} className="shrink-0 opacity-90" />
                         {showText && !forceIconOnly && (isMobileSidebar || isLgUp) && (
-                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-left text-start">{item.name}</span>
                         )}
                       </button>
                     );
                     return (
                       <li key={item.id} className={menuListItemClass}>
-                        {showNavTooltips ? wrapWithTooltip(item.name, resourceBtn) : resourceBtn}
+                        <div className="w-full">
+                          {showNavTooltips ? wrapWithTooltip(item.name, resourceBtn) : resourceBtn}
+                        </div>
                       </li>
                     );
                   })}
