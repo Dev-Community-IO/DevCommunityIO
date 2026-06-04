@@ -9,7 +9,7 @@ import pagesService from '../services/api/pages.service';
 import hackathonsService from '../services/api/hackathons.service';
 import eventsService from '../services/api/events.service';
 import opportunitiesService from '../services/api/opportunities.service';
-import adminService from '../services/api/admin.service';
+import reputationSystemService from '../services/api/reputationSystem.service';
 import tagsService, { Tag } from '../services/api/tags.service';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
@@ -169,7 +169,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   useEffect(() => {
     const fetchReputationRequirements = async () => {
       try {
-        const data = await adminService.getReputationRequirements();
+        const data = await reputationSystemService.getRequirements();
         if (data.requirements) {
           setReputationRequirements(data.requirements);
         }

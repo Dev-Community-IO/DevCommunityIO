@@ -224,10 +224,18 @@ export function navigateFromNotification(
         return;
       }
     }
-    if (url.includes('/profile/') || url.includes('/users/') || url.includes('/user/')) {
-      const username = extractSlugFromUrl(url, '/(users?|profile)/');
+    if (url.includes('/profile') || url.includes('/users/') || url.includes('/user/')) {
+      const username = extractSlugFromUrl(url, '/(?:users?|profile)/');
       if (username) {
-        navigate(`/profile/${username}`);
+        const queryIndex = url.indexOf('?');
+        const hashIndex = url.indexOf('#');
+        const suffix =
+          queryIndex !== -1
+            ? url.substring(queryIndex)
+            : hashIndex !== -1
+              ? url.substring(hashIndex)
+              : '';
+        navigate(`/profile/${username}${suffix}`);
         markReadIfNeeded();
         return;
       }

@@ -10,7 +10,7 @@ const CHECK_PATH =
 
 const FILL = {
   user: '#1d9bf0',
-  page: '#f97316',
+  page: '#ff9400',
 } as const;
 
 export function VerifiedBadge({ size = 16, className = '', variant = 'user' }: VerifiedBadgeProps) {

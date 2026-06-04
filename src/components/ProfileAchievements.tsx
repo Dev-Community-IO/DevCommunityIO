@@ -1,413 +1,293 @@
-import { useEffect, useState } from 'react';
-import { Award, Trophy, Sparkles, Lock, Target, Calendar, Star, Info } from 'lucide-react';
-import { GlassCard } from './GlassCard';
+import { useEffect, useState, useMemo } from 'react';
+import { Award, Lock, Trophy, Loader2, Star, Target } from 'lucide-react';
 import achievementsService, { Achievement } from '../services/api/achievements.service';
 import { AchievementBadge } from './AchievementBadge';
+import { TabPills } from './TabPills';
+import {
+  ProfileTabPanel,
+  ProfileTabHeader,
+  ProfileStatChip,
+} from './profileTabUi';
+import { asidePanelClass } from './postCardSurface';
 
 interface ProfileAchievementsProps {
-    username: string;
-    isOwnProfile?: boolean;
+  username: string;
+  isOwnProfile?: boolean;
 }
 
-const difficultyColors = {
-    easy: 'text-green-500 bg-green-100 dark:bg-green-900/30',
-    medium: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30',
-    hard: 'text-purple-500 bg-purple-100 dark:bg-purple-900/30',
-    expert: 'text-amber-500 bg-amber-100 dark:bg-amber-900/30',
-    legendary: 'text-red-500 bg-red-100 dark:bg-red-900/30',
-};
+type AchievementFilter = 'all' | 'unlocked' | 'locked';
 
-const difficultyLabels = {
-    easy: 'Easy',
-    medium: 'Medium',
-    hard: 'Hard',
-    expert: 'Expert',
-    legendary: 'Legendary',
+const difficultyChip: Record<Achievement['difficulty'], string> = {
+  easy: 'text-emerald-700 dark:text-emerald-400',
+  medium: 'text-sky-700 dark:text-sky-400',
+  hard: 'text-violet-700 dark:text-violet-400',
+  expert: 'text-amber-700 dark:text-amber-400',
+  legendary: 'text-rose-700 dark:text-rose-400',
 };
 
 const criteriaLabels: Record<string, string> = {
-    posts_count: 'Create Posts',
-    comments_count: 'Write Comments',
-    upvotes_given: 'Give Upvotes',
-    upvotes_received: 'Receive Upvotes',
-    followers_count: 'Gain Followers',
-    following_count: 'Follow Users',
-    pages_created: 'Create Pages',
-    reputation: 'Earn Reputation Points',
-    reactions_received: 'Receive Reactions',
-    bookmarks_received: 'Get Bookmarks',
-    profile_complete: 'Complete Profile',
-    is_verified: 'Verify Account',
-    verified: 'Verify Account',
-    first_post: 'Create First Post',
-    first_comment: 'Write First Comment',
-    first_page: 'Create First Page',
-    streak_days: 'Maintain Streak',
-    daily_streak: 'Daily Streak',
-    daily_active: 'Daily Activity',
+  posts_count: 'Create posts',
+  comments_count: 'Write comments',
+  upvotes_given: 'Give upvotes',
+  upvotes_received: 'Receive upvotes',
+  followers_count: 'Gain followers',
+  following_count: 'Follow users',
+  pages_created: 'Create pages',
+  reputation: 'Earn reputation',
+  reactions_received: 'Receive reactions',
+  bookmarks_received: 'Get bookmarks',
+  profile_complete: 'Complete profile',
+  is_verified: 'Verify account',
+  verified: 'Verify account',
+  first_post: 'First post',
+  first_comment: 'First comment',
+  first_page: 'First page',
+  streak_days: 'Day streak',
+  daily_streak: 'Daily streak',
+  daily_active: 'Daily activity',
 };
 
 const getCriteriaDisplay = (criteria?: { type: string; value: number | boolean }): string => {
-    if (!criteria || !criteria.type) return '';
-    
-    const label = criteriaLabels[criteria.type] || criteria.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    
-    if (typeof criteria.value === 'boolean') {
-        return criteria.value ? label : `Not ${label}`;
-    }
-    
-    if (criteria.type === 'daily_streak' || criteria.type === 'streak_days') {
-        return `${label} for ${criteria.value} day${criteria.value !== 1 ? 's' : ''}`;
-    }
-    
-    return `${label}: ${criteria.value}`;
+  if (!criteria?.type) return '';
+  const label =
+    criteriaLabels[criteria.type] ||
+    criteria.type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  if (typeof criteria.value === 'boolean') return label;
+  if (criteria.type === 'daily_streak' || criteria.type === 'streak_days') {
+    return `${label} · ${criteria.value}d`;
+  }
+  return `${label} · ${criteria.value}`;
 };
 
+function normalizeAchievements(data: Achievement[]): Achievement[] {
+  return data.map((ach) => {
+    let isUnlocked = false;
+    if (ach.isUnlocked === true || ach.isUnlocked === ('true' as unknown) || ach.isUnlocked === (1 as unknown)) {
+      isUnlocked = true;
+    } else if (ach.unlocked_at) {
+      isUnlocked = true;
+    }
+    return { ...ach, isUnlocked };
+  });
+}
+
 export function ProfileAchievements({ username, isOwnProfile = false }: ProfileAchievementsProps) {
-    const [achievements, setAchievements] = useState<Achievement[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<AchievementFilter>('all');
 
-    useEffect(() => {
-        const fetchAchievements = async () => {
-            if (!username) {
-                setLoading(false);
-                setError('Username is required');
-                return;
-            }
-
-            try {
-                setLoading(true);
-                setError(null);
-
-                // Always use username-based endpoint for consistency
-                // This works even if authentication fails or session expires
-                let data: Achievement[];
-                data = await achievementsService.getUserAchievements(username);
-
-                if (!Array.isArray(data)) {
-                    console.warn('Achievements data is not an array:', data);
-                    data = [];
-                }
-
-                // Normalize isUnlocked - ensure it's a boolean and handle various formats
-                data = data.map(ach => {
-                    // Check multiple possible formats for isUnlocked
-                    let isUnlocked = false;
-                    
-                    // First check the isUnlocked field directly
-                    if (ach.isUnlocked === true || ach.isUnlocked === 'true' || ach.isUnlocked === 1) {
-                        isUnlocked = true;
-                    } else if (ach.isUnlocked === false || ach.isUnlocked === 'false' || ach.isUnlocked === 0) {
-                        isUnlocked = false;
-                    } else if (ach.unlocked_at) {
-                        // If unlocked_at exists, consider it unlocked
-                        isUnlocked = true;
-                    }
-                    
-                    return {
-                        ...ach,
-                        isUnlocked: isUnlocked
-                    };
-                });
-
-                setAchievements(data);
-            } catch (err: any) {
-                console.error('Failed to fetch achievements:', err);
-                setError(err?.response?.data?.message || err?.message || 'Failed to load achievements');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAchievements();
-    }, [username, isOwnProfile]);
-
-    // Explicitly check for true to handle undefined/null values
-    const unlockedAchievements = achievements.filter((a) => a.isUnlocked === true);
-    const lockedAchievements = achievements.filter((a) => a.isUnlocked !== true);
-
-    const getProgressPercentage = () => {
-        if (achievements.length === 0) return 0;
-        return Math.round((unlockedAchievements.length / achievements.length) * 100);
+  useEffect(() => {
+    const fetchAchievements = async () => {
+      if (!username) {
+        setLoading(false);
+        setError('Username is required');
+        return;
+      }
+      try {
+        setLoading(true);
+        setError(null);
+        let data = await achievementsService.getUserAchievements(username);
+        if (!Array.isArray(data)) data = [];
+        setAchievements(normalizeAchievements(data));
+      } catch (err: unknown) {
+        const message =
+          (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+            ?.message ||
+          (err as Error)?.message ||
+          'Failed to load achievements';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchAchievements();
+  }, [username]);
 
-    if (loading) {
-        return (
-            <GlassCard className="p-6">
-                <div className="animate-pulse space-y-4">
-                    <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-                    <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-                        ))}
-                    </div>
-                </div>
-            </GlassCard>
-        );
+  const unlocked = useMemo(() => achievements.filter((a) => a.isUnlocked === true), [achievements]);
+  const locked = useMemo(() => achievements.filter((a) => a.isUnlocked !== true), [achievements]);
+
+  const progress =
+    achievements.length === 0 ? 0 : Math.round((unlocked.length / achievements.length) * 100);
+
+  const filtered = useMemo(() => {
+    if (filter === 'unlocked') return unlocked;
+    if (filter === 'locked') return locked;
+    return achievements;
+  }, [filter, achievements, unlocked, locked]);
+
+  const filterTabs = useMemo(() => {
+    const tabs: { id: AchievementFilter; label: string; icon: typeof Award; count?: number }[] = [
+      { id: 'all', label: 'All', icon: Award, count: achievements.length },
+      { id: 'unlocked', label: 'Unlocked', icon: Trophy, count: unlocked.length },
+    ];
+    if (isOwnProfile) {
+      tabs.push({ id: 'locked', label: 'Locked', icon: Lock, count: locked.length });
     }
+    return tabs;
+  }, [achievements.length, unlocked.length, locked.length, isOwnProfile]);
 
-    if (error) {
-        return (
-            <GlassCard className="p-6">
-                <div className="text-center py-8">
-                    <p className="text-red-500 mb-2">Error loading achievements</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
-                </div>
-            </GlassCard>
-        );
-    }
-
-    if (achievements.length === 0 && !loading && !error) {
-        return (
-            <GlassCard className="p-6">
-                <div className="text-center py-8">
-                    <Sparkles size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                    <h3 className="text-lg font-bold mb-2">No Achievements Found</h3>
-                    <p className="text-gray-500 dark:text-gray-400">
-                        {isOwnProfile 
-                            ? "No achievements are available yet. Check back later!" 
-                            : "This user hasn't unlocked any achievements yet."}
-                    </p>
-                </div>
-            </GlassCard>
-        );
-    }
-
-    const AchievementCard = ({ achievement }: { achievement: Achievement }) => {
-        // Explicitly check for true to handle undefined/null values
-        const isUnlocked = achievement.isUnlocked === true;
-        const isLocked = !isUnlocked;
-        const criteria = achievement.criteria as { type: string; value: number | boolean } | undefined;
-
-        return (
-            <GlassCard className={`p-4 transition-all duration-300 ${isLocked ? 'opacity-60' : ''}`}>
-                <div className="flex gap-4">
-                    {/* Badge */}
-                    <div className="flex-shrink-0">
-                        <AchievementBadge
-                            achievement={achievement}
-                            size="md"
-                            showDetails={false}
-                        />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex-1">
-                                <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-1 flex items-center gap-2">
-                                    {achievement.name}
-                                    {achievement.is_showcased && !isLocked && (
-                                        <Star size={16} className="text-yellow-500 fill-yellow-500" />
-                                    )}
-                                </h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                    {achievement.description}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Details Grid */}
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                            {/* Reputation Required */}
-                            <div className="flex items-center gap-2">
-                                <Award size={14} className="text-yellow-500" />
-                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    {achievement.reputation_required} rep required
-                                </span>
-                            </div>
-
-                            {/* Difficulty */}
-                            <div className="flex items-center gap-2">
-                                <Target size={14} className="text-gray-500 dark:text-gray-400" />
-                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${difficultyColors[achievement.difficulty]}`}>
-                                    {difficultyLabels[achievement.difficulty]}
-                                </span>
-                            </div>
-
-                            {/* Category */}
-                            {achievement.category && (
-                                <div className="flex items-center gap-2">
-                                    <Info size={14} className="text-gray-500 dark:text-gray-400" />
-                                    <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
-                                        {achievement.category}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Unlock Date */}
-                            {achievement.unlocked_at && (
-                                <div className="flex items-center gap-2">
-                                    <Calendar size={14} className="text-gray-500 dark:text-gray-400" />
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                                        {new Date(achievement.unlocked_at).toLocaleDateString()}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Unlock Requirement */}
-                        {isLocked && criteria && (
-                            <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-2">
-                                    <Lock size={14} className="text-gray-500 dark:text-gray-400" />
-                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                        Unlock Requirement:
-                                    </span>
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                                        {getCriteriaDisplay(criteria)}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </GlassCard>
-        );
-    };
-
+  if (loading) {
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
-                            <Award size={20} className="text-yellow-500" />
-                            Achievements
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {unlockedAchievements.length} of {achievements.length} unlocked
-                        </p>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {getProgressPercentage()}%
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Complete</div>
-                    </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-4">
-                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-500"
-                            style={{ width: `${getProgressPercentage()}%` }}
-                        />
-                    </div>
-                </div>
-
-                {/* View Mode Toggle */}
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setViewMode('list')}
-                        className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                            viewMode === 'list'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        }`}
-                    >
-                        List View
-                    </button>
-                    <button
-                        onClick={() => setViewMode('grid')}
-                        className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                            viewMode === 'grid'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        }`}
-                    >
-                        Grid View
-                    </button>
-                </div>
-            </GlassCard>
-
-            {/* Unlocked Achievements */}
-            {unlockedAchievements.length > 0 && (
-                <div>
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                        <Trophy size={16} className="text-yellow-500" />
-                        Unlocked ({unlockedAchievements.length})
-                    </h4>
-                    {viewMode === 'list' ? (
-                        <div className="space-y-3">
-                            {unlockedAchievements
-                                .sort((a, b) => (b.unlocked_at || '').localeCompare(a.unlocked_at || ''))
-                                .map((achievement) => (
-                                    <AchievementCard key={achievement.id} achievement={achievement} />
-                                ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {unlockedAchievements
-                                .sort((a, b) => (b.unlocked_at || '').localeCompare(a.unlocked_at || ''))
-                                .map((achievement) => (
-                                    <AchievementCard key={achievement.id} achievement={achievement} />
-                                ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Locked Achievements */}
-            {isOwnProfile && lockedAchievements.length > 0 && (
-                <div>
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                        <Lock size={16} className="text-gray-400" />
-                        Locked ({lockedAchievements.length})
-                    </h4>
-                    {viewMode === 'list' ? (
-                        <div className="space-y-3">
-                            {lockedAchievements
-                                .sort((a, b) => a.order - b.order)
-                                .map((achievement) => (
-                                    <AchievementCard key={achievement.id} achievement={achievement} />
-                                ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {lockedAchievements
-                                .sort((a, b) => a.order - b.order)
-                                .map((achievement) => (
-                                    <AchievementCard key={achievement.id} achievement={achievement} />
-                                ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Stats Cards */}
-            {unlockedAchievements.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <GlassCard className="p-4 text-center">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {unlockedAchievements.length}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Unlocked</div>
-                    </GlassCard>
-                    <GlassCard className="p-4 text-center">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {unlockedAchievements.reduce((sum, a) => sum + (a.reputation_required || 0), 0)}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Rep Required</div>
-                    </GlassCard>
-                    <GlassCard className="p-4 text-center">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {unlockedAchievements.filter((a) => a.difficulty === 'legendary').length}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Legendary</div>
-                    </GlassCard>
-                    <GlassCard className="p-4 text-center">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {unlockedAchievements.filter((a) => a.is_showcased).length}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Showcased</div>
-                    </GlassCard>
-                </div>
-            )}
+      <ProfileTabPanel>
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-zinc-400" strokeWidth={2} />
         </div>
+      </ProfileTabPanel>
     );
+  }
+
+  if (error) {
+    return (
+      <ProfileTabPanel>
+        <ProfileTabHeader icon={Award} title="Achievements" description={error} />
+      </ProfileTabPanel>
+    );
+  }
+
+  if (achievements.length === 0) {
+    return (
+      <ProfileTabPanel>
+        <div className="py-12 text-center">
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+            <Award size={22} strokeWidth={1.75} />
+          </span>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">No achievements yet</p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {isOwnProfile
+              ? 'Contribute to the community to unlock badges.'
+              : "This user hasn't unlocked any badges yet."}
+          </p>
+        </div>
+      </ProfileTabPanel>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <ProfileTabPanel>
+        <ProfileTabHeader
+          icon={Award}
+          title="Achievements"
+          description={
+            isOwnProfile
+              ? 'Track milestones and reputation goals.'
+              : `Badges earned by ${username}.`
+          }
+        />
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <ProfileStatChip label="Unlocked" value={unlocked.length} />
+          <ProfileStatChip label="Total" value={achievements.length} />
+          <ProfileStatChip label="Progress" value={`${progress}%`} />
+          {unlocked.filter((a) => a.is_showcased).length > 0 && (
+            <ProfileStatChip
+              label="Showcased"
+              value={unlocked.filter((a) => a.is_showcased).length}
+            />
+          )}
+        </div>
+
+        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/[0.06]">
+          <div
+            className="h-full rounded-full bg-zinc-900 transition-all duration-500 dark:bg-zinc-100"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </ProfileTabPanel>
+
+      <div className={`${asidePanelClass} overflow-hidden p-2 sm:p-3`}>
+        <div className="mb-2 overflow-x-auto scrollbar-hide px-1">
+          <TabPills
+            ariaLabel="Achievement filters"
+            activeTab={filter}
+            onChange={setFilter}
+            scrollable
+            size="sm"
+            tabs={filterTabs}
+          />
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="py-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+            No achievements in this view.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered
+              .sort((a, b) => {
+                if (a.isUnlocked !== b.isUnlocked) return a.isUnlocked ? -1 : 1;
+                if (a.isUnlocked && b.isUnlocked) {
+                  return (b.unlocked_at || '').localeCompare(a.unlocked_at || '');
+                }
+                return a.order - b.order;
+              })
+              .map((achievement) => {
+                const isLocked = achievement.isUnlocked !== true;
+                const criteria = achievement.criteria as
+                  | { type: string; value: number | boolean }
+                  | undefined;
+
+                return (
+                  <article
+                    key={achievement.id}
+                    className={`flex gap-3 rounded-lg border p-3 transition-colors ${
+                      isLocked
+                        ? 'border-zinc-100 bg-zinc-50/50 opacity-75 dark:border-white/[0.04] dark:bg-white/[0.02]'
+                        : 'border-zinc-200/80 bg-white dark:border-white/[0.08] dark:bg-zinc-900/30'
+                    }`}
+                  >
+                    <div className="shrink-0">
+                      <AchievementBadge achievement={achievement} size="sm" showDetails={false} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-1">
+                        <h3 className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          {achievement.name}
+                        </h3>
+                        {achievement.is_showcased && !isLocked && (
+                          <Star
+                            size={12}
+                            className="shrink-0 fill-amber-500 text-amber-500"
+                            aria-label="Showcased"
+                          />
+                        )}
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                        {achievement.description}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-0.5 rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-px text-[10px] font-medium capitalize dark:border-white/10 dark:bg-white/[0.04] ${difficultyChip[achievement.difficulty]}`}
+                        >
+                          <Target size={9} strokeWidth={2} aria-hidden />
+                          {achievement.difficulty}
+                        </span>
+                        <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                          {achievement.reputation_required} rep
+                        </span>
+                        {achievement.unlocked_at && (
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                            {new Date(achievement.unlocked_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      {isLocked && isOwnProfile && criteria && (
+                        <p className="mt-1.5 flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+                          <Lock size={10} strokeWidth={2} aria-hidden />
+                          {getCriteriaDisplay(criteria)}
+                        </p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

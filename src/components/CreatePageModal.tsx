@@ -3,7 +3,7 @@ import { X, Upload, Camera, Image as ImageIcon, Globe, Twitter, Linkedin, Github
 import pagesService from '../services/api/pages.service';
 import { apiClient } from '../services/api/config';
 import { useAuth } from '../contexts/AuthContext';
-import adminService from '../services/api/admin.service';
+import reputationSystemService from '../services/api/reputationSystem.service';
 
 interface CreatePageModalProps {
   isOpen: boolean;
@@ -64,7 +64,7 @@ export function CreatePageModal({ isOpen, onClose, onSuccess }: CreatePageModalP
   useEffect(() => {
     const fetchReputationRequirement = async () => {
       try {
-        const data = await adminService.getReputationRequirements();
+        const data = await reputationSystemService.getRequirements();
         if (data.requirements?.page) {
           setRequiredReputation(data.requirements.page);
         }

@@ -35,6 +35,12 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
   const { isAuthenticated, user: authUser, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>((propActiveTab || 'posts') as TabType);
   const [isFollowing, setIsFollowing] = useState(false);
+
+  useEffect(() => {
+    if (propActiveTab) {
+      setActiveTab(propActiveTab as TabType);
+    }
+  }, [propActiveTab]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [profileUser, setProfileUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -175,14 +181,39 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
         const userData = await usersService.getUserByUsername(viewingUsername);
         setProfileUser(userData);
         
-        const stats = await usersService.getUserStats(viewingUsername);
-        
+        let stats: Awaited<ReturnType<typeof usersService.getUserStats>> | null = null;
+        try {
+          stats = await usersService.getUserStats(viewingUsername);
+        } catch (statsError) {
+          console.error('Failed to fetch user stats:', statsError);
+        }
+
         const normalizedStats = {
-          posts: typeof stats.posts === 'object' ? (stats.posts as any).total || 0 : Number(stats.posts || 0),
-          replies: typeof stats.replies === 'object' ? (stats.replies as any).total || 0 : Number(stats.replies || 0),
-          upvotes: typeof stats.upvotes === 'object' ? (stats.upvotes as any).total || 0 : Number(stats.upvotes || 0),
-          followers: typeof stats.followers === 'object' ? (stats.followers as any).total || 0 : Number(stats.followers || 0),
-          following: typeof stats.following === 'object' ? (stats.following as any).total || 0 : Number(stats.following || 0),
+          posts: stats
+            ? typeof stats.posts === 'object'
+              ? (stats.posts as { total?: number }).total || 0
+              : Number(stats.posts || 0)
+            : 0,
+          replies: stats
+            ? typeof stats.replies === 'object'
+              ? (stats.replies as { total?: number }).total || 0
+              : Number(stats.replies || 0)
+            : 0,
+          upvotes: stats
+            ? typeof stats.upvotes === 'object'
+              ? (stats.upvotes as { total?: number }).total || 0
+              : Number(stats.upvotes || 0)
+            : 0,
+          followers: stats
+            ? typeof stats.followers === 'object'
+              ? (stats.followers as { total?: number }).total || 0
+              : Number(stats.followers || 0)
+            : 0,
+          following: stats
+            ? typeof stats.following === 'object'
+              ? (stats.following as { total?: number }).total || 0
+              : Number(stats.following || 0)
+            : 0,
         };
         
         setMockUser({

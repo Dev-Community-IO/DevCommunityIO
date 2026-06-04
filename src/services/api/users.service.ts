@@ -20,12 +20,38 @@ export interface UserProfile {
     createdAt: string;
 }
 
+export interface UserStatsPostsByCategory {
+    general: number;
+    hackathon: number;
+    event: number;
+    opportunity: number;
+}
+
+export interface UserStatsTimelinePoint {
+    label: string;
+    posts: number;
+    replies: number;
+}
+
+export type UserStatsPeriod = '1d' | '7d' | '30d' | '6m' | '1yr' | 'all';
+
 export interface UserStats {
+    period?: UserStatsPeriod;
+    periodLabel?: string;
+    reputation?: number;
     posts: number;
     replies: number;
     upvotes: number;
+    downvotes?: number;
     followers: number;
     following: number;
+    bookmarks?: number;
+    views?: number;
+    pages?: number;
+    achievements?: number;
+    reactions?: number;
+    postsByCategory?: UserStatsPostsByCategory;
+    timeline?: UserStatsTimelinePoint[];
 }
 
 class UsersService {
@@ -35,9 +61,14 @@ class UsersService {
         return response.data.user;
     }
 
-    // Get user stats
-    async getUserStats(username: string): Promise<UserStats> {
-        const response = await apiClient.get(`/users/${username}/stats`);
+    // Get user stats (optional period: 1d, 7d, 30d, 6m, 1yr, all)
+    async getUserStats(
+        username: string,
+        options?: { period?: UserStatsPeriod }
+    ): Promise<UserStats> {
+        const response = await apiClient.get(`/users/${username}/stats`, {
+            params: options?.period ? { period: options.period } : undefined,
+        });
         return response.data.stats;
     }
 

@@ -59,9 +59,18 @@ export interface ReputationSystemStats {
   };
 }
 
+export interface ReputationRequirements {
+  requirements: Record<string, number>;
+}
+
 class ReputationSystemService {
   async getStats(): Promise<ReputationSystemStats> {
     const response = await apiClient.get<ReputationSystemStats>('/reputation-system');
+    return response.data;
+  }
+
+  async getRequirements(): Promise<ReputationRequirements> {
+    const response = await apiClient.get<ReputationRequirements>('/reputation/requirements');
     return response.data;
   }
 }

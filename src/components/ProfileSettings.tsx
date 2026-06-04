@@ -1,17 +1,28 @@
 import { useState, useEffect } from 'react';
-import { Mail, Shield, Bell, Eye, Smartphone, Trash2, AlertTriangle, X, CheckCircle, Loader, Save, BadgeCheck, Clock, Info, User, MapPin, FileText } from 'lucide-react';
-import { GlassCard } from './GlassCard';
+import { Mail, Shield, Bell, Eye, Smartphone, Trash2, AlertTriangle, X, CheckCircle, Loader, Save, BadgeCheck } from 'lucide-react';
+import { TabPills } from './TabPills';
 import { NotificationSettings } from './NotificationSettings';
+import {
+  ProfileTabPanel,
+  ProfileTabHeader,
+  ProfileToggleRow,
+  ProfileAlert,
+  profileInputClass,
+  profileTextareaClass,
+  profilePrimaryBtnClass,
+  profileDangerBtnClass,
+} from './profileTabUi';
+import { asidePanelClass } from './postCardSurface';
 import { EmailPreferences } from './EmailPreferences';
 import { PWASettings } from './PWASettings';
 import { useAuth } from '../contexts/AuthContext';
 import privacyService from '../services/api/privacy.service';
 import accountService from '../services/api/account.service';
 import verificationService from '../services/api/verification.service';
+import reputationSystemService from '../services/api/reputationSystem.service';
 import { VerifiedBadge } from './VerifiedBadge';
 import { useToast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { getApiUrl } from '../utils/apiUrl';
 
 interface ProfileSettingsProps {
   user: {
@@ -72,12 +83,38 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
   const isWalletOnly = authUser?.walletAddress && !authUser?.email;
 
   const sections = [
-    { id: 'account', label: 'Account', icon: Shield },
-    { id: 'privacy', label: 'Privacy', icon: Eye },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    ...(hasOAuth || hasEmail ? [{ id: 'email', label: 'Email Preferences', icon: Mail }] : []),
-    { id: 'pwa', label: 'PWA Settings', icon: Smartphone }
+    { id: 'account' as const, label: 'Account', icon: Shield },
+    { id: 'privacy' as const, label: 'Privacy', icon: Eye },
+    { id: 'notifications' as const, label: 'Alerts', icon: Bell },
+    ...(hasOAuth || hasEmail ? [{ id: 'email' as const, label: 'Email', icon: Mail }] : []),
+    { id: 'pwa' as const, label: 'App', icon: Smartphone },
   ];
+
+  const privacyItems: {
+    key: keyof typeof privacyPrefs;
+    title: string;
+    description: string;
+    hideIfNoWallet?: boolean;
+  }[] = [
+    { key: 'show_email', title: 'Show email', description: 'Display your email on your public profile.' },
+    { key: 'show_activity_status', title: 'Activity status', description: "Let others see when you're online." },
+    { key: 'profile_visible', title: 'Public profile', description: 'Make your profile visible to everyone.' },
+    {
+      key: 'show_wallet_address',
+      title: 'Show wallet',
+      description: 'Display your wallet address on your profile.',
+      hideIfNoWallet: true,
+    },
+    { key: 'allow_direct_messages', title: 'Direct messages', description: 'Allow other members to message you.' },
+    { key: 'show_reputation', title: 'Reputation', description: 'Show your reputation score on your profile.' },
+    { key: 'show_followers', title: 'Followers', description: 'Show your follower count.' },
+    { key: 'show_following', title: 'Following', description: 'Show who you follow.' },
+  ];
+
+  const canRequestVerification =
+    profileCompleteness.isComplete &&
+    authUser?.reputation !== undefined &&
+    authUser.reputation >= minReputation;
 
   useEffect(() => {
     if (authUser?.id) {
@@ -228,13 +265,11 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
 
   const loadMinReputation = async () => {
     try {
-      const response = await fetch(`${getApiUrl()}/api/admin/reputation-requirements`);
-      const data = await response.json();
-      // Use 200 as minimum, or config value if higher
-      setMinReputation(Math.max(200, data.requirements?.verification || 200));
+      const data = await reputationSystemService.getRequirements();
+      const configured = data.requirements?.verification ?? 0;
+      setMinReputation(Math.max(200, configured));
     } catch (error) {
       console.error('Failed to load minimum reputation:', error);
-      // Default to 200 if API fails
       setMinReputation(200);
     }
   };
@@ -272,586 +307,274 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
     }
   };
 
+
+  const RequirementRow = ({
+    ok,
+    label,
+  }: {
+    ok: boolean;
+    label: string;
+  }) => (
+    <li className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+      {ok ? (
+        <CheckCircle size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+      ) : (
+        <X size={14} className="shrink-0 text-zinc-400" />
+      )}
+      {label}
+    </li>
+  );
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* Settings Navigation */}
-      <GlassCard className="p-4 h-fit">
-        <div className="space-y-1">
-          {sections.map(section => {
-            const Icon = section.icon;
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id as any)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
-                  activeSection === section.id
-                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <Icon size={18} />
-                {section.label}
-              </button>
-            );
-          })}
-        </div>
-      </GlassCard>
-
-      {/* Settings Content */}
-      <div className="lg:col-span-3">
-        {activeSection === 'account' && (
-          <GlassCard className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Account Settings</h2>
-
-            <div className="space-y-6">
-              {/* Wallet Address */}
-              {user.walletAddress && (
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Wallet Address</label>
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={user.walletAddress}
-                      readOnly
-                      className="flex-1 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 outline-none font-mono text-sm"
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(user.walletAddress);
-                        alert('Wallet address copied to clipboard');
-                      }}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all font-medium"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Verification Status */}
-              {authUser?.isVerified ? (
-                <div className="p-5 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 dark:bg-green-900/40 rounded-lg">
-                    <VerifiedBadge size={24} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-green-900 dark:text-green-100 text-lg">
-                        Account Verified
-                      </p>
-                      <p className="text-sm text-green-800 dark:text-green-200 mt-1">
-                        Your account has been verified. You have a verified badge on your profile.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl shadow-lg">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/40 rounded-xl flex-shrink-0">
-                      <BadgeCheck size={24} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1 space-y-4">
-                      <div>
-                        <h3 className="font-bold text-blue-900 dark:text-blue-100 text-lg mb-1">
-                          Verification Request
-                        </h3>
-                      {verificationLoading ? (
-                          <div className="flex items-center gap-2 mt-2">
-                            <Loader className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
-                            <span className="text-sm text-blue-800 dark:text-blue-200">Loading verification status...</span>
-                        </div>
-                      ) : verificationStatus === 'pending' ? (
-                          <div className="mt-3 space-y-3">
-                            <div className="p-4 bg-blue-100 dark:bg-blue-900/40 rounded-lg border border-blue-200 dark:border-blue-800">
-                              <div className="flex items-start gap-3">
-                                <Clock size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                  <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                                    Verification Request Pending
-                                  </p>
-                          <p className="text-sm text-blue-800 dark:text-blue-200">
-                                    We are reviewing your verification request. You'll be notified via email when our team has reviewed it. This process typically takes 2-5 business days.
-                          </p>
-                                </div>
-                              </div>
-                            </div>
-                          {verificationRequest?.adminComment && (
-                              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                                <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-100 mb-1 flex items-center gap-1">
-                                  <Info size={14} />
-                                  Admin Comment:
-                                </p>
-                                <p className="text-xs text-indigo-800 dark:text-indigo-200">{verificationRequest.adminComment}</p>
-                            </div>
-                          )}
-                          {verificationRequest?.daysUntilCanRequestAgain !== undefined && verificationRequest.daysUntilCanRequestAgain > 0 && (
-                              <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                                <Clock size={12} />
-                              You can request again in {verificationRequest.daysUntilCanRequestAgain} day{verificationRequest.daysUntilCanRequestAgain !== 1 ? 's' : ''}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                          <div className="mt-3 space-y-3">
-                            {/* Requirements Checklist */}
-                            <div className="p-4 bg-white dark:bg-gray-800/50 rounded-lg border border-blue-200 dark:border-blue-800">
-                              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
-                                <Info size={16} />
-                                Requirements to Request Verification:
-                              </p>
-                        <div className="space-y-2">
-                                <div className={`flex items-center gap-2 text-sm ${profileCompleteness.isComplete ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                  {profileCompleteness.isComplete ? (
-                                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <X size={16} className="text-red-500" />
-                                  )}
-                                  <span>Complete your profile (Bio, Avatar, Location)</span>
-                                </div>
-                                <div className={`flex items-center gap-2 text-sm ${authUser?.reputation !== undefined && authUser.reputation >= minReputation ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                  {authUser?.reputation !== undefined && authUser.reputation >= minReputation ? (
-                                    <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <X size={16} className="text-red-500" />
-                                  )}
-                                  <span>Minimum {minReputation} reputation points</span>
-                                  {authUser?.reputation !== undefined && (
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      (You have {authUser.reputation})
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Missing Fields Warning */}
-                            {!profileCompleteness.isComplete && (
-                              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                                <div className="flex items-start gap-3">
-                                  <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm mb-1">
-                                      Complete Your Profile First
-                                    </p>
-                                    <p className="text-xs text-amber-800 dark:text-amber-200 mb-2">
-                                      Please fill in all necessary profile information before requesting verification:
-                                    </p>
-                                    <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-1 ml-4 list-disc">
-                                      {profileCompleteness.missingFields.includes('bio') && (
-                                        <li className="flex items-center gap-1">
-                                          <FileText size={12} />
-                                          Add a bio (at least 10 characters)
-                                        </li>
-                                      )}
-                                      {profileCompleteness.missingFields.includes('avatar') && (
-                                        <li className="flex items-center gap-1">
-                                          <User size={12} />
-                                          Upload a profile picture
-                                        </li>
-                                      )}
-                                      {profileCompleteness.missingFields.includes('location') && (
-                                        <li className="flex items-center gap-1">
-                                          <MapPin size={12} />
-                                          Add your location
-                                        </li>
-                            )}
-                                    </ul>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Reputation Warning */}
-                          {authUser?.reputation !== undefined && authUser.reputation < minReputation && (
-                              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                                <div className="flex items-start gap-3">
-                                  <AlertTriangle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-red-900 dark:text-red-100 text-sm mb-1">
-                                      Insufficient Reputation
-                                    </p>
-                                    <p className="text-xs text-red-800 dark:text-red-200">
-                                      You need <strong>{minReputation - authUser.reputation} more reputation points</strong> to request verification. 
-                                      Build your reputation by creating quality content, engaging with the community, and helping others.
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Request Button */}
-                          <button
-                            onClick={() => setShowVerificationModal(true)}
-                              disabled={
-                                !profileCompleteness.isComplete || 
-                                (authUser?.reputation !== undefined && authUser.reputation < minReputation)
-                              }
-                              className={`w-full mt-3 px-5 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
-                                !profileCompleteness.isComplete || (authUser?.reputation !== undefined && authUser.reputation < minReputation)
-                                  ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]'
-                              }`}
-                          >
-                              <BadgeCheck size={18} />
-                            Request Verification
-                          </button>
-                        </div>
-                      )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Deletion Status */}
-              {deletionRequested && daysRemaining !== null && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                        Account Deletion Scheduled
-                      </p>
-                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                        Your account will be permanently deleted in <strong>{daysRemaining} day{daysRemaining !== 1 ? 's' : ''}</strong>.
-                        You can cancel this deletion at any time before then.
-                      </p>
-                      <button
-                        onClick={() => setShowCancelDialog(true)}
-                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors"
-                      >
-                        Cancel Deletion
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Danger Zone */}
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-bold text-red-500 mb-4 flex items-center gap-2">
-                  <AlertTriangle size={20} />
-                  Danger Zone
-                </h3>
-                <div className="space-y-3">
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-800 dark:text-red-200 mb-3">
-                      <strong>Warning:</strong> Deleting your account will permanently remove all your data, posts, comments, and content. 
-                      This action cannot be undone. You will have 30 days to cancel this request.
-                    </p>
-                    <button
-                      onClick={() => setShowDeleteDialog(true)}
-                      disabled={deletionRequested}
-                      className="w-full px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={18} />
-                      {deletionRequested ? 'Deletion Already Requested' : 'Delete Account'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-        )}
-
-        {activeSection === 'privacy' && (
-          <GlassCard className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Privacy Settings</h2>
-
-            {privacyLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader className="w-8 h-8 animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Show Email Address</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Allow others to see your email address on your profile
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('show_email')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.show_email
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.show_email
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Show Activity Status</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Let others see when you're online
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('show_activity_status')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.show_activity_status
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.show_activity_status
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Profile Visibility</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Make your profile visible to everyone
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('profile_visible')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.profile_visible
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.profile_visible
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {user.walletAddress && (
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                    <div>
-                      <h4 className="font-semibold">Show Wallet Address</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Display your wallet address on your profile
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handlePrivacyToggle('show_wallet_address')}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        privacyPrefs.show_wallet_address
-                          ? 'bg-blue-500'
-                          : 'bg-gray-300 dark:bg-gray-700'
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                          privacyPrefs.show_wallet_address
-                            ? 'translate-x-6'
-                            : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Allow Direct Messages</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Let other users send you direct messages
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('allow_direct_messages')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.allow_direct_messages
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.allow_direct_messages
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Show Reputation</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Display your reputation score on your profile
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('show_reputation')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.show_reputation
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.show_reputation
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Show Followers</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Display your followers count on your profile
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('show_followers')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.show_followers
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.show_followers
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <div>
-                    <h4 className="font-semibold">Show Following</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Display who you're following on your profile
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handlePrivacyToggle('show_following')}
-                    className={`relative w-12 h-6 rounded-full transition-colors ${
-                      privacyPrefs.show_following
-                        ? 'bg-blue-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                        privacyPrefs.show_following
-                          ? 'translate-x-6'
-                          : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Error Message */}
-                {privacyError && (
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-                    <X size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-red-900 dark:text-red-100">Error</p>
-                      <p className="text-sm text-red-700 dark:text-red-300">{privacyError}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                  {privacySaveSuccess ? (
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <CheckCircle size={20} />
-                      <span className="font-medium">Privacy settings saved successfully!</span>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Changes will take effect immediately
-                    </p>
-                  )}
-                  <button
-                    onClick={handleSavePrivacy}
-                    disabled={privacySaving}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {privacySaving ? (
-                      <>
-                        <Loader size={18} className="animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save size={18} />
-                        Save Preferences
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </GlassCard>
-        )}
-
-        {activeSection === 'notifications' && (
-          <NotificationSettings />
-        )}
-
-        {activeSection === 'email' && (
-          <>
-            {isWalletOnly ? (
-              <GlassCard className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Mail size={22} className="text-gray-500" />
-                  <h2 className="text-2xl font-bold">Email Preferences</h2>
-                </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                        Email Not Available
-                      </p>
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
-                        You're connected with a wallet only. Email preferences are only available for users who 
-                        connected with Google or GitHub, as those accounts have email addresses associated with them.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            ) : (
-              <EmailPreferences user={user} />
-            )}
-          </>
-        )}
-        
-        {activeSection === 'pwa' && (
-          <PWASettings />
-        )}
+    <div className="space-y-4">
+      <div className={`${asidePanelClass} overflow-hidden p-2 sm:p-3`}>
+        <TabPills
+          ariaLabel="Settings sections"
+          activeTab={activeSection}
+          onChange={(id) => setActiveSection(id as typeof activeSection)}
+          scrollable
+          size="sm"
+          tabs={sections.map((s) => ({ id: s.id, label: s.label, icon: s.icon }))}
+        />
       </div>
 
-      {/* Delete Account Confirmation Dialog */}
+      {activeSection === 'account' && (
+        <ProfileTabPanel>
+          <ProfileTabHeader
+            icon={Shield}
+            title="Account"
+            description="Verification, wallet, and account safety."
+          />
+
+          <div className="space-y-3">
+            {user.walletAddress && (
+              <div>
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Wallet
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={user.walletAddress}
+                    readOnly
+                    className={`${profileInputClass} font-mono text-xs`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(user.walletAddress);
+                      toast.success('Wallet address copied');
+                    }}
+                    className={profilePrimaryBtnClass}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {authUser?.isVerified ? (
+              <ProfileAlert variant="success" title="Verified account">
+                <div className="flex items-center gap-2">
+                  <VerifiedBadge size={20} />
+                  <span>Your profile displays the verified badge.</span>
+                </div>
+              </ProfileAlert>
+            ) : verificationLoading ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-zinc-500">
+                <Loader size={16} className="animate-spin" />
+                Loading verification status…
+              </div>
+            ) : verificationStatus === 'pending' ? (
+              <ProfileAlert variant="info" title="Verification pending">
+                <p>
+                  We&apos;re reviewing your request. You&apos;ll be notified by email, usually within 2–5
+                  business days.
+                </p>
+                {verificationRequest?.adminComment && (
+                  <p className="mt-2 border-t border-zinc-200/80 pt-2 dark:border-white/10">
+                    <span className="font-medium">Note: </span>
+                    {verificationRequest.adminComment}
+                  </p>
+                )}
+              </ProfileAlert>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-zinc-200/80 p-3 dark:border-white/[0.08]">
+                <div className="flex items-start gap-2">
+                  <BadgeCheck size={18} className="mt-0.5 shrink-0 text-zinc-500" />
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      Request verification
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      Get a verified badge after meeting the requirements below.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-1.5">
+                  <RequirementRow
+                    ok={profileCompleteness.isComplete}
+                    label="Complete profile (bio, avatar, location)"
+                  />
+                  <RequirementRow
+                    ok={authUser?.reputation !== undefined && authUser.reputation >= minReputation}
+                    label={`${minReputation}+ reputation${authUser?.reputation !== undefined ? ` · you have ${authUser.reputation}` : ''}`}
+                  />
+                </ul>
+                {!profileCompleteness.isComplete && (
+                  <ProfileAlert variant="warning" title="Profile incomplete">
+                    <ul className="mt-1 list-inside list-disc space-y-0.5">
+                      {profileCompleteness.missingFields.includes('bio') && <li>Bio (10+ characters)</li>}
+                      {profileCompleteness.missingFields.includes('avatar') && <li>Profile photo</li>}
+                      {profileCompleteness.missingFields.includes('location') && <li>Location</li>}
+                    </ul>
+                  </ProfileAlert>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowVerificationModal(true)}
+                  disabled={!canRequestVerification}
+                  className={`${profilePrimaryBtnClass} w-full`}
+                >
+                  <BadgeCheck size={16} />
+                  Request verification
+                </button>
+              </div>
+            )}
+
+            {deletionRequested && daysRemaining !== null && (
+              <ProfileAlert
+                variant="warning"
+                title="Deletion scheduled"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelDialog(true)}
+                    className={profilePrimaryBtnClass}
+                  >
+                    Cancel deletion
+                  </button>
+                }
+              >
+                Your account will be deleted in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''}. You can
+                cancel before then.
+              </ProfileAlert>
+            )}
+
+            <div className="border-t border-zinc-100 pt-3 dark:border-white/[0.06]">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                <AlertTriangle size={14} />
+                Danger zone
+              </p>
+              <ProfileAlert variant="danger" title="Delete account">
+                Permanently removes your data after a 30-day grace period. This cannot be undone.
+              </ProfileAlert>
+              <button
+                type="button"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={deletionRequested}
+                className={`${profileDangerBtnClass} mt-2`}
+              >
+                <Trash2 size={14} />
+                {deletionRequested ? 'Deletion already requested' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </ProfileTabPanel>
+      )}
+
+      {activeSection === 'privacy' && (
+        <ProfileTabPanel>
+          <ProfileTabHeader
+            icon={Eye}
+            title="Privacy"
+            description="Control what others see on your profile."
+          />
+
+          {privacyLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader size={24} className="animate-spin text-zinc-400" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {privacyItems
+                .filter((item) => !(item.hideIfNoWallet && !user.walletAddress))
+                .map((item) => (
+                  <ProfileToggleRow
+                    key={item.key}
+                    title={item.title}
+                    description={item.description}
+                    enabled={privacyPrefs[item.key]}
+                    onToggle={() => handlePrivacyToggle(item.key)}
+                  />
+                ))}
+
+              {privacyError && (
+                <ProfileAlert variant="danger" title="Could not save">
+                  {privacyError}
+                </ProfileAlert>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3 dark:border-white/[0.06]">
+                {privacySaveSuccess ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle size={14} />
+                    Saved
+                  </span>
+                ) : (
+                  <span className="text-xs text-zinc-500">Changes apply immediately</span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSavePrivacy}
+                  disabled={privacySaving}
+                  className={profilePrimaryBtnClass}
+                >
+                  {privacySaving ? (
+                    <>
+                      <Loader size={14} className="animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      Save
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </ProfileTabPanel>
+      )}
+
+      {activeSection === 'notifications' && (
+        <div className={`${asidePanelClass} overflow-hidden`}>
+          <NotificationSettings />
+        </div>
+      )}
+
+      {activeSection === 'email' &&
+        (isWalletOnly ? (
+          <ProfileTabPanel>
+            <ProfileTabHeader icon={Mail} title="Email" description="Email preferences for your account." />
+            <ProfileAlert variant="info" title="Email not available">
+              Wallet-only accounts don&apos;t have an email. Connect with Google or GitHub to manage email
+              preferences.
+            </ProfileAlert>
+          </ProfileTabPanel>
+        ) : (
+          <div className={`${asidePanelClass} overflow-hidden`}>
+            <EmailPreferences user={user} />
+          </div>
+        ))}
+
+      {activeSection === 'pwa' && (
+        <div className={`${asidePanelClass} overflow-hidden`}>
+          <PWASettings />
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={showDeleteDialog}
         onClose={() => {
@@ -861,171 +584,127 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         onConfirm={handleRequestDeletion}
         title="Delete Account"
         message="Are you sure you want to delete your account? This action will schedule your account for deletion in 30 days. You can cancel this request anytime before then."
-        confirmText={deleting ? "Deleting..." : "Yes, Delete Account"}
+        confirmText={deleting ? 'Deleting...' : 'Yes, Delete Account'}
         cancelText="Cancel"
         variant="danger"
         isLoading={deleting}
       >
         <div className="mt-4">
-          <label className="block text-sm font-medium mb-2">
+          <label className="mb-1.5 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
             Reason (optional)
           </label>
           <textarea
             value={deleteReason}
             onChange={(e) => setDeleteReason(e.target.value)}
-            placeholder="Tell us why you're leaving..."
+            placeholder="Tell us why you're leaving…"
             rows={3}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none resize-none"
+            className={profileTextareaClass}
           />
         </div>
       </ConfirmDialog>
 
-      {/* Cancel Deletion Confirmation Dialog */}
       <ConfirmDialog
         isOpen={showCancelDialog}
         onClose={() => setShowCancelDialog(false)}
         onConfirm={handleCancelDeletion}
         title="Cancel Account Deletion"
         message="Are you sure you want to cancel the account deletion request? Your account will remain active."
-        confirmText={cancelling ? "Cancelling..." : "Yes, Cancel Deletion"}
+        confirmText={cancelling ? 'Cancelling...' : 'Yes, Cancel Deletion'}
         cancelText="Keep Deletion"
         variant="default"
         isLoading={cancelling}
       />
 
-      {/* Verification Request Modal */}
       {showVerificationModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <GlassCard className="p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold flex items-center gap-2">
-                <BadgeCheck size={28} className="text-blue-500" />
-                Request Verification
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className={`${asidePanelClass} max-h-[90vh] w-full max-w-lg overflow-y-auto p-4 sm:p-5`}>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                <BadgeCheck size={20} className="text-zinc-500" />
+                Request verification
               </h3>
               <button
+                type="button"
                 onClick={() => {
                   setShowVerificationModal(false);
                   setVerificationReason('');
                 }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/[0.06]"
+                aria-label="Close"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="space-y-5">
-              {/* Requirements Info */}
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
-                  <Info size={16} />
-                  Verification Requirements
-                </p>
-                <div className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-                  <p>✓ Complete profile (Bio, Avatar, Location)</p>
-                  <p>✓ Minimum {minReputation} reputation points</p>
-                  <p>✓ Provide a detailed reason (minimum 50 characters)</p>
-                </div>
-              </div>
-
-              {/* Profile Completeness Check */}
-              {!profileCompleteness.isComplete && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm mb-1">
-                        Profile Incomplete
-                      </p>
-                      <p className="text-xs text-amber-800 dark:text-amber-200">
-                        Please complete your profile before requesting verification. Go to your profile settings to add:
-                      </p>
-                      <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-1 mt-2 ml-4 list-disc">
-                        {profileCompleteness.missingFields.includes('bio') && <li>Bio (at least 10 characters)</li>}
-                        {profileCompleteness.missingFields.includes('avatar') && <li>Profile picture</li>}
-                        {profileCompleteness.missingFields.includes('location') && <li>Location</li>}
-                      </ul>
-                    </div>
-                  </div>
-                  </div>
-                )}
-
-              {/* Reputation Check */}
-              {authUser?.reputation !== undefined && authUser.reputation < minReputation && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-red-900 dark:text-red-100 text-sm mb-1">
-                        Insufficient Reputation
-                      </p>
-                      <p className="text-xs text-red-800 dark:text-red-200">
-                        You need <strong>{minReputation - authUser.reputation} more reputation points</strong> to request verification.
-                      </p>
-              </div>
-                  </div>
-                </div>
-              )}
+            <div className="space-y-3">
+              <ProfileAlert variant="info" title="Requirements">
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                  <li>Complete profile (bio, avatar, location)</li>
+                  <li>{minReputation}+ reputation points</li>
+                  <li>Reason with at least 50 characters</li>
+                </ul>
+              </ProfileAlert>
 
               <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
-                  Reason for Verification <span className="text-red-500">*</span>
+                <label className="mb-1.5 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Why should you be verified? <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={verificationReason}
                   onChange={(e) => setVerificationReason(e.target.value)}
-                  placeholder="Explain why you should be verified. Include details about your expertise, contributions to the community, or any notable achievements. (minimum 50 characters)..."
-                  rows={6}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all resize-none"
+                  placeholder="Describe your expertise and contributions…"
+                  rows={5}
+                  className={profileTextareaClass}
                   minLength={50}
-                  disabled={!profileCompleteness.isComplete || (authUser?.reputation !== undefined && authUser.reputation < minReputation)}
+                  disabled={!canRequestVerification}
                 />
-                <div className="flex items-center justify-between mt-2">
-                  <p className={`text-xs ${verificationReason.length >= 50 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                  {verificationReason.length}/50 characters (minimum)
+                <p
+                  className={`mt-1 text-[10px] tabular-nums ${
+                    verificationReason.length >= 50
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-zinc-500'
+                  }`}
+                >
+                  {verificationReason.length}/50 minimum
                 </p>
-                  {minReputation > 0 && authUser?.reputation !== undefined && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Your reputation: <strong>{authUser.reputation}</strong> / {minReputation} required
-                    </p>
-                  )}
-                </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2 border-t border-zinc-100 pt-3 dark:border-white/[0.06]">
                 <button
+                  type="button"
                   onClick={handleRequestVerification}
                   disabled={
-                    verificationLoading || 
-                    verificationReason.trim().length < 50 || 
-                    !profileCompleteness.isComplete ||
-                    (authUser?.reputation !== undefined && authUser.reputation < minReputation)
+                    verificationLoading ||
+                    verificationReason.trim().length < 50 ||
+                    !canRequestVerification
                   }
-                  className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl transition-all font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] disabled:transform-none"
+                  className={`${profilePrimaryBtnClass} flex-1`}
                 >
                   {verificationLoading ? (
                     <>
-                      <Loader size={18} className="animate-spin" />
-                      Submitting...
+                      <Loader size={14} className="animate-spin" />
+                      Submitting…
                     </>
                   ) : (
                     <>
-                      <BadgeCheck size={18} />
-                      Submit Request
+                      <BadgeCheck size={14} />
+                      Submit
                     </>
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowVerificationModal(false);
                     setVerificationReason('');
                   }}
-                  className="px-5 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium"
+                  className="rounded-lg border border-zinc-200/80 px-3 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/[0.06]"
                 >
                   Cancel
                 </button>
               </div>
             </div>
-          </GlassCard>
+          </div>
         </div>
       )}
     </div>

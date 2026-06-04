@@ -3,7 +3,6 @@ import { ArrowLeft, Award, Zap, Shield, Unlock, MessageSquare, FileText, Users, 
 import { GlassCard } from './GlassCard';
 import reputationSystemService, { ReputationSystemStats } from '../services/api/reputationSystem.service';
 import { isNetworkError } from '../services/api/config';
-import adminService from '../services/api/admin.service';
 
 interface ReputationSystemPageProps {
   onBack: () => void;
@@ -22,7 +21,7 @@ export function ReputationSystemPage({ onBack }: ReputationSystemPageProps) {
         setError(null);
         const [statsData, requirementsData] = await Promise.all([
           reputationSystemService.getStats(),
-          adminService.getReputationRequirements().catch(() => ({ requirements: {} }))
+          reputationSystemService.getRequirements().catch(() => ({ requirements: {} })),
         ]);
         setStats(statsData);
         setReputationRequirements(requirementsData.requirements || {});
