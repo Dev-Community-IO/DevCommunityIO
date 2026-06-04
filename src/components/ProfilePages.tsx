@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2, Pencil, UserX, ArrowRightLeft } from 'lucide-react';
+import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2, Pencil, UserX, ArrowRightLeft, ChevronRight } from 'lucide-react';
 import { TabPills } from './TabPills';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { CompactPostCard } from './CompactPostCard';
-import { compactPostGridClass } from './postCardSurface';
+import {
+  asidePanelClass,
+  asideStatChipClass,
+  compactPostGridClass,
+  postCardDividerClass,
+  postCardSurfaceClass,
+  postTagClass,
+} from './postCardSurface';
+import { formatListingLabel } from './listingPageChrome';
 import { Post } from '../types';
 import { useNavigate } from 'react-router-dom';
 import usersService from '../services/api/users.service';
@@ -55,6 +63,367 @@ const normalizePages = (pages: any[]) => {
 
     return true
   })
+}
+
+const profilePageGridClass =
+  'grid items-stretch gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))]';
+
+const manageInputClass =
+  'w-full rounded-lg border border-zinc-200/80 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 disabled:opacity-60 dark:border-white/10 dark:bg-[#0a1020]/90 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500';
+
+const manageTextareaClass = `${manageInputClass} min-h-[88px] resize-y`;
+
+const manageLabelClass = 'mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300';
+
+const manageGhostBtnClass =
+  'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200/80 bg-white/90 px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900/40 dark:text-zinc-300 dark:hover:bg-zinc-900/60';
+
+const managePrimaryBtnClass =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white';
+
+const manageMemberGridClass =
+  'grid items-stretch gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr))]';
+
+function getPageRoleLabel(role: string | undefined): string {
+  const r = role?.toLowerCase();
+  if (r === 'owner') return 'Owner';
+  if (r === 'admin') return 'Admin';
+  if (r === 'moderator') return 'Moderator';
+  return 'Member';
+}
+
+function ProfilePagesSectionHeader({
+  title,
+  subtitle,
+  count,
+}: {
+  title: string;
+  subtitle: string;
+  count: number;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+      </div>
+      <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs`}>
+        <span className="font-semibold text-zinc-800 dark:text-zinc-200">{count}</span>
+      </span>
+    </div>
+  );
+}
+
+function ProfilePageCard({
+  page,
+  onView,
+  onManage,
+}: {
+  page: any;
+  onView: () => void;
+  onManage?: () => void;
+}) {
+  const logoUrl = page.logoUrl || DEFAULT_PAGE_LOGO;
+  const coverUrl = page.coverImageUrl;
+  const bio = page.shortBio || page.description;
+  const handle = page.username || page.slug;
+  const members = Number(page.memberCount ?? page.members ?? 0);
+  const posts = Number(page.postCount ?? page.posts ?? 0);
+  const roleLabel = getPageRoleLabel(page.role);
+
+  return (
+    <article className={`${postCardSurfaceClass} h-full overflow-hidden`}>
+      <button
+        type="button"
+        onClick={onView}
+        className="flex w-full flex-1 flex-col text-left"
+      >
+        <div className="relative h-[4.5rem] shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-900/60 sm:h-20">
+          {coverUrl ? (
+            <img
+              src={coverUrl}
+              alt=""
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div
+              className="h-full w-full bg-gradient-to-br from-zinc-100 via-zinc-50 to-zinc-200/60 dark:from-zinc-900 dark:via-zinc-900/80 dark:to-zinc-800"
+              aria-hidden
+            />
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
+          <span className={`${postTagClass} absolute left-2 top-2 capitalize`}>{roleLabel}</span>
+        </div>
+
+        <div className="relative flex flex-1 flex-col px-3.5 pb-3 pt-7 sm:px-4">
+          <div className="absolute -top-5 left-3.5 z-10 sm:left-4">
+            <div className="h-11 w-11 overflow-hidden rounded-xl border-2 border-white bg-zinc-100 shadow-sm ring-1 ring-zinc-200/80 dark:border-zinc-900 dark:bg-zinc-800 dark:ring-white/10 sm:h-12 sm:w-12">
+              <img
+                src={logoUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src !== DEFAULT_PAGE_LOGO) target.src = DEFAULT_PAGE_LOGO;
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mb-1.5 flex min-w-0 items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex min-w-0 max-w-full items-center gap-0.5">
+                <h4 className="min-w-0 truncate text-sm font-semibold text-zinc-900 group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
+                  {page.name}
+                </h4>
+                {page.isVerified && <VerifiedBadge variant="page" size={12} className="shrink-0" />}
+              </div>
+              {handle && (
+                <p className="mt-0.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">@{handle}</p>
+              )}
+            </div>
+            <ChevronRight
+              size={16}
+              strokeWidth={2}
+              className="mt-0.5 shrink-0 text-zinc-400 group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </div>
+
+          <p className="mb-2 line-clamp-2 flex-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+            {bio || 'No description yet.'}
+          </p>
+
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span className="tabular-nums">{members.toLocaleString()} members</span>
+            <span className="mx-1 text-zinc-300 dark:text-zinc-600" aria-hidden>
+              ·
+            </span>
+            <span className="tabular-nums">{posts.toLocaleString()} posts</span>
+            {page.category && (
+              <>
+                <span className="mx-1 text-zinc-300 dark:text-zinc-600" aria-hidden>
+                  ·
+                </span>
+                <span className="capitalize">{formatListingLabel(page.category)}</span>
+              </>
+            )}
+          </p>
+        </div>
+      </button>
+
+      {onManage && (
+        <div className="flex gap-2 border-t border-zinc-100 px-3 py-2 dark:border-white/[0.06] sm:px-4">
+          <button
+            type="button"
+            onClick={onView}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-50/90 px-2.5 py-1.5 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-200 dark:hover:bg-white/[0.08]"
+          >
+            <Layout size={14} strokeWidth={2} aria-hidden />
+            View
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onManage();
+            }}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-zinc-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900/40 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+          >
+            <Settings size={14} strokeWidth={2} aria-hidden />
+            Manage
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ManagePageHero({
+  page,
+  onBack,
+  onViewPublic,
+}: {
+  page: any;
+  onBack: () => void;
+  onViewPublic: () => void;
+}) {
+  const members = Number(page.memberCount ?? page.members ?? 0);
+  const posts = Number(page.postCount ?? page.posts ?? 0);
+  const bio = page.shortBio || page.description;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button type="button" onClick={onBack} className={manageGhostBtnClass}>
+          <ArrowLeft size={16} strokeWidth={2} aria-hidden />
+          Back to pages
+        </button>
+        {page.slug && (
+          <button type="button" onClick={onViewPublic} className={manageGhostBtnClass}>
+            <ExternalLink size={16} strokeWidth={2} aria-hidden />
+            View public page
+          </button>
+        )}
+      </div>
+
+      <div className={`${asidePanelClass} overflow-hidden`}>
+        <div className="relative h-24 shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-900/60 sm:h-28">
+          {page.coverImageUrl ? (
+            <img
+              src={page.coverImageUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div
+              className="h-full w-full bg-gradient-to-br from-zinc-100 via-zinc-50 to-zinc-200/60 dark:from-zinc-900 dark:via-zinc-900/80 dark:to-zinc-800"
+              aria-hidden
+            />
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        </div>
+
+        <div className="relative px-3.5 pb-3.5 pt-8 sm:px-4 sm:pb-4">
+          <div className="absolute -top-6 left-3.5 sm:left-4">
+            <div className="h-12 w-12 overflow-hidden rounded-xl border-2 border-white bg-zinc-100 shadow-sm ring-1 ring-zinc-200/80 dark:border-zinc-900 dark:bg-zinc-800 dark:ring-white/10 sm:h-14 sm:w-14">
+              <img
+                src={page.logoUrl || DEFAULT_PAGE_LOGO}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src !== DEFAULT_PAGE_LOGO) target.src = DEFAULT_PAGE_LOGO;
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex min-w-0 max-w-full items-center gap-0.5">
+                <h2 className="min-w-0 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100 sm:text-lg">
+                  {page.name}
+                </h2>
+                {page.isVerified && <VerifiedBadge variant="page" size={14} className="shrink-0" />}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className={`${postTagClass} capitalize`}>{getPageRoleLabel(page.role)}</span>
+                {page.category && (
+                  <span className={`${postTagClass} capitalize`}>
+                    {formatListingLabel(page.category)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {bio && (
+            <p className="mb-2 line-clamp-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+              {bio}
+            </p>
+          )}
+
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span className="tabular-nums">{members.toLocaleString()} members</span>
+            <span className="mx-1 text-zinc-300 dark:text-zinc-600" aria-hidden>
+              ·
+            </span>
+            <span className="tabular-nums">{posts.toLocaleString()} posts</span>
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ManageTeamMemberCard({
+  member,
+  isOwner,
+  canEdit,
+  isCurrentUser,
+  showTransfer,
+  onUpdateRole,
+  onRemove,
+  onTransfer,
+}: {
+  member: any;
+  isOwner: boolean;
+  canEdit: boolean;
+  isCurrentUser: boolean;
+  showTransfer: boolean;
+  onUpdateRole: () => void;
+  onRemove: () => void;
+  onTransfer: () => void;
+}) {
+  const username = member.username || member.name;
+  const roleLabel = isOwner
+    ? 'Owner'
+    : member.role === 'admin'
+      ? 'Admin'
+      : member.role === 'moderator'
+        ? 'Moderator'
+        : 'Member';
+
+  return (
+    <article className={`${postCardSurfaceClass} p-3 sm:p-3.5`}>
+      <div className="flex items-center gap-3">
+        <Avatar
+          src={member.avatar || member.avatarUrl}
+          alt={username}
+          size="sm"
+          className="h-10 w-10 shrink-0 ring-2 ring-white dark:ring-zinc-900"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            {username}
+            {isOwner && <Crown size={12} className="shrink-0 text-amber-500" aria-hidden />}
+          </p>
+          <span className={`${postTagClass} mt-1 capitalize`}>{roleLabel}</span>
+        </div>
+        {canEdit && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onUpdateRole}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200"
+              title="Update role"
+            >
+              <Pencil size={15} strokeWidth={2} />
+            </button>
+            {!isCurrentUser && (
+              <>
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/40"
+                  title="Remove member"
+                >
+                  <UserX size={15} strokeWidth={2} />
+                </button>
+                {showTransfer && (
+                  <button
+                    type="button"
+                    onClick={onTransfer}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                    title="Transfer ownership"
+                  >
+                    <ArrowRightLeft size={15} strokeWidth={2} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
+  );
 }
 
 export function ProfilePages({ username }: ProfilePagesProps) {
@@ -1377,383 +1746,149 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   // List View
   if (viewMode === 'list') {
     return (
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-4">
         <CreatePageModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={handlePageCreated}
         />
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 dark:from-white dark:via-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-              {isOwnProfile ? 'Your Pages' : 'Pages'}
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 text-lg">
-              {isOwnProfile 
-                ? 'Create and manage your community pages' 
-                : `Pages ${username} owns or moderates`}
-            </p>
+
+        <div className={`${asidePanelClass} p-3 sm:p-4`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+                aria-hidden
+              >
+                <Building2 size={18} strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-lg">
+                  {isOwnProfile ? 'Your pages' : 'Pages'}
+                </h2>
+                <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 sm:text-sm">
+                  {isOwnProfile
+                    ? 'Communities you own, administer, or belong to'
+                    : `Communities ${username} owns or moderates`}
+                </p>
+              </div>
+            </div>
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800 dark:border-white/10 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              >
+                <Plus size={16} strokeWidth={2} aria-hidden />
+                Create page
+              </button>
+            )}
           </div>
-          {isOwnProfile && (
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="group flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:via-blue-700 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105 active:scale-100"
-            >
-              <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-              <span>Create Page</span>
-            </button>
-          )}
         </div>
 
         {isOwnProfile && userPages.length > 0 && (
-          <TabPills
-            ariaLabel="Page roles"
-            activeTab={filter}
-            onChange={setFilter}
-            tabs={(['all', 'owner', 'admin', 'member'] as FilterType[]).map((filterType) => {
-              const icons = { all: Sparkles, owner: Crown, admin: Shield, member: Users };
-              const count =
-                filterType === 'all'
-                  ? userPages.length
-                  : filteredPages.filter((p) => {
-                      const role = p.role?.toLowerCase();
-                      if (filterType === 'owner') return role === 'owner';
-                      if (filterType === 'admin') return role === 'admin' || role === 'Admin';
-                      if (filterType === 'member') return !canManage(p);
-                      return true;
-                    }).length;
-              return {
-                id: filterType,
-                label: filterType.charAt(0).toUpperCase() + filterType.slice(1),
-                icon: icons[filterType],
-                count,
-              };
-            })}
-          />
+          <div className={`${asidePanelClass} overflow-hidden p-2 sm:p-2.5`}>
+            <TabPills
+              ariaLabel="Page roles"
+              activeTab={filter}
+              onChange={setFilter}
+              size="sm"
+              scrollable
+              tabs={(['all', 'owner', 'admin', 'member'] as FilterType[]).map((filterType) => {
+                const icons = { all: Sparkles, owner: Crown, admin: Shield, member: Users };
+                const count =
+                  filterType === 'all'
+                    ? userPages.length
+                    : userPages.filter((p) => {
+                        const role = p.role?.toLowerCase();
+                        if (filterType === 'owner') return role === 'owner';
+                        if (filterType === 'admin') return role === 'admin';
+                        if (filterType === 'member') return role === 'member' || role === 'moderator';
+                        return true;
+                      }).length;
+                return {
+                  id: filterType,
+                  label: filterType.charAt(0).toUpperCase() + filterType.slice(1),
+                  icon: icons[filterType],
+                  count,
+                };
+              })}
+            />
+          </div>
         )}
 
-        {/* Loading State */}
         {loading ? (
           <PageCardSkeletonList count={4} />
         ) : filteredPages.length === 0 ? (
-          /* Empty State */
-          <GlassCard className="p-16 text-center border-2 border-dashed border-gray-200 dark:border-gray-700">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-900/30 dark:via-purple-900/30 dark:to-pink-900/30 flex items-center justify-center shadow-lg">
-              <Building2 size={48} className="text-blue-500 dark:text-blue-400" />
-            </div>
-            <h3 className="text-3xl font-bold mb-3 text-gray-900 dark:text-white">
-              {isOwnProfile ? 'No Pages Yet' : 'No Pages Found'}
+          <div className={`${asidePanelClass} px-6 py-12 text-center`}>
+            <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+              <Building2 size={22} strokeWidth={1.75} />
+            </span>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {isOwnProfile ? 'No pages yet' : 'No pages found'}
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-lg mx-auto text-lg leading-relaxed">
+            <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
               {isOwnProfile
-                ? "Create your first community page to start building and engaging with your audience. Share your ideas, connect with others, and grow your community."
-                : `This user hasn't created or joined any community pages yet.`}
+                ? 'Create a community page to publish posts and grow your audience.'
+                : `This user hasn't joined or created any community pages yet.`}
             </p>
             {isOwnProfile && (
               <button
+                type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="group px-8 py-4 bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:via-blue-700 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105 active:scale-100"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800 dark:border-white/10 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
-                <span className="flex items-center gap-2">
-                  <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                Create Your First Page
-                </span>
+                <Plus size={16} strokeWidth={2} aria-hidden />
+                Create your first page
               </button>
             )}
-          </GlassCard>
+          </div>
         ) : (
-          /* Pages Grid */
-          <div className="space-y-10">
-            {/* Pages You Manage */}
+          <div className="space-y-6">
             {ownerPages.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative">
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 shadow-xl shadow-blue-500/40">
-                      <Crown size={20} className="text-white" />
-                  </div>
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                    Pages You Manage
-                  </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Your communities and pages you administer
-                    </p>
-                  </div>
-                  <Badge variant="default" className="px-4 py-1.5 text-sm font-bold bg-gradient-to-r from-blue-100 to-cyan-100 dark:from-blue-900/40 dark:to-cyan-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                    {ownerPages.length}
-                  </Badge>
-                </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {ownerPages.map((page, index) => (
-            <div
-              key={`owner-${page.id}-${index}`}
-              className="group relative bg-white dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-200/60 dark:border-gray-700/60 hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 cursor-pointer"
-            >
-              {/* Animated gradient background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-purple-50 dark:from-blue-950/20 dark:via-cyan-950/20 dark:to-purple-950/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              
-              {/* Cover Image Banner */}
-              <div className="relative h-32 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 overflow-hidden">
-                {page.coverImageUrl ? (
-                  <img 
-                    src={page.coverImageUrl} 
-                    alt={`${page.name} cover`} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
-                
-                {/* Role Badge - Enhanced */}
-                <div className="absolute top-3 right-3 z-10">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-white/50 dark:border-gray-700/50 shadow-lg">
-                            {page.role === 'owner' || page.role === 'Owner' ? (
-                      <>
-                        <Crown size={12} className="text-yellow-500" />
-                        <span className="text-xs font-bold text-gray-900 dark:text-white">Owner</span>
-                      </>
-                            ) : (
-                      <>
-                        <Shield size={12} className="text-blue-500" />
-                        <span className="text-xs font-bold text-gray-900 dark:text-white">Admin</span>
-                      </>
-                            )}
-                  </div>
-                </div>
-
-                {/* Logo - Enhanced with glow effect */}
-                <div className="absolute -bottom-8 left-5 z-20">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-blue-500/30 dark:bg-blue-400/30 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
-                    <div className="relative w-20 h-20 rounded-3xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-2xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                    <img 
-                        src={page.logoUrl || DEFAULT_PAGE_LOGO} 
-                      alt={`${page.name} logo`} 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                          target.src = DEFAULT_PAGE_LOGO;
+              <section>
+                <ProfilePagesSectionHeader
+                  title="Pages you manage"
+                  subtitle="Communities you own or administer"
+                  count={ownerPages.length}
+                />
+                <div className={profilePageGridClass}>
+                  {ownerPages.map((page) => (
+                    <ProfilePageCard
+                      key={`owner-${page.id}`}
+                      page={page}
+                      onView={() => {
+                        if (page.slug) navigate(`/pages/${page.slug}`);
                       }}
+                      onManage={() => handleManagePage(page.id)}
                     />
-                    {page.isVerified && (
-                        <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-1 shadow-xl border-2 border-white dark:border-gray-900">
-                          <VerifiedBadge variant="page" size={14} />
-                  </div>
-                    )}
-                    </div>
+                  ))}
                 </div>
-              </div>
-              </div>
-
-              {/* Content Section */}
-              <div className="p-6 pt-16 space-y-4 relative z-10">
-                {/* Page Header */}
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                  <h3 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/pages/${page.slug}`);
-                              }}
-                      className="text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors flex-1 line-clamp-1 group-hover:underline"
-                  >
-                    {page.name}
-                  </h3>
-                            {page.isVerified && (
-                      <VerifiedBadge variant="page" size={18} />
-                            )}
-                          </div>
-                  {page.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                      {page.description}
-                    </p>
-                  )}
-                </div>
-
-                {/* Page Stats - Enhanced */}
-                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
-                    <Users size={16} className="text-blue-600 dark:text-blue-400 mb-1" />
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">
-                                {page.memberCount || page.members || 0}
-                              </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Members</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-purple-50 dark:bg-purple-900/20 group-hover:bg-purple-100 dark:group-hover:bg-purple-900/30 transition-colors">
-                    <FileText size={16} className="text-purple-600 dark:text-purple-400 mb-1" />
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">
-                                {page.postCount || page.posts || 0}
-                              </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Posts</span>
-                            </div>
-                  {page.category ? (
-                    <div className="flex flex-col items-center p-2 rounded-xl bg-green-50 dark:bg-green-900/20 group-hover:bg-green-100 dark:group-hover:bg-green-900/30 transition-colors">
-                      <Hash size={16} className="text-green-600 dark:text-green-400 mb-1" />
-                      <span className="text-xs font-bold text-gray-900 dark:text-white truncate w-full text-center">
-                        {page.category}
-                      </span>
-                            </div>
-                  ) : (
-                    <div></div>
-                          )}
-                </div>
-
-                {/* Action Buttons - Enhanced */}
-                <div className="flex items-center gap-3 pt-2">
-                      <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/pages/${page.slug}`);
-                            }}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-100"
-                      >
-                    <Layout size={18} />
-                    View Page
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleManagePage(page.id);
-                        }}
-                    className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-sm font-semibold hover:scale-105 active:scale-100 border border-gray-200 dark:border-gray-700"
-                            title="Manage Page"
-                      >
-                    <Settings size={18} />
-                      </button>
-                </div>
-              </div>
-            </div>
-            ))}
-                </div>
-              </div>
+              </section>
             )}
 
-            {/* Pages You're a Member Of */}
             {memberPages.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative">
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 shadow-xl shadow-purple-500/40">
-                      <Users size={20} className="text-white" />
-                  </div>
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-pink-400 rounded-full animate-pulse"></div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                    Pages You're a Member Of
-                  </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Communities you follow and participate in
-                    </p>
-                  </div>
-                  <Badge variant="default" className="px-4 py-1.5 text-sm font-bold bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/40 dark:to-pink-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                    {memberPages.length}
-                  </Badge>
+              <section>
+                <ProfilePagesSectionHeader
+                  title="Member of"
+                  subtitle="Communities where you participate as a member"
+                  count={memberPages.length}
+                />
+                <div className={profilePageGridClass}>
+                  {memberPages.map((page) => (
+                    <ProfilePageCard
+                      key={`member-${page.id}`}
+                      page={page}
+                      onView={() => {
+                        if (page.slug) navigate(`/pages/${page.slug}`);
+                      }}
+                    />
+                  ))}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {memberPages.map((page, index) => (
-                    <div
-                      key={`member-${page.id}-${index}`}
-                      className="group relative bg-white dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-200/60 dark:border-gray-700/60 hover:border-purple-400 dark:hover:border-purple-600 transition-all duration-500 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 cursor-pointer"
-                      onClick={() => navigate(`/pages/${page.slug}`)}
-                    >
-                      {/* Animated gradient background */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 dark:from-purple-950/20 dark:via-pink-950/20 dark:to-rose-950/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                      
-                      {/* Cover Image Banner */}
-                      <div className="relative h-24 bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 overflow-hidden">
-                        {page.coverImageUrl ? (
-                          <img 
-                            src={page.coverImageUrl} 
-                            alt={`${page.name} cover`} 
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500"></div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
-                      </div>
-                      
-                      {/* Logo - Compact but elegant */}
-                      <div className="absolute -bottom-6 left-4 z-20">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-purple-500/30 dark:bg-purple-400/30 rounded-2xl blur-lg group-hover:blur-xl transition-all duration-500"></div>
-                          <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl group-hover:scale-110 group-hover:rotate-2 transition-all duration-500">
-                          <img 
-                              src={page.logoUrl || DEFAULT_PAGE_LOGO} 
-                            alt={`${page.name} logo`} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                                target.src = DEFAULT_PAGE_LOGO;
-                            }}
-                          />
-                          {page.isVerified && (
-                              <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-lg border-2 border-white dark:border-gray-900">
-                                <VerifiedBadge variant="page" size={12} />
-                            </div>
-                          )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="p-5 pt-12 space-y-3 relative z-10">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-base font-bold text-gray-900 dark:text-white hover:text-purple-600 dark:hover:text-purple-400 transition-colors flex-1 line-clamp-1 group-hover:underline">
-                            {page.name}
-                          </h3>
-                          {page.isVerified && (
-                            <VerifiedBadge variant="page" size={16} />
-                          )}
-                        </div>
-                        
-                        {page.description && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                            {page.description}
-                          </p>
-                        )}
-
-                        {/* Stats - Compact inline */}
-                        <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
-                          <div className="flex items-center gap-1.5">
-                            <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                              <Users size={12} className="text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">
-                              {page.memberCount || page.members || 0}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                              <FileText size={12} className="text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">
-                              {page.postCount || page.posts || 0}
-                          </span>
-                </div>
-              </div>
-                </div>
-              </div>
-                    ))}
-                  </div>
-                  </div>
-                )}
-                  </div>
-                )}
+              </section>
+            )}
+          </div>
+        )}
 
         {renderAddTeamMemberModal()}
       </div>
@@ -1763,418 +1898,270 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   // Manage Page View (Only for owners/admins)
   if (viewMode === 'manage' && selectedPage) {
     return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={handleBackToList}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium transition-all"
-          >
-            <ArrowLeft size={18} />
-            Back to Pages
-          </button>
-        </div>
+      <div className="space-y-4">
+        <ManagePageHero
+          page={selectedPage}
+          onBack={handleBackToList}
+          onViewPublic={() => {
+            if (selectedPage.slug) navigate(`/pages/${selectedPage.slug}`);
+          }}
+        />
 
-        {/* Hero Section */}
-        <div className="relative">
-          {/* Cover Image */}
-          <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500">
-            {selectedPage.coverImageUrl && (
-              <img 
-                src={selectedPage.coverImageUrl} 
-                alt={`${selectedPage.name} cover`} 
-                className="w-full h-full object-cover" 
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
-          </div>
-
-          {/* Profile Card */}
-          <div className="relative px-4 -mt-16 z-10">
-            <GlassCard className="p-6 shadow-2xl">
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* Logo */}
-                <div className="flex-shrink-0">
-                  <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl relative">
-                  <img 
-                    src={selectedPage.logoUrl || DEFAULT_PAGE_LOGO} 
-                    alt={`${selectedPage.name} logo`} 
-                    className="w-full h-full object-cover" 
-                  />
-                  {selectedPage.isVerified && (
-                    <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
-                      <VerifiedBadge variant="page" size={18} />
-                    </div>
-                  )}
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                          {selectedPage.name}
-                        </h2>
-                        {selectedPage.isVerified && (
-                          <VerifiedBadge variant="page" size={20} />
-                        )}
-                        <Badge variant="gradient" className="flex items-center gap-1">
-                          {selectedPage.role === 'owner' || selectedPage.role === 'Owner' ? (
-                            <>
-                              <Crown size={12} />
-                              <span>Owner</span>
-                            </>
-                          ) : (
-                            <>
-                              <Shield size={12} />
-                              <span>Admin</span>
-                            </>
-                          )}
-                    </Badge>
-                  </div>
-                      {selectedPage.description && (
-                        <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                          {selectedPage.description}
-                        </p>
-                      )}
-                </div>
-              </div>
-
-              {/* Stats */}
-                  <div className="grid grid-cols-3 gap-4 mt-4">
-                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800">
-                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {selectedPage.memberCount || selectedPage.members || 0}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Members</p>
-                </div>
-                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800">
-                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                        {selectedPage.postCount || selectedPage.posts || 0}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Posts</p>
-                </div>
-                    <div className="text-center p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800">
-                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                        {selectedPage.category || 'N/A'}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Category</p>
-              </div>
-            </div>
-                </div>
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        <div className="sticky top-0 z-30 border-b border-zinc-200/80 bg-gray-50/95 backdrop-blur-md dark:border-white/10 dark:bg-gray-950/95 rounded-t-2xl px-2 py-2">
+        <div className={`${asidePanelClass} sticky top-16 z-30 overflow-hidden p-2 sm:top-20`}>
           <TabPills
-            ariaLabel="Page sections"
+            ariaLabel="Manage page"
             activeTab={activeTab}
             onChange={(id) => setActiveTab(id as typeof activeTab)}
+            size="sm"
+            scrollable
             tabs={[
               { id: 'overview', label: 'Overview', icon: Layout },
-              { id: 'posts', label: 'Posts', icon: FileText },
-              { id: 'members', label: 'Members', icon: Users },
+              { id: 'posts', label: 'Posts', icon: FileText, count: pagePosts.length },
+              { id: 'members', label: 'Members', icon: Users, count: pageMembers.length },
               { id: 'settings', label: 'Settings', icon: Settings },
             ]}
           />
         </div>
 
-            {/* Tab Content */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Page Statistics</h3>
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
-                    <BarChart3 size={24} className="text-white" />
-                  </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className={`${asidePanelClass} p-3 sm:p-4`}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Statistics</h3>
+                  <BarChart3 size={16} strokeWidth={2} className="text-zinc-400" aria-hidden />
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Members</span>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">
-                      {selectedPage.memberCount || selectedPage.members || 0}
-                    </span>
-                    </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Posts</span>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">
-                      {selectedPage.postCount || selectedPage.posts || 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Category</span>
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">
-                      {selectedPage.category || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </GlassCard>
-
-              <GlassCard className="p-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
                 <div className="space-y-2">
-            <button
-                    onClick={() => navigate(`/pages/${selectedPage.slug}`)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
-                  >
-                    <ExternalLink size={18} />
-                    <span className="font-medium">View Public Page</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('members')}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
-                  >
-                    <UserPlus size={18} />
-                    <span className="font-medium">Manage Members</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-left"
-                  >
-                    <Settings size={18} />
-                    <span className="font-medium">Edit Settings</span>
-            </button>
-          </div>
-              </GlassCard>
-        </div>
-            )}
-
-            {activeTab === 'posts' && (
-              <div className="space-y-6">
-                {loadingPosts ? (
-                  <PostSkeletonList count={6} />
-                ) : pagePosts.length > 0 ? (
-                  <div className={compactPostGridClass}>
-                    {pagePosts.map((post) => (
-                      <CompactPostCard
-                        key={post.id}
-                        post={post}
-                        onClick={() => navigate(`/posts/${post.id}`)}
-                        onLoginRequired={() => {
-                          // Handle login requirement if needed
-                          navigate('/login');
-                        }}
-                      />
-                    ))}
+                  {[
+                    { label: 'Members', value: selectedPage.memberCount || selectedPage.members || 0 },
+                    { label: 'Posts', value: selectedPage.postCount || selectedPage.posts || 0 },
+                    {
+                      label: 'Category',
+                      value: selectedPage.category
+                        ? formatListingLabel(selectedPage.category)
+                        : '—',
+                    },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-center justify-between rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]"
+                    >
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">{row.label}</span>
+                      <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                        {typeof row.value === 'number' ? row.value.toLocaleString() : row.value}
+                      </span>
                     </div>
-                ) : (
-                  <GlassCard className="p-12 text-center">
-                    <FileText size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Posts Yet</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      This page doesn't have any posts yet.
-                    </p>
-                    {selectedPage?.slug && (
-                      <button
-                        onClick={() => navigate(`/pages/${selectedPage.slug}`)}
-                        className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all"
-                      >
-                        View Public Page
-                      </button>
-                    )}
-                  </GlassCard>
-                )}
-                  </div>
-            )}
+                  ))}
+                </div>
+              </div>
 
-            {activeTab === 'members' && (
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Team Members</h3>
+              <div className={`${asidePanelClass} p-3 sm:p-4`}>
+                <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Quick actions</h3>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => selectedPage.slug && navigate(`/pages/${selectedPage.slug}`)}
+                    className={`${manageGhostBtnClass} w-full justify-start`}
+                  >
+                    <ExternalLink size={16} strokeWidth={2} aria-hidden />
+                    View public page
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('members')}
+                    className={`${manageGhostBtnClass} w-full justify-start`}
+                  >
+                    <UserPlus size={16} strokeWidth={2} aria-hidden />
+                    Manage members
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('settings')}
+                    className={`${manageGhostBtnClass} w-full justify-start`}
+                  >
+                    <Settings size={16} strokeWidth={2} aria-hidden />
+                    Edit settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'posts' && (
+            <div>
+              {loadingPosts ? (
+                <PostSkeletonList count={6} />
+              ) : pagePosts.length > 0 ? (
+                <div className={compactPostGridClass}>
+                  {pagePosts.map((post) => (
+                    <CompactPostCard
+                      key={post.id}
+                      post={post}
+                      onClick={() => navigate(`/post/${post.slug || post.id}`)}
+                      onLoginRequired={() => navigate('/login')}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+                  <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+                    <FileText size={20} strokeWidth={1.75} />
+                  </span>
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">No posts yet</h3>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Posts published under this page will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'members' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Team members</h3>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    People who can post and manage this page
+                  </p>
+                </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedPageForTeam(selectedPage);
                     setShowAddTeamMemberModal(true);
                   }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg"
+                  className={managePrimaryBtnClass}
                 >
-                    <UserPlus size={18} />
-                  Add Member
-                  </button>
-                </div>
+                  <UserPlus size={16} strokeWidth={2} aria-hidden />
+                  Add member
+                </button>
+              </div>
 
               {pageMembers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={manageMemberGridClass}>
                   {pageMembers.map((member: any) => {
-                    const isOwner = selectedPage?.ownerId === (member.userId || member.id) || member.role === 'owner';
-                    const canEdit = canManage(selectedPage) && !isOwner; // Only owner/admin can edit, but not themselves if owner
+                    const isOwner =
+                      selectedPage?.ownerId === (member.userId || member.id) || member.role === 'owner';
+                    const canEditMember = canManage(selectedPage) && !isOwner;
                     const isCurrentUser = authUser?.id === (member.userId || member.id);
-                    
+
                     return (
-                    <GlassCard key={member.id || member.userId} className="p-4 hover:shadow-xl transition-all">
-                      <div className="flex items-center gap-4">
-                        <Avatar src={member.avatar || member.avatarUrl} alt={member.username || member.name} size="lg" />
-                      <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                          <p className="font-bold text-gray-900 dark:text-white truncate">
-                            {member.username || member.name}
-                          </p>
-                            {isOwner && <Crown size={16} className="text-yellow-500 flex-shrink-0" />}
-                    </div>
-                          <Badge 
-                            variant={isOwner ? 'gradient' : member.role === 'admin' ? 'default' : 'default'}
-                            className="text-xs"
-                          >
-                            {isOwner ? 'Owner' : member.role === 'admin' ? 'Admin' : member.role === 'moderator' ? 'Moderator' : 'Member'}
-                          </Badge>
-                    </div>
-                    {canEdit && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => {
-                            setSelectedMemberForAction(member);
-                            setNewRole(member.role === 'admin' ? 'moderator' : 'admin');
-                            setShowUpdateRoleModal(true);
-                          }}
-                          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                          title="Update Role"
-                        >
-                          <Pencil size={16} className="text-gray-600 dark:text-gray-400" />
-                        </button>
-                        {!isCurrentUser && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setSelectedMemberForAction(member);
-                                setShowRemoveMemberModal(true);
-                              }}
-                              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              title="Remove Member"
-                            >
-                              <UserX size={16} className="text-red-600 dark:text-red-400" />
-                            </button>
-                            {selectedPage?.ownerId === authUser?.id && (
-                              <button
-                                onClick={() => {
-                                  setSelectedMemberForAction(member);
-                                  setShowTransferOwnershipModal(true);
-                                }}
-                                className="p-2 rounded-lg hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
-                                title="Transfer Ownership"
-                              >
-                                <ArrowRightLeft size={16} className="text-yellow-600 dark:text-yellow-400" />
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                    </GlassCard>
-                  )})}
+                      <ManageTeamMemberCard
+                        key={member.id || member.userId}
+                        member={member}
+                        isOwner={isOwner}
+                        canEdit={canEditMember}
+                        isCurrentUser={isCurrentUser}
+                        showTransfer={selectedPage?.ownerId === authUser?.id}
+                        onUpdateRole={() => {
+                          setSelectedMemberForAction(member);
+                          setNewRole(member.role === 'admin' ? 'moderator' : 'admin');
+                          setShowUpdateRoleModal(true);
+                        }}
+                        onRemove={() => {
+                          setSelectedMemberForAction(member);
+                          setShowRemoveMemberModal(true);
+                        }}
+                        onTransfer={() => {
+                          setSelectedMemberForAction(member);
+                          setShowTransferOwnershipModal(true);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
-                <GlassCard className="p-12 text-center">
-                  <Users size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400">No team members yet</p>
-                </GlassCard>
+                <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+                  <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+                    <Users size={20} strokeWidth={1.75} />
+                  </span>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">No team members yet</p>
+                </div>
               )}
-              </div>
-            )}
+            </div>
+          )}
 
             {activeTab === 'settings' && (
-            <div className="space-y-6">
-              {/* Loading indicator when fetching full page details */}
+            <div className="space-y-4">
               {loadingPageDetails && (
-                <GlassCard className="p-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center gap-3">
-                    <Loader2 size={20} className="text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-900 dark:text-blue-100">Loading page details...</p>
-                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">Fetching all page information from database</p>
-                    </div>
+                <div className={`${asidePanelClass} flex items-center gap-3 p-3 sm:p-4`}>
+                  <Loader2 size={18} className="shrink-0 animate-spin text-zinc-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Loading page details…</p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Fetching latest data from the server</p>
                   </div>
-                </GlassCard>
+                </div>
               )}
 
-              {/* Success Message */}
               {saveSuccess && (
-                <GlassCard className="p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 animate-fade-in">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle size={24} className="text-green-600 dark:text-green-400 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-green-900 dark:text-green-100 text-lg">Settings saved successfully!</p>
-                      <p className="text-sm text-green-700 dark:text-green-300 mt-1">Your page information has been updated.</p>
-                </div>
-              </div>
-                </GlassCard>
-              )}
-
-              {/* Error Message */}
-              {saveError && (
-                <GlassCard className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 animate-fade-in">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle size={24} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-red-900 dark:text-red-100 text-lg">Error</p>
-                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">{saveError}</p>
-              </div>
+                <div className={`${asidePanelClass} flex items-start gap-3 border-emerald-200/80 bg-emerald-50/80 p-3 dark:border-emerald-500/25 dark:bg-emerald-950/30 sm:p-4`}>
+                  <CheckCircle size={18} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Settings saved</p>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90">Your page information was updated.</p>
                   </div>
-                </GlassCard>
+                </div>
               )}
 
-              {/* Page Settings Form */}
-              <GlassCard className="p-6 space-y-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Page Settings</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Manage your page information and appearance
-                    </p>
-                    </div>
+              {saveError && (
+                <div className={`${asidePanelClass} flex items-start gap-3 border-red-200/80 bg-red-50/80 p-3 dark:border-red-500/25 dark:bg-red-950/30 sm:p-4`}>
+                  <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-red-900 dark:text-red-100">Could not save</p>
+                    <p className="text-[11px] text-red-700 dark:text-red-300/90">{saveError}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className={`${asidePanelClass} space-y-5 p-3 sm:p-4`}>
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Page settings</h3>
+                  <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                    Name, branding, links, and appearance
+                  </p>
                 </div>
 
-                {/* Basic Information */}
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-                    Basic Information
+                  <h4 className={`text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 ${postCardDividerClass} pb-2`}>
+                    Basic information
                   </h4>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
-                      Page Name <span className="text-red-500">*</span>
+                    <label className={manageLabelClass}>
+                      Page name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={settingsForm.name}
                       onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base"
+                      className={manageInputClass}
                       placeholder="Enter page name"
                       disabled={isSaving}
                     />
                 </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    <label className={manageLabelClass}>
                       Description
                     </label>
                     <textarea
                       value={settingsForm.description}
                       onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base min-h-[120px] resize-y"
+                      className={manageTextareaClass}
                       placeholder="Describe your page..."
                       disabled={isSaving}
                     />
                 </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    <label className={manageLabelClass}>
                       Short Bio <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
                     </label>
                     <textarea
                       value={settingsForm.shortBio}
                       onChange={(e) => setSettingsForm({ ...settingsForm, shortBio: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base min-h-[80px] resize-y"
+                      className={manageTextareaClass}
                       placeholder="A brief bio about your page..."
                       disabled={isSaving}
                       maxLength={1000}
@@ -2185,21 +2172,21 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                 </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    <label className={manageLabelClass}>
                       Category
                     </label>
                     <input
                       type="text"
                       value={settingsForm.category}
                       onChange={(e) => setSettingsForm({ ...settingsForm, category: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base"
+                      className={manageInputClass}
                       placeholder="e.g., Web3, DeFi, NFT"
                       disabled={isSaving}
                     />
                 </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    <label className={manageLabelClass}>
                       Username <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
                     </label>
                     <div className="relative">
@@ -2213,14 +2200,14 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         }}
                         placeholder="page-username"
                         disabled={isSaving}
-                        className={`w-full pl-10 pr-20 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 transition-all text-base outline-none ${
+                        className={`${manageInputClass} pl-10 pr-10 ${
                           usernameCheckStatus === 'available'
-                            ? 'border-green-500 focus:border-green-500 focus:ring-4 focus:ring-green-500/20'
+                            ? 'border-emerald-500 focus:border-emerald-500'
                             : usernameCheckStatus === 'taken' || usernameCheckStatus === 'invalid'
-                            ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/20'
+                            ? 'border-red-500 focus:border-red-500'
                             : usernameCheckStatus === 'checking'
-                            ? 'border-blue-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20'
-                            : 'border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20'
+                            ? 'border-zinc-400 focus:border-zinc-400'
+                            : ''
                         }`}
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -2257,7 +2244,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                    <label className={manageLabelClass}>
                       Website URL <span className="text-gray-500 dark:text-gray-400 font-normal">(optional)</span>
                     </label>
                     <div className="relative">
@@ -2268,7 +2255,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         onChange={(e) => setSettingsForm({ ...settingsForm, url: e.target.value })}
                         placeholder="https://yourwebsite.com"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all text-base"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                   </div>
@@ -2276,7 +2263,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
 
                 {/* Social Links */}
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                  <h4 className={`text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 ${postCardDividerClass} pb-2`}>
                     Social Links
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2291,7 +2278,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://yourwebsite.com"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2305,7 +2292,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://twitter.com/yourhandle or @handle"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-slate-500 focus:ring-4 focus:ring-slate-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2319,7 +2306,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://linkedin.com/company/yourcompany"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2333,7 +2320,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://github.com/yourorg"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-gray-500 focus:ring-4 focus:ring-gray-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2347,7 +2334,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://discord.gg/invitecode or invitecode"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2361,7 +2348,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://t.me/yourchannel or @channel"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2375,7 +2362,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="+1234567890 or https://wa.me/1234567890"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2389,7 +2376,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://facebook.com/yourpage"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-700 focus:ring-4 focus:ring-blue-700/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2403,7 +2390,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://instagram.com/yourhandle or @handle"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-pink-500 focus:ring-4 focus:ring-pink-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                     <div className="relative">
@@ -2417,7 +2404,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                         })}
                         placeholder="https://youtube.com/@yourchannel"
                         disabled={isSaving}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all"
+                        className={`${manageInputClass} pl-10`}
                       />
                     </div>
                 </div>
@@ -2425,12 +2412,12 @@ export function ProfilePages({ username }: ProfilePagesProps) {
 
                 {/* Logo */}
               <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                  <h4 className={`text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 ${postCardDividerClass} pb-2`}>
                     Logo
                   </h4>
                   <div className="flex items-start gap-6">
                     <div className="flex-shrink-0">
-                      <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-xl">
+                      <div className="h-24 w-24 overflow-hidden rounded-xl border-2 border-zinc-200/80 bg-zinc-100 ring-1 ring-zinc-200/80 dark:border-zinc-800 dark:bg-zinc-900 dark:ring-white/10 sm:h-28 sm:w-28">
                         {logoPreview ? (
                           <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
                         ) : (
@@ -2441,13 +2428,13 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                       </div>
                     </div>
                     <div className="flex-1 space-y-2">
-                      <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                      <label className={manageLabelClass}>
                         Upload Logo
                       </label>
                       <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl cursor-pointer transition-colors">
-                          <Upload size={18} />
-                          <span className="text-sm font-medium">Choose File</span>
+                        <label className={`${manageGhostBtnClass} cursor-pointer`}>
+                          <Upload size={16} strokeWidth={2} aria-hidden />
+                          <span>Choose file</span>
                           <input
                             ref={logoInputRef}
                             type="file"
@@ -2481,20 +2468,20 @@ export function ProfilePages({ username }: ProfilePagesProps) {
 
                 {/* Cover Image */}
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
+                  <h4 className={`text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 ${postCardDividerClass} pb-2`}>
                     Cover Image
                   </h4>
-                  <div className="relative h-48 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 group">
+                  <div className="group relative h-36 overflow-hidden rounded-xl border border-zinc-200/80 bg-zinc-100 dark:border-white/10 dark:bg-zinc-900/60 sm:h-40">
                     {coverPreview && (
                       <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
                     )}
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/50 cursor-pointer transition-colors group-hover:bg-black/60">
+                    <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/35 transition-colors hover:bg-black/45">
                       <div className="text-center text-white">
-                        <Camera size={28} className="mx-auto mb-2" />
-                        <span className="text-sm font-semibold">
-                          {coverPreview ? 'Change Cover' : 'Upload Cover Image'}
+                        <Camera size={22} className="mx-auto mb-1.5" strokeWidth={2} />
+                        <span className="text-xs font-medium">
+                          {coverPreview ? 'Change cover' : 'Upload cover'}
                         </span>
-                        <p className="text-xs mt-1 opacity-90">Recommended: 1200x300px</p>
+                        <p className="mt-0.5 text-[10px] opacity-90">1200×300 recommended</p>
                       </div>
                       <input
                         ref={coverInputRef}
@@ -2513,7 +2500,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                           setCoverPreview(selectedPage?.coverImageUrl || null);
                           if (coverInputRef.current) coverInputRef.current.value = '';
                         }}
-                        className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                        className="absolute right-2 top-2 rounded-lg border border-red-300/80 bg-red-600 p-1.5 text-white transition-colors hover:bg-red-700"
                         disabled={isSaving}
                       >
                         <X size={16} />
@@ -2525,59 +2512,60 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                   </p>
                 </div>
 
-                {/* Danger Zone */}
-                {selectedPage?.role === 'owner' || selectedPage?.role === 'Owner' ? (
-                  <div className="space-y-4 pt-6 border-t border-red-200 dark:border-red-800">
-                    <h4 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h4>
-                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-red-900 dark:text-red-100">Delete Page</p>
-                          <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                            Once you delete a page, there is no going back. Please be certain.
-                          </p>
+                {(selectedPage?.role === 'owner' || selectedPage?.role === 'Owner') && (
+                  <div className={`space-y-3 pt-4 ${postCardDividerClass}`}>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
+                      Danger zone
+                    </h4>
+                    <div className="flex flex-col gap-3 rounded-lg border border-red-200/80 bg-red-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-red-500/25 dark:bg-red-950/25">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-red-900 dark:text-red-100">Delete page</p>
+                        <p className="mt-0.5 text-[11px] text-red-700 dark:text-red-300/90">
+                          Permanent. This cannot be undone.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDeletePage}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-red-300 bg-red-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 dark:border-red-500/40"
+                        disabled={isSaving}
+                      >
+                        <Trash2 size={16} strokeWidth={2} aria-hidden />
+                        Delete
+                      </button>
                     </div>
-                        <button
-                          onClick={handleDeletePage}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
-                          disabled={isSaving}
-                        >
-                          <Trash2 size={18} />
-                          Delete Page
-                        </button>
                   </div>
-                </div>
-                </div>
-                ) : null}
+                )}
 
-                {/* Save Button */}
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className={`flex flex-wrap items-center justify-end gap-2 pt-4 ${postCardDividerClass}`}>
                   <button
+                    type="button"
                     onClick={handleBackToList}
-                    className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all font-semibold"
+                    className={manageGhostBtnClass}
                     disabled={isSaving}
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleSaveSettings}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={managePrimaryBtnClass}
                   >
                     {isSaving ? (
                       <>
-                        <Loader size={18} className="animate-spin" />
-                        Saving...
+                        <Loader size={16} className="animate-spin" aria-hidden />
+                        Saving…
                       </>
                     ) : (
                       <>
-                        <Save size={18} />
-                        Save Changes
+                        <Save size={16} strokeWidth={2} aria-hidden />
+                        Save changes
                       </>
                     )}
                   </button>
                 </div>
-              </GlassCard>
+              </div>
               </div>
             )}
         </div>

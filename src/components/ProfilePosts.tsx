@@ -1,5 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, SlidersHorizontal, Edit2, Trash2, Trophy, Calendar, Briefcase, FileText, MoreVertical } from 'lucide-react';
+import {
+  Search,
+  Edit2,
+  Trash2,
+  Trophy,
+  Calendar,
+  Briefcase,
+  FileText,
+  MoreVertical,
+  X,
+  Clock,
+  TrendingUp,
+  Flame,
+  Plus,
+  ChevronDown,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { PostCard } from './PostCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Post } from '../types';
@@ -7,6 +23,7 @@ import usersService from '../services/api/users.service';
 import postsService from '../services/api/posts.service';
 import { PostSkeletonList } from './skeletons';
 import { TabPills } from './TabPills';
+import { asidePanelClass, compactPostGridClass } from './postCardSurface';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,6 +33,19 @@ interface ProfilePostsProps {
 
 type CategoryFilter = 'all' | 'hackathon' | 'event' | 'opportunity';
 type SortBy = 'recent' | 'popular' | 'controversial';
+
+const SORT_TABS = [
+  { id: 'recent' as const, label: 'Recent', icon: Clock },
+  { id: 'popular' as const, label: 'Popular', icon: TrendingUp },
+  { id: 'controversial' as const, label: 'Hot', icon: Flame },
+];
+
+const CATEGORY_TABS = [
+  { id: 'all' as const, label: 'All', icon: FileText },
+  { id: 'hackathon' as const, label: 'Hackathons', icon: Trophy },
+  { id: 'event' as const, label: 'Events', icon: Calendar },
+  { id: 'opportunity' as const, label: 'Jobs', icon: Briefcase },
+];
 
 export function ProfilePosts({ username }: ProfilePostsProps) {
   const { user: authUser } = useAuth();
@@ -28,6 +58,7 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationMeta, setPaginationMeta] = useState({
     currentPage: 1,
@@ -152,106 +183,207 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
     });
   }, [filteredPosts, sortBy]);
 
+  const hasActiveFilters =
+    Boolean(searchQuery.trim()) || categoryFilter !== 'all' || sortBy !== 'recent';
+
+  const activeSortLabel = SORT_TABS.find((t) => t.id === sortBy)?.label ?? 'Recent';
+  const activeCategoryLabel =
+    CATEGORY_TABS.find((t) => t.id === categoryFilter)?.label ?? 'All';
+
+  const postCountLabel = loading
+    ? '…'
+    : `${sortedPosts.length} ${sortedPosts.length === 1 ? 'post' : 'posts'}`;
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="shrink-0">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
-              Posts
-            </h2>
-            {!loading && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {sortedPosts.length === 0
-                  ? 'No posts found'
-                  : `${sortedPosts.length} ${sortedPosts.length === 1 ? 'post' : 'posts'}${searchQuery ? ` matching "${searchQuery}"` : ''}`}
-              </p>
-            )}
-          </div>
-          <TabPills
-            ariaLabel="Post categories"
-            activeTab={categoryFilter}
-            onChange={setCategoryFilter}
-            className="min-w-0 sm:shrink-0"
-            tabs={[
-              { id: 'all', label: 'All', icon: FileText },
-              { id: 'hackathon', label: 'Hackathons', icon: Trophy },
-              { id: 'event', label: 'Events', icon: Calendar },
-              { id: 'opportunity', label: 'Opportunities', icon: Briefcase },
-            ]}
-          />
-        </div>
-        {isOwnProfile && sortedPosts.length > 0 && (
+    <div className="space-y-4">
+      <div className={`${asidePanelClass} overflow-hidden`}>
+        {/* Collapsed / summary row — always one line */}
+        <div className="flex min-h-10 items-center gap-2 px-2 py-1.5 sm:gap-2.5 sm:px-3">
           <button
             type="button"
-            onClick={() => navigate('/create-post')}
-            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-600 active:scale-95 touch-manipulation sm:w-auto"
+            onClick={() => setFiltersExpanded((open) => !open)}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-zinc-200/80 bg-zinc-50/90 px-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:bg-white/[0.08]"
+            aria-expanded={filtersExpanded}
+            aria-controls="profile-posts-filters"
           >
-            <FileText size={16} />
-            <span>New Post</span>
+            <SlidersHorizontal size={14} strokeWidth={2} className="shrink-0" aria-hidden />
+            <span className="hidden sm:inline">Filters</span>
+            <ChevronDown
+              size={14}
+              className={`shrink-0 text-zinc-400 transition-transform duration-200 ${filtersExpanded ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
           </button>
-        )}
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search posts by title or content..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all text-sm"
-          />
+          <h2 className="shrink-0 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Posts
+          </h2>
+
+          <span className="hidden h-4 w-px shrink-0 bg-zinc-200/80 dark:bg-white/10 sm:block" aria-hidden />
+
+          <p className="min-w-0 shrink-0 truncate text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+            {postCountLabel}
+          </p>
+
+          {!filtersExpanded && hasActiveFilters && (
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-hide">
+              {searchQuery.trim() && (
+                <span className="inline-flex max-w-[8rem] shrink-0 items-center gap-1 truncate rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 sm:max-w-[10rem]">
+                  <Search size={10} strokeWidth={2} aria-hidden />
+                  <span className="truncate">{searchQuery}</span>
+                </span>
+              )}
+              {sortBy !== 'recent' && (
+                <span className="shrink-0 rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400">
+                  {activeSortLabel}
+                </span>
+              )}
+              {categoryFilter !== 'all' && (
+                <span className="shrink-0 rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400">
+                  {activeCategoryLabel}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {hasActiveFilters && !filtersExpanded && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCategoryFilter('all');
+                  setSortBy('recent');
+                }}
+                className="hidden rounded-md px-1.5 py-1 text-[10px] font-medium text-zinc-500 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200 sm:inline"
+              >
+                Clear
+              </button>
+            )}
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => navigate('/create-post')}
+                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-zinc-200/80 bg-zinc-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 dark:border-white/10 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              >
+                <Plus size={14} strokeWidth={2} aria-hidden />
+                <span className="hidden sm:inline">New</span>
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 sm:w-48">
-          <SlidersHorizontal size={18} className="text-gray-400 flex-shrink-0" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
-            className="flex-1 px-3 py-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all text-sm"
+
+        {/* Expanded — search, sort, type on one scrollable row */}
+        {filtersExpanded && (
+          <div
+            id="profile-posts-filters"
+            className="flex items-center gap-2 overflow-x-auto border-t border-zinc-100 px-2 py-2 scrollbar-hide dark:border-white/[0.06] sm:gap-2.5 sm:px-3"
           >
-            <option value="recent">Most Recent</option>
-            <option value="popular">Most Popular</option>
-            <option value="controversial">Most Controversial</option>
-          </select>
-        </div>
+            <div className="relative w-[7.5rem] shrink-0 sm:w-36 md:w-44 lg:w-52">
+              <Search
+                size={14}
+                strokeWidth={2}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
+                aria-hidden
+              />
+              <input
+                id="profile-posts-search"
+                type="search"
+                placeholder="Search…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 w-full rounded-lg border border-zinc-200/80 bg-white py-0 pl-8 pr-7 text-xs text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 dark:border-white/10 dark:bg-[#0a1020]/90 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200"
+                  aria-label="Clear search"
+                >
+                  <X size={12} strokeWidth={2} />
+                </button>
+              )}
+            </div>
+
+            <span className="h-6 w-px shrink-0 bg-zinc-200/80 dark:bg-white/10" aria-hidden />
+
+            <TabPills
+              ariaLabel="Sort posts"
+              activeTab={sortBy}
+              onChange={(id) => setSortBy(id as SortBy)}
+              scrollable={false}
+              size="sm"
+              className="shrink-0"
+              tabs={SORT_TABS}
+            />
+
+            <span className="h-6 w-px shrink-0 bg-zinc-200/80 dark:bg-white/10" aria-hidden />
+
+            <TabPills
+              ariaLabel="Post categories"
+              activeTab={categoryFilter}
+              onChange={setCategoryFilter}
+              scrollable={false}
+              size="sm"
+              className="shrink-0"
+              tabs={CATEGORY_TABS}
+            />
+
+            {hasActiveFilters && (
+              <>
+                <span className="h-6 w-px shrink-0 bg-zinc-200/80 dark:bg-white/10" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCategoryFilter('all');
+                    setSortBy('recent');
+                  }}
+                  className="shrink-0 rounded-md border border-zinc-200/70 bg-zinc-50 px-2 py-1 text-[10px] font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:bg-white/[0.08] dark:hover:text-zinc-200"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Posts List */}
       {loading ? (
         <PostSkeletonList count={3} />
       ) : sortedPosts.length === 0 ? (
-        <div className="py-12 sm:py-16 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <FileText size={32} className="text-gray-400 dark:text-gray-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        <div className={`${asidePanelClass} px-6 py-12 text-center`}>
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+            <FileText size={22} strokeWidth={1.75} />
+          </span>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {searchQuery || categoryFilter !== 'all' ? 'No posts found' : 'No posts yet'}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
+          <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500 dark:text-zinc-400">
             {searchQuery || categoryFilter !== 'all'
               ? isOwnProfile
-                ? "Try adjusting your filters or search terms to find what you're looking for."
-                : "This user hasn't published any posts matching your criteria."
+                ? 'Try different filters or search terms.'
+                : "This user hasn't published posts matching your criteria."
               : isOwnProfile
-                ? "Start sharing your thoughts and connect with the community."
+                ? 'Share your first post with the community.'
                 : "This user hasn't published any posts yet."}
           </p>
-          {isOwnProfile && (
+          {isOwnProfile && !searchQuery && categoryFilter === 'all' && (
             <button
+              type="button"
               onClick={() => navigate('/create-post')}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-500 text-white rounded-lg font-medium text-sm hover:bg-blue-600 active:scale-95 transition-all"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-zinc-200/80 bg-zinc-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800 dark:border-white/10 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
             >
-              <FileText size={16} />
-              Create Your First Post
+              <Plus size={16} strokeWidth={2} aria-hidden />
+              Create your first post
             </button>
           )}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+          <div className={compactPostGridClass}>
             {sortedPosts.map(post => {
               // Determine navigation URL based on post category
               const getNavigationUrl = () => {

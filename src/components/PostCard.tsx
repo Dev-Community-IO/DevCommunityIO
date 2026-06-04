@@ -1,10 +1,9 @@
+import { ChevronRight, MessageCircle } from 'lucide-react';
 import { PostActionIcon } from './PostActionIcon';
 import { Post } from '../types';
 import {
-  postCardSurfaceClass,
-  postCardPaddingClass,
+  compactPostCardClass,
   postTagClass,
-  postActionBtnClass,
   postMentionClass,
   postCardDividerClass,
 } from './postCardSurface';
@@ -291,10 +290,17 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     Boolean(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes);
 
   const contentPreview = extractPostPreviewText(postData.content, {
-    maxLength: 280,
+    maxLength: hasCover ? 140 : 200,
     skipTitle: postData.title,
   });
   const showContentPreview = contentPreview.length > 0;
+
+  const firstTag = postData.tags?.[0];
+  const firstTagLabel = firstTag
+    ? typeof firstTag === 'string'
+      ? firstTag
+      : firstTag?.name || firstTag?.slug
+    : null;
 
   const isPostOwner =
     isAuthenticated &&
@@ -302,9 +308,17 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     Boolean(postData.author?.id) &&
     String(user!.id) === String(postData.author.id);
 
+  const totalReactions = emojis.reduce((sum, e) => sum + e.count, 0);
+  const topEmojis = emojis.slice(0, 3);
+  const commentCount = postData.commentCount ?? 0;
+  const viewCount = postData.viewCount ?? 0;
+
+  const iconActionClass =
+    'flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200 touch-manipulation';
+
   return (
     <article
-      className={`${postCardSurfaceClass} ${postCardPaddingClass}`}
+      className={compactPostCardClass}
       onClick={handleCardClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -316,79 +330,79 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
       role="link"
       aria-label={postData.title}
     >
-      <div className="flex flex-1 flex-col space-y-2 sm:space-y-2.5">
-        {/* Main Content */}
-        <div className="space-y-2 sm:space-y-3 min-w-0 flex-1 flex flex-col">
-          <PostCardHeader
-            post={postData}
-            timeAgo={timeAgo(postData.publishedAt || postData.createdAt || postData.timestamp)}
-            isAuthenticated={isAuthenticated}
-            isPostOwner={isPostOwner}
-            onLoginRequired={onLoginRequired}
-            onNavigateProfile={(username) => navigate(`/profile/${username}`)}
-            onNavigatePage={(slug) => navigate(`/pages/${slug}`)}
+      {hasCover ? (
+        <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-950">
+          <ResponsivePostImage
+            coverImageUrl={
+              postData.coverImage ||
+              postData.coverImageUrl ||
+              (postData.autoGenerateImage ? postData.ogImageUrl : undefined)
+            }
+            coverImageSizes={postData.coverImageSizes}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+            size="feed"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
           />
-
-          {hasCover && (
-            <div className="relative mb-1 h-32 w-full shrink-0 overflow-hidden rounded-lg border border-zinc-200/60 bg-zinc-100 dark:border-white/[0.06] dark:bg-zinc-900/80 sm:h-36">
-              <ResponsivePostImage
-                coverImageUrl={
-                  postData.coverImage ||
-                  postData.coverImageUrl ||
-                  (postData.autoGenerateImage ? postData.ogImageUrl : undefined)
-                }
-                coverImageSizes={postData.coverImageSizes}
-                alt={postData.title}
-                className="h-full w-full object-cover"
-                size="feed"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            </div>
-          )}
-
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-50 dark:group-hover:text-zinc-200 sm:text-[17px]">
-            {postData.title}
-          </h3>
-
-          {showContentPreview && (
-            <p
-              className={`flex-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm ${
-                hasCover ? 'line-clamp-2' : 'line-clamp-2 sm:line-clamp-3'
-              }`}
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent"
+            aria-hidden
+          />
+          {firstTagLabel && (
+            <span
+              className={`${postTagClass} absolute left-2.5 top-2.5 max-w-[calc(100%-1.25rem)] truncate border-white/20 bg-white/90 text-zinc-700 backdrop-blur-sm dark:bg-zinc-900/90 dark:text-zinc-300`}
             >
-              {formatContentPreview(contentPreview)}
-            </p>
+              #{firstTagLabel}
+            </span>
           )}
+        </div>
+      ) : (
+        <div
+          className="h-1 w-full shrink-0 bg-gradient-to-r from-zinc-200 via-zinc-300/70 to-zinc-200 dark:from-white/[0.06] dark:via-white/[0.1] dark:to-white/[0.06]"
+          aria-hidden
+        />
+      )}
 
-          {/* Tags - Mobile Optimized */}
-          {postData.tags && postData.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 sm:gap-1.5">
-              {postData.tags.slice(0, 3).map(tag => {
-                const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
-                const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
-                return (
-                  <span key={tagKey} className={postTagClass}>
-                    #{tagName}
-                  </span>
-                );
-              })}
-              {postData.tags.length > 3 && (
-                <span className={postTagClass}>+{postData.tags.length - 3}</span>
-              )}
-            </div>
-          )}
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <PostCardHeader
+          post={postData}
+          timeAgo={timeAgo(postData.publishedAt || postData.createdAt || postData.timestamp)}
+          isAuthenticated={isAuthenticated}
+          isPostOwner={isPostOwner}
+          onLoginRequired={onLoginRequired}
+          onNavigateProfile={(username) => navigate(`/profile/${username}`)}
+          onNavigatePage={(slug) => navigate(`/pages/${slug}`)}
+        />
 
-          {/* Actions Footer - Mobile Optimized */}
-          <div className={`flex shrink-0 items-center justify-between pt-2 sm:pt-2.5 ${postCardDividerClass}`}>
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap flex-1 min-w-0">
-              {/* Emoji Reactions - Inline and Compact - Mobile Optimized */}
-              {emojis.length > 0 && (
-                <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap">
-                  {emojis.map(({ emoji, count }) => (
+        <h3 className="mb-2 mt-3 line-clamp-2 text-[15px] font-semibold leading-snug tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-50 dark:group-hover:text-white sm:text-base">
+          {postData.title}
+        </h3>
+
+        {showContentPreview ? (
+          <p className="mb-3 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            {formatContentPreview(contentPreview)}
+          </p>
+        ) : (
+          <div className="mb-3 flex-1" />
+        )}
+
+        {!hasCover && firstTagLabel && (
+          <span className={`${postTagClass} mb-3 max-w-full self-start truncate`}>#{firstTagLabel}</span>
+        )}
+
+        <div
+          className={`mt-auto flex items-center justify-between gap-2 pt-3 ${postCardDividerClass}`}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+            {topEmojis.length > 0 && totalReactions > 0 && (
+              <span className="inline-flex max-w-full items-center gap-1 tabular-nums">
+                <span className="flex items-center -space-x-0.5">
+                  {topEmojis.map(({ emoji }) => (
                     <button
                       key={emoji}
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isAuthenticated) {
@@ -397,115 +411,122 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         }
                         handleEmojiReaction(emoji);
                       }}
-                      className={`flex items-center gap-0.5 rounded-md px-1 sm:px-1.5 py-0.5 text-xs transition-colors touch-manipulation ${
+                      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] transition-colors touch-manipulation ${
                         userEmojis.includes(emoji)
-                          ? 'bg-zinc-200/90 text-zinc-900 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:text-zinc-100 dark:ring-white/15'
-                          : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/[0.06]'
+                          ? 'border-zinc-300 bg-zinc-200/90 dark:border-white/15 dark:bg-white/10'
+                          : 'border-zinc-200/80 bg-zinc-50 dark:border-white/10 dark:bg-zinc-800'
                       }`}
                     >
-                      <span className="text-xs sm:text-sm">{emoji}</span>
-                      <span className="font-semibold text-[9px] sm:text-[10px]">{count}</span>
+                      {emoji}
                     </button>
                   ))}
-                </div>
-              )}
-              
-              {/* Add Emoji Button - Mobile Optimized */}
-              <div className="relative" ref={emojiPickerRef}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isAuthenticated) {
-                      onLoginRequired?.();
-                      return;
-                    }
-                    setShowEmojiPicker(!showEmojiPicker);
-                  }}
-                  className={postActionBtnClass}
-                >
-                  <PostActionIcon name="react" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="text-[10px] sm:text-xs font-medium hidden sm:inline">React</span>
-                </button>
+                </span>
+                <span>{totalReactions}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <MessageCircle size={12} strokeWidth={2} className="shrink-0 opacity-70" aria-hidden />
+              {commentCount}
+            </span>
+            {viewCount > 0 && (
+              <span className="hidden tabular-nums sm:inline">{viewCount.toLocaleString()} views</span>
+            )}
+          </div>
 
-                {showEmojiPicker && (
-                  <div className="absolute bottom-full left-0 z-[9999] mb-2 animate-fade-in">
-                    <div className="min-w-[200px] rounded-lg border border-zinc-200/80 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-900 sm:min-w-[220px]">
-                      <div className="grid grid-cols-4 gap-0.5">
-                        {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEmojiReaction(emoji);
-                              setShowEmojiPicker(false);
-                            }}
-                            className={`rounded-md p-2 text-xl transition-colors touch-manipulation sm:p-2.5 ${
-                              userEmojis.includes(emoji)
-                                ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
-                                : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
-                            }`}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <div className="relative" ref={emojiPickerRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isAuthenticated) {
+                    onLoginRequired?.();
+                    return;
+                  }
+                  setShowEmojiPicker(!showEmojiPicker);
+                }}
+                className={iconActionClass}
+                aria-label="React"
+              >
+                <PostActionIcon name="react" size={16} className="h-4 w-4" />
+              </button>
+
+              {showEmojiPicker && (
+                <div className="absolute bottom-full right-0 z-[9999] mb-2 animate-fade-in">
+                  <div className="min-w-[200px] rounded-lg border border-zinc-200/80 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-900">
+                    <div className="grid grid-cols-4 gap-0.5">
+                      {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEmojiReaction(emoji);
+                            setShowEmojiPicker(false);
+                          }}
+                          className={`rounded-md p-2 text-xl transition-colors touch-manipulation ${
+                            userEmojis.includes(emoji)
+                              ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
+                              : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                className={postActionBtnClass}
-              >
-                <PostActionIcon name="comment" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span>{postData.commentCount || 0}</span>
-              </button>
-              <span
-                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 text-zinc-500 dark:text-zinc-400"
-                title={`${postData.viewCount || 0} views`}
-              >
-                <PostActionIcon name="view" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span className="text-[10px] sm:text-xs font-medium">{postData.viewCount || 0}</span>
-              </span>
-              <ShareDropdown
-        url={`${window.location.origin}/post/${postData.slug}`}
-        title={postData.title}
-        type="post"
-        hashtags={postData.tags || []}
-        description={postData.content?.substring(0, 150)}
-                trigger={
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                className={postActionBtnClass}
-              >
-                <PostActionIcon name="share" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span className="hidden sm:inline">Share</span>
-              </button>
-                }
-              />
+                </div>
+              )}
             </div>
-            <Tooltip content={!isAuthenticated ? "Login to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark"}>
+
+            <ShareDropdown
+              url={`${window.location.origin}/post/${postData.slug}`}
+              title={postData.title}
+              type="post"
+              hashtags={postData.tags || []}
+              description={postData.content?.substring(0, 150)}
+              trigger={
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className={iconActionClass}
+                  aria-label="Share"
+                >
+                  <PostActionIcon name="share" size={16} className="h-4 w-4" />
+                </button>
+              }
+            />
+
+            <Tooltip
+              content={
+                !isAuthenticated ? 'Login to bookmark' : bookmarked ? 'Remove bookmark' : 'Bookmark'
+              }
+            >
               <button
+                type="button"
                 onClick={handleBookmark}
-                className={`shrink-0 rounded-md p-1.5 transition-colors touch-manipulation sm:p-2 ${
-                  bookmarked
-                    ? 'bg-zinc-200/90 text-zinc-900 dark:bg-white/10 dark:text-zinc-100'
-                    : !isAuthenticated
-                      ? 'cursor-not-allowed opacity-50'
-                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200'
-                }`}
+                className={`${iconActionClass} ${
+                  bookmarked ? 'bg-zinc-200/90 text-zinc-900 dark:bg-white/10 dark:text-zinc-100' : ''
+                } ${!isAuthenticated ? 'cursor-not-allowed opacity-50' : ''}`}
+                aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
               >
                 <PostActionIcon
                   name={bookmarked ? 'bookmarkActive' : 'bookmark'}
-                  size={14}
-                  className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+                  size={16}
+                  className="h-4 w-4"
                 />
               </button>
             </Tooltip>
+
+            <span className="ml-0.5 inline-flex items-center gap-0.5 pl-1 text-xs font-medium text-zinc-500 transition-colors group-hover:text-zinc-800 dark:text-zinc-400 dark:group-hover:text-zinc-200">
+              <span className="sr-only">Read post</span>
+              <ChevronRight
+                size={15}
+                strokeWidth={2}
+                className="transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
+            </span>
           </div>
         </div>
       </div>
