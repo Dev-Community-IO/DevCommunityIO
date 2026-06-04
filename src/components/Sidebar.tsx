@@ -409,7 +409,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
           : 'flex h-full min-h-0 w-full flex-1 flex-col z-40'
       }
     >
-      <StickyAsidePanel pin={isLgUp && !isMobileSidebar} className="pb-2">
+      <StickyAsidePanel pin={false} className="pb-2">
         <nav className="flex w-full flex-col gap-3 md:gap-4" aria-label="Main navigation">
           <div className={`${panelInnerClass} w-full`}>
             <ul className={menuListClass} role="list">
