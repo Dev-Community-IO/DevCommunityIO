@@ -81,6 +81,7 @@ const ProfileDashboardCharts = lazy(() =>
 
 interface ProfileDashboardProps {
   username: string;
+  isOwnProfile?: boolean;
   user: {
     username: string;
     reputation?: number;
@@ -200,7 +201,7 @@ function ActivityRow({
   );
 }
 
-export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
+export function ProfileDashboard({ username, user, isOwnProfile = true }: ProfileDashboardProps) {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     reputation: user?.reputation ?? 0,
@@ -313,6 +314,22 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
 
   const totalEngagement = stats.upvotes + stats.reactions + stats.bookmarks;
 
+  const hasPeriodActivity =
+    stats.posts > 0 ||
+    stats.replies > 0 ||
+    stats.upvotes > 0 ||
+    stats.downvotes > 0 ||
+    stats.reactions > 0 ||
+    stats.bookmarks > 0 ||
+    stats.views > 0 ||
+    stats.followers > 0 ||
+    stats.following > 0 ||
+    stats.pages > 0 ||
+    stats.achievements > 0 ||
+    timeline.some((t) => t.posts > 0 || t.replies > 0);
+
+  const periodEmptyMessage = `No activity in ${periodLabel.toLowerCase()}.`;
+
   const postUrl = (post: { slug?: string; id?: string; category?: string; hackathon?: { slug?: string }; event?: { slug?: string }; opportunity?: { slug?: string } }) => {
     const p = post as Record<string, unknown>;
     if (post.category === 'hackathon' && p.hackathon) {
@@ -354,10 +371,22 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
           title="Dashboard"
           description={
             user.joinedDate
-              ? `Overview for @${username} · joined ${user.joinedDate}`
-              : `Your activity and community impact.`
+              ? `Private analytics for @${username} · ${periodLabel.toLowerCase()} · joined ${user.joinedDate}`
+              : `Private analytics · ${periodLabel.toLowerCase()}`
           }
         />
+
+        {isOwnProfile && (
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+            Only you see this dashboard. Visitors get a simple overview on the Overview tab.
+          </p>
+        )}
+
+        {!hasPeriodActivity && (
+          <p className="mb-3 rounded-lg border border-zinc-200/80 bg-zinc-50/90 px-3 py-2 text-xs text-zinc-600 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-zinc-400">
+            {periodEmptyMessage}
+          </p>
+        )}
 
         <div className="mb-3 overflow-x-auto scrollbar-hide">
           <TabPills
@@ -371,8 +400,11 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">
-          <ProfileStatChip label="Reputation" value={formatCount(stats.reputation)} />
-          <ProfileStatChip label="Engagement" value={formatCount(totalEngagement)} />
+          <ProfileStatChip label="Reputation (all-time)" value={formatCount(stats.reputation)} />
+          <ProfileStatChip
+            label={`Engagement (${periodLabel.toLowerCase()})`}
+            value={formatCount(totalEngagement)}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -402,6 +434,7 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
         <ProfileDashboardCharts
           timeline={timeline}
           periodLabel={periodLabel}
+          periodEmptyMessage={periodEmptyMessage}
           postsByCategory={stats.postsByCategory}
           engagement={{
             upvotes: stats.upvotes,
@@ -426,7 +459,9 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
           </div>
           <div className="space-y-0.5">
             {recentPosts.length === 0 ? (
-              <p className="py-6 text-center text-xs text-zinc-500">No posts yet</p>
+              <p className="py-6 text-center text-xs text-zinc-500">
+                {period === 'all' ? 'No posts yet' : `No posts in ${periodLabel.toLowerCase()}`}
+              </p>
             ) : (
               recentPosts.map((post) => (
                 <ActivityRow
@@ -469,7 +504,9 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
           </div>
           <div className="space-y-0.5">
             {recentReplies.length === 0 ? (
-              <p className="py-6 text-center text-xs text-zinc-500">No replies yet</p>
+              <p className="py-6 text-center text-xs text-zinc-500">
+                {period === 'all' ? 'No replies yet' : `No replies in ${periodLabel.toLowerCase()}`}
+              </p>
             ) : (
               recentReplies.map((reply) => {
                 const slug = reply.post?.slug;
@@ -504,9 +541,11 @@ export function ProfileDashboard({ username, user }: ProfileDashboardProps) {
         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
           <TrendingUp size={14} strokeWidth={2} className="shrink-0" />
           <span>
-            {stats.views > 0
-              ? `Avg. ${formatCount(Math.round(totalEngagement / Math.max(stats.posts, 1)))} engagements per post · ${formatCount(Math.round(stats.views / Math.max(stats.posts, 1)))} views per post`
-              : 'Publish and engage to grow your stats over time.'}
+            {hasPeriodActivity && stats.posts > 0
+              ? `Avg. ${formatCount(Math.round(totalEngagement / Math.max(stats.posts, 1)))} engagements per post · ${formatCount(Math.round(stats.views / Math.max(stats.posts, 1)))} views per post (${periodLabel.toLowerCase()})`
+              : hasPeriodActivity
+                ? 'Keep publishing to see per-post averages here.'
+                : periodEmptyMessage}
           </span>
         </div>
       </ProfileTabPanel>

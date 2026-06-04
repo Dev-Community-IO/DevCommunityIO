@@ -418,9 +418,23 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                   />
                   <RequirementRow
                     ok={authUser?.reputation !== undefined && authUser.reputation >= minReputation}
-                    label={`${minReputation}+ reputation${authUser?.reputation !== undefined ? ` · you have ${authUser.reputation}` : ''}`}
+                    label={`${minReputation}+ reputation${authUser?.reputation !== undefined ? ` · you have ${authUser.reputation.toLocaleString()}` : ''}`}
                   />
                 </ul>
+                {authUser?.reputation !== undefined && authUser.reputation < minReputation && (
+                  <ProfileAlert variant="info" title="Reputation needed">
+                    <p className="text-xs">
+                      Need <span className="font-semibold tabular-nums">{minReputation}</span> reputation
+                      {' · '}
+                      you have <span className="font-semibold tabular-nums">{authUser.reputation.toLocaleString()}</span>
+                      {' · '}
+                      <span className="font-semibold tabular-nums">
+                        {(minReputation - authUser.reputation).toLocaleString()}
+                      </span>{' '}
+                      more to request verification.
+                    </p>
+                  </ProfileAlert>
+                )}
                 {!profileCompleteness.isComplete && (
                   <ProfileAlert variant="warning" title="Profile incomplete">
                     <ul className="mt-1 list-inside list-disc space-y-0.5">

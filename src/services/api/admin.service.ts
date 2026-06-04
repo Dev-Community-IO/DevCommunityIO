@@ -1,5 +1,10 @@
 import apiClient from './config';
 
+/**
+ * Admin-only API client. Use only from admin/moderator routes and components.
+ * For public reputation thresholds use `reputationSystemService.getRequirements()`.
+ * For site settings use `siteSettingsService`.
+ */
 class AdminService {
     // Get dashboard stats
     async getDashboard(): Promise<any> {
@@ -288,7 +293,7 @@ class AdminService {
         await apiClient.delete(`/admin/achievements/${id}`);
     }
 
-    // Reputation requirements management
+    /** Admin dashboard only — public UI must use reputationSystemService.getRequirements(). */
     async getReputationRequirements(): Promise<any> {
         const response = await apiClient.get('/admin/reputation-requirements');
         return response.data;

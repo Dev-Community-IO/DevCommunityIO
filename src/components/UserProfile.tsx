@@ -7,6 +7,7 @@ import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { TrustedBadge } from './TrustedBadge';
 import { ProfileDashboard } from './ProfileDashboard';
+import { ProfilePublicOverview } from './ProfilePublicOverview';
 import { ProfilePosts } from './ProfilePosts';
 import { ProfileReplies } from './ProfileReplies';
 import { ProfilePages } from './ProfilePages';
@@ -302,7 +303,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
   };
 
   const allTabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, requiresAuth: true, requiresOwn: true },
+    { id: 'dashboard', label: 'Overview', icon: LayoutGrid, requiresAuth: false, requiresOwn: false },
     { id: 'posts', label: 'Posts', icon: FileText, requiresAuth: false, requiresOwn: false },
     { id: 'replies', label: 'Replies', icon: MessageSquare, requiresAuth: false, requiresOwn: false },
     { id: 'pages', label: 'Pages', icon: Building2, requiresAuth: false, requiresOwn: false },
@@ -315,6 +316,14 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     if (tab.requiresAuth && !isAuthenticated) return false;
     return true;
   });
+
+  // Settings is owner-only; redirect if opened via URL
+  useEffect(() => {
+    if (!isOwnProfile && activeTab === 'settings') {
+      setActiveTab('posts');
+      onTabChange?.('posts');
+    }
+  }, [isOwnProfile, activeTab, onTabChange]);
 
   if (loading || !mockUser) {
     return (
@@ -595,7 +604,16 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
       {/* Tab Content - Mobile Optimized */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 lg:py-10">
         <div className="animate-fade-in">
-          {activeTab === 'dashboard' && mockUser && <ProfileDashboard username={mockUser.username} user={mockUser} />}
+          {activeTab === 'dashboard' && mockUser && isOwnProfile && (
+            <ProfileDashboard username={mockUser.username} user={mockUser} isOwnProfile />
+          )}
+          {activeTab === 'dashboard' && mockUser && !isOwnProfile && (
+            <ProfilePublicOverview
+              username={mockUser.username}
+              joinedDate={mockUser.joinedDate}
+              stats={mockUser.stats}
+            />
+          )}
           {activeTab === 'posts' && mockUser && <ProfilePosts username={mockUser.username} />}
           {activeTab === 'replies' && mockUser && <ProfileReplies username={mockUser.username} />}
           {activeTab === 'pages' && mockUser && <ProfilePages username={mockUser.username} />}

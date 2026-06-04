@@ -85,6 +85,7 @@ export function ProfileDashboardCharts({
   postsByCategory,
   engagement,
   periodLabel = 'Last 30 days',
+  periodEmptyMessage,
 }: {
   timeline: UserStatsTimelinePoint[];
   postsByCategory: UserStatsPostsByCategory;
@@ -95,6 +96,7 @@ export function ProfileDashboardCharts({
     bookmarks: number;
   };
   periodLabel?: string;
+  periodEmptyMessage?: string;
 }) {
   const isDark = useIsDarkMode();
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
@@ -130,9 +132,12 @@ export function ProfileDashboardCharts({
 
   if (!hasTimeline && !hasContent && !hasEngagement) {
     return (
-      <ChartPanel title="Charts" subtitle="Activity charts appear once you have posts or engagement.">
+      <ChartPanel
+        title="Charts"
+        subtitle={periodEmptyMessage || 'Activity charts appear once you have posts or engagement.'}
+      >
         <div className="flex h-full items-center justify-center text-xs text-zinc-500">
-          No chart data yet
+          {periodEmptyMessage || 'No chart data yet'}
         </div>
       </ChartPanel>
     );

@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Award, Lock, Trophy, Loader2, Star, Target } from 'lucide-react';
 import achievementsService, { Achievement } from '../services/api/achievements.service';
 import { AchievementBadge } from './AchievementBadge';
@@ -72,10 +73,13 @@ function normalizeAchievements(data: Achievement[]): Achievement[] {
 }
 
 export function ProfileAchievements({ username, isOwnProfile = false }: ProfileAchievementsProps) {
+  const [searchParams] = useSearchParams();
+  const highlightSlug = searchParams.get('achievement');
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<AchievementFilter>('all');
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -103,6 +107,23 @@ export function ProfileAchievements({ username, isOwnProfile = false }: ProfileA
     };
     fetchAchievements();
   }, [username]);
+
+  useEffect(() => {
+    if (!highlightSlug || loading || achievements.length === 0) return;
+
+    const match = achievements.find((a) => a.slug === highlightSlug);
+    if (match?.isUnlocked) {
+      setFilter('unlocked');
+    } else if (match) {
+      setFilter('all');
+    }
+
+    const timer = window.setTimeout(() => {
+      highlightedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightSlug, loading, achievements]);
 
   const unlocked = useMemo(() => achievements.filter((a) => a.isUnlocked === true), [achievements]);
   const locked = useMemo(() => achievements.filter((a) => a.isUnlocked !== true), [achievements]);
@@ -228,13 +249,18 @@ export function ProfileAchievements({ username, isOwnProfile = false }: ProfileA
                   | { type: string; value: number | boolean }
                   | undefined;
 
+                const isHighlighted = highlightSlug === achievement.slug;
+
                 return (
                   <article
                     key={achievement.id}
+                    ref={isHighlighted ? highlightedRef : undefined}
                     className={`flex gap-3 rounded-lg border p-3 transition-colors ${
-                      isLocked
-                        ? 'border-zinc-100 bg-zinc-50/50 opacity-75 dark:border-white/[0.04] dark:bg-white/[0.02]'
-                        : 'border-zinc-200/80 bg-white dark:border-white/[0.08] dark:bg-zinc-900/30'
+                      isHighlighted
+                        ? 'border-amber-400/80 bg-amber-50/50 ring-2 ring-amber-400/40 dark:border-amber-500/40 dark:bg-amber-950/20 dark:ring-amber-500/30'
+                        : isLocked
+                          ? 'border-zinc-100 bg-zinc-50/50 opacity-75 dark:border-white/[0.04] dark:bg-white/[0.02]'
+                          : 'border-zinc-200/80 bg-white dark:border-white/[0.08] dark:bg-zinc-900/30'
                     }`}
                   >
                     <div className="shrink-0">

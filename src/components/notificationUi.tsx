@@ -240,11 +240,48 @@ export function navigateFromNotification(
         return;
       }
     }
+    if (url.includes('/achievements')) {
+      const username = extractSlugFromUrl(url, '/(?:users?|profile)/');
+      const achievementSlug = extractSlugFromUrl(url, '/achievements?/');
+      if (username) {
+        const query = achievementSlug
+          ? `?tab=achievements&achievement=${encodeURIComponent(achievementSlug)}`
+          : '?tab=achievements';
+        navigate(`/profile/${username}${query}`);
+        markReadIfNeeded();
+        return;
+      }
+    }
     if (url.startsWith('/')) {
       navigate(url);
       markReadIfNeeded();
       return;
     }
+  }
+
+  if (notification.type === 'achievement' && notification.user?.username) {
+    let achievementSlug: string | null = null;
+    if (notification.actionUrl) {
+      try {
+        const params = notification.actionUrl.includes('?')
+          ? new URLSearchParams(
+              notification.actionUrl.startsWith('/')
+                ? notification.actionUrl.slice(notification.actionUrl.indexOf('?'))
+                : new URL(notification.actionUrl).search
+            )
+          : null;
+        achievementSlug = params?.get('achievement') ?? null;
+      } catch {
+        const match = notification.actionUrl.match(/[?&]achievement=([^&]+)/);
+        achievementSlug = match ? decodeURIComponent(match[1]) : null;
+      }
+    }
+    const query = achievementSlug
+      ? `?tab=achievements&achievement=${encodeURIComponent(achievementSlug)}`
+      : '?tab=achievements';
+    navigate(`/profile/${notification.user.username}${query}`);
+    markReadIfNeeded();
+    return;
   }
 
   if (notification.post) {
