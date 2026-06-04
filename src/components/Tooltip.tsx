@@ -1,114 +1,116 @@
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   content: ReactNode;
   children: ReactNode;
   delay?: number;
+  /** Preferred side for sidebar / compact rails */
+  side?: 'right' | 'left';
 }
 
-export function Tooltip({ content, children, delay = 300 }: TooltipProps) {
+export function Tooltip({ content, children, delay = 300, side = 'right' }: TooltipProps) {
   const [show, setShow] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const timeoutRef = useRef<NodeJS.Timeout>();
-  const triggerRef = useRef<HTMLElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, transform: 'translateY(-50%)' });
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const calculatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const tooltipEl = tooltipRef.current;
+    const tooltipWidth = tooltipEl?.offsetWidth ?? 120;
+    const tooltipHeight = tooltipEl?.offsetHeight ?? 32;
+    const gap = 8;
+    const pad = 8;
+
+    let top = rect.top + rect.height / 2;
+    let left = side === 'right' ? rect.right + gap : rect.left - gap;
+    let transform = side === 'right' ? 'translateY(-50%)' : 'translate(-100%, -50%)';
+
+    if (side === 'right' && left + tooltipWidth > window.innerWidth - pad) {
+      left = rect.left - gap;
+      transform = 'translate(-100%, -50%)';
+    } else if (side === 'left' && left - tooltipWidth < pad) {
+      left = rect.right + gap;
+      transform = 'translateY(-50%)';
+    }
+
+    const halfH = tooltipHeight / 2;
+    top = Math.min(Math.max(top, pad + halfH), window.innerHeight - pad - halfH);
+
+    setCoords({ top, left, transform });
+  }, [side]);
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
-  const calculatePosition = (element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
-    const scrollY = window.scrollY || window.pageYOffset;
-    const scrollX = window.scrollX || window.pageXOffset;
-    const gap = 10;
+  useEffect(() => {
+    if (!show) return;
 
-    // Estimate tooltip dimensions based on content
-    const tooltipWidth = 120;
-    const tooltipHeight = 36;
+    const run = () => calculatePosition();
+    run();
+    const raf = requestAnimationFrame(run);
 
-    // Position tooltip to the right (for left sidebar)
-    let top = rect.top + scrollY + (rect.height / 2) - (tooltipHeight / 2);
-    let left = rect.right + scrollX + gap;
+    const onUpdate = () => calculatePosition();
+    window.addEventListener('scroll', onUpdate, true);
+    window.addEventListener('resize', onUpdate);
 
-    // If tooltip would go off right side of screen, position to the left
-    if (left + tooltipWidth > window.innerWidth + scrollX - 8) {
-      left = rect.left + scrollX - tooltipWidth - gap;
-    }
-
-    // If still off screen on left, position below
-    if (left < scrollX + 8) {
-      top = rect.bottom + scrollY + gap;
-      left = rect.left + scrollX + (rect.width / 2) - (tooltipWidth / 2);
-      
-      // Keep it within screen bounds
-      if (left < scrollX + 8) {
-        left = scrollX + 8;
-      }
-      if (left + tooltipWidth > window.innerWidth + scrollX - 8) {
-        left = window.innerWidth + scrollX - tooltipWidth - 8;
-      }
-    }
-
-    // Ensure tooltip doesn't go off the top or bottom
-    if (top < scrollY + 8) {
-      top = scrollY + 8;
-    }
-    if (top + tooltipHeight > window.innerHeight + scrollY - 8) {
-      top = window.innerHeight + scrollY - tooltipHeight - 8;
-    }
-
-    setPosition({ top, left });
-  };
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onUpdate, true);
+      window.removeEventListener('resize', onUpdate);
+    };
+  }, [show, calculatePosition]);
 
   const handleMouseEnter = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      if (triggerRef.current) {
-        calculatePosition(triggerRef.current);
-        setShow(true);
-      }
+      calculatePosition();
+      setShow(true);
     }, delay);
   };
 
   const handleMouseLeave = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setShow(false);
   };
 
   return (
     <>
       <span
-        ref={triggerRef as any}
+        ref={triggerRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className="inline-flex"
+        className="inline-flex items-center justify-center"
       >
         {children}
       </span>
 
-      {show && createPortal(
-        <div
-          className="fixed z-[99999] pointer-events-none animate-fade-in"
-          style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-          }}
-        >
-          <div className="px-3 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-gray-800 rounded-lg shadow-xl border border-gray-700 whitespace-nowrap">
-            {content}
-          </div>
-        </div>,
-        document.body
-      )}
+      {show &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            role="tooltip"
+            className="pointer-events-none fixed z-[99999] animate-fade-in"
+            style={{
+              top: coords.top,
+              left: coords.left,
+              transform: coords.transform,
+            }}
+          >
+            <div className="whitespace-nowrap rounded-md border border-zinc-700/50 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-100 shadow-lg dark:bg-zinc-800">
+              {content}
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

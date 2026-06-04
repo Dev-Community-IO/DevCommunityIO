@@ -404,8 +404,8 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
                       src={((event as any).post.author.avatar || (event as any).post.author.avatarUrl) || ''} 
                       alt={(event as any).post.author.username || (event as any).post.author.pseudo || 'Unknown'} 
                       size="md" 
-                      className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
-                      isTrusted={(event as any).post.author.isTrusted}
+                      className="cursor-pointer"
+
                     />
                     {/* Page Logo under avatar if post is for a page */}
                     {pageData && (
@@ -503,9 +503,7 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
           {/* Description */}
           <GlassCard className="p-4 sm:p-6 lg:p-8">
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6">About This Event</h2>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <MarkdownRenderer content={event.description} />
-            </div>
+              <MarkdownRenderer content={event.description} />
             {/* Tags */}
             {(event.post as any)?.tags && (event.post as any).tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -639,7 +637,7 @@ export function EventDetail({ eventId, onClose }: EventDetailProps) {
                       />
                       {event.post?.page?.isVerified && (
                         <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                          <VerifiedBadge size={12} />
+                          <VerifiedBadge variant="page" size={12} />
                         </div>
                       )}
                     </div>

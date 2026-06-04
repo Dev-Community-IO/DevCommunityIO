@@ -3,6 +3,7 @@ import { Shield, UserPlus, Activity, Clock } from 'lucide-react';
 import adminService from '../services/api/admin.service';
 import { Avatar } from './Avatar';
 import { GlassCard } from './GlassCard';
+import { TabPills } from './TabPills';
 
 interface Moderator {
   id: string;
@@ -69,31 +70,16 @@ export function ModeratorPanel() {
 
   return (
     <div className="space-y-6">
-      {/* View Switcher */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveView('moderators')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeView === 'moderators'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-              : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
-        >
-          <Shield size={18} />
-          Moderators
-        </button>
-        <button
-          onClick={() => setActiveView('logs')}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-            activeView === 'logs'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-              : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
-        >
-          <Activity size={18} />
-          Activity Log
-        </button>
-      </div>
+      <TabPills
+        ariaLabel="Moderator views"
+        activeTab={activeView}
+        onChange={setActiveView}
+        scrollable={false}
+        tabs={[
+          { id: 'moderators', label: 'Moderators', icon: Shield },
+          { id: 'logs', label: 'Activity Log', icon: Activity },
+        ]}
+      />
 
       {activeView === 'moderators' ? (
         <div className="space-y-4">

@@ -710,7 +710,7 @@ export function AdminUsers() {
                             src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                             alt={user.username}
                             size="sm"
-                            isTrusted={user.isTrusted}
+
                           />
                           <div>
                           <div className="flex items-center gap-2 flex-wrap">

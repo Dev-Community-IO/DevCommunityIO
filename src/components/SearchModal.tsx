@@ -7,6 +7,14 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { Post, User } from '../types';
 import { useNavigate } from 'react-router-dom';
 import searchService from '../services/api/search.service';
+import { TabPills } from './TabPills';
+
+const SEARCH_FILTER_TABS = [
+  { id: 'all' as const, label: 'All', icon: Sparkles },
+  { id: 'posts' as const, label: 'Posts', icon: FileText },
+  { id: 'users' as const, label: 'Users', icon: Users },
+  { id: 'pages' as const, label: 'Pages', icon: Hash },
+];
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
@@ -262,31 +270,13 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
 
             {/* Filters */}
             {query.length >= 2 && (
-              <div className="flex items-center gap-2 mt-4 overflow-x-auto scrollbar-hide">
-                {(['all', 'posts', 'users', 'pages'] as const).map((filter) => {
-                  const icons = {
-                    all: Sparkles,
-                    posts: FileText,
-                    users: Users,
-                    pages: Hash
-                  };
-                  const Icon = icons[filter];
-                  const isActive = activeFilter === filter;
-                  return (
-                    <button
-                      key={filter}
-                      onClick={() => setActiveFilter(filter)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                        isActive
-                          ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      <Icon size={16} />
-                      <span className="capitalize">{filter}</span>
-                    </button>
-                  );
-                })}
+              <div className="mt-4">
+                <TabPills
+                  ariaLabel="Search filters"
+                  activeTab={activeFilter}
+                  onChange={setActiveFilter}
+                  tabs={SEARCH_FILTER_TABS}
+                />
               </div>
             )}
           </div>
@@ -381,8 +371,8 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                                 src={post.author?.avatar || post.author?.avatarUrl || ''} 
                                 alt={post.author?.username || 'User'} 
                                 size="md" 
-                                className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
-                                isTrusted={post.author?.isTrusted}
+                                className=""
+
                               />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -459,8 +449,8 @@ export function SearchModal({ isOpen, onClose, onPostClick }: SearchModalProps) 
                               src={user.avatar || user.avatarUrl || ''} 
                               alt={user.username || 'User'} 
                               size="md" 
-                              className="ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
-                              isTrusted={user.isTrusted}
+                              className=""
+
                             />
                           </div>
                           <div className="flex-1 min-w-0">

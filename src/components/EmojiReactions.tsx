@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Smile } from 'lucide-react';
+import { PostActionIcon } from './PostActionIcon';
 
 interface EmojiReaction {
   emoji: string;
@@ -96,7 +96,7 @@ export function EmojiReactions({ onClick }: EmojiReactionsProps) {
           className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
           title="Add reaction"
         >
-          <Smile size={14} className="text-gray-500 dark:text-gray-400" />
+          <PostActionIcon name="react" size={14} className="text-gray-500 dark:text-gray-400" />
         </button>
       </div>
 

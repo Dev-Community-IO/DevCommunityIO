@@ -68,12 +68,11 @@ class AuthService {
         return `${apiClient.defaults.baseURL}/auth/github`;
     }
 
-    // Get current user session
-    async getCurrentUser(): Promise<any> {
+    // Get current user session (null = not logged in — expected for guests)
+    async getCurrentUser(): Promise<any | null> {
         const response = await apiClient.get('/auth/me');
-        // Ensure user data exists
-        if (!response.data || !response.data.user) {
-            throw new Error('No user data returned from server');
+        if (response.status === 401 || !response.data?.user) {
+            return null;
         }
         return response.data.user;
     }

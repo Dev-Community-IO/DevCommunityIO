@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Check, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
+import { Check, ChevronRight, ChevronLeft, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import onboardingService from '../services/api/onboarding.service';
 import { InterestSelection } from './InterestSelection';
 import { PageSuggestions } from './PageSuggestions';
 import { ProfileSetup } from './ProfileSetup';
-import { GlassCard } from './GlassCard';
+import {
+  onboardingGhostBtnClass,
+  onboardingPrimaryBtnClass,
+  onboardingShellClass,
+  onboardingStatusBarClass,
+} from './onboardingChrome';
 
 interface OnboardingWizardProps {
   isOpen: boolean;
@@ -15,39 +20,30 @@ interface OnboardingWizardProps {
 
 type Step = 'profile' | 'interests' | 'pages' | 'complete';
 
+const steps: { id: Step; label: string; hint: string }[] = [
+  { id: 'profile', label: 'Profile', hint: 'Username, bio & skills' },
+  { id: 'interests', label: 'Interests', hint: 'Pick 3+ topics' },
+  { id: 'pages', label: 'Communities', hint: 'Join 1+ page' },
+  { id: 'complete', label: 'Done', hint: 'You\'re all set' },
+];
+
 export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWizardProps) {
   const { user, updateUser, checkAuth, setShowOnboarding } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('profile');
   const [profileData, setProfileData] = useState({
     username: '',
     bio: '',
-    skills: [] as string[]
+    skills: [] as string[],
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
-
-  const steps = [
-    { id: 'profile', label: 'Profile', description: 'Set up your profile' },
-    { id: 'interests', label: 'Interests', description: 'Pick topics' },
-    { id: 'pages', label: 'Communities', description: 'Join pages' },
-    { id: 'complete', label: 'Done', description: 'All set!' },
-  ];
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
+  const activeStep = steps[currentStepIndex];
 
-  useEffect(() => {
-    if (isOpen && currentStep === 'complete') {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    }
-  }, [isOpen, currentStep]);
-
-  // Load current data when modal opens and user is available
-  // Only reload when modal opens or user ID changes (not when user data changes)
   useEffect(() => {
     if (isOpen && user) {
       loadCurrentData();
@@ -56,57 +52,53 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   const loadCurrentData = async () => {
     if (!user) return;
-    
+
     setIsLoadingData(true);
     try {
-      // Load current profile data from user (always use latest user data)
       setProfileData({
         username: user.username || '',
         bio: user.bio || '',
-        skills: user.skills || []
+        skills: user.skills || [],
       });
 
-      // Load current onboarding data (interests, joined pages)
       const currentData = await onboardingService.getCurrentData();
       setSelectedTags(currentData.interests || []);
       setSelectedPages(currentData.joinedPages || []);
     } catch (error) {
       console.error('Failed to load current onboarding data:', error);
-      // Fallback to user data if API fails
       setProfileData({
         username: user.username || '',
         bio: user.bio || '',
-        skills: user.skills || []
+        skills: user.skills || [],
       });
     } finally {
       setIsLoadingData(false);
     }
   };
 
-  // Memoize the onSave callback to prevent unnecessary re-renders
   const handleProfileSave = useCallback((data: { username: string; bio: string; skills: string[] }) => {
     setProfileData(data);
   }, []);
 
   const canProceed = () => {
     if (currentStep === 'profile') {
-      return profileData.username.length >= 3 && 
-             profileData.bio.trim().length >= 10 && 
-             profileData.skills.length >= 3;
+      return (
+        profileData.username.length >= 3 &&
+        profileData.bio.trim().length >= 10 &&
+        profileData.skills.length >= 3
+      );
     }
     if (currentStep === 'interests') return selectedTags.length >= 3;
     if (currentStep === 'pages') return selectedPages.length >= 1;
     return true;
   };
 
-  // Early return AFTER all hooks - this is safe now
   if (!isOpen) return null;
 
   const handleNext = async () => {
     setIsLoading(true);
     try {
       if (currentStep === 'profile') {
-        // Profile data will be saved in the complete step
         setCurrentStep('interests');
       } else if (currentStep === 'interests') {
         await onboardingService.saveInterests(selectedTags);
@@ -115,38 +107,26 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         await onboardingService.saveFollows([], selectedPages);
         setCurrentStep('complete');
       } else if (currentStep === 'complete') {
-        // Save profile and complete onboarding
         try {
           await onboardingService.updateProfile(profileData);
         } catch (error) {
           console.error('Failed to update profile:', error);
-          // Continue even if profile update fails
         }
-        
+
         try {
           await onboardingService.complete();
         } catch (error) {
           console.error('Failed to complete onboarding:', error);
-          // Continue even if complete fails
         }
-        
-        // Update user with onboardingCompleted flag - this persists in localStorage
+
         updateUser({ onboardingCompleted: true, ...profileData });
-        // Hide onboarding immediately
         setShowOnboarding(false);
-        
-        // Refresh auth state to ensure onboarding status is updated (non-blocking)
-        checkAuth().catch(error => {
-          console.error('Failed to refresh auth:', error);
-        });
-        
-        // Always close the modal, even if API calls failed
+        checkAuth().catch((error) => console.error('Failed to refresh auth:', error));
         onComplete();
         onClose();
       }
     } catch (error) {
       console.error('Onboarding error:', error);
-      // If we're on the complete step and an error occurs, still close the modal
       if (currentStep === 'complete') {
         updateUser({ onboardingCompleted: true, ...profileData });
         setShowOnboarding(false);
@@ -168,22 +148,16 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     try {
       setIsLoading(true);
       await onboardingService.skip();
-      // Update user with onboardingCompleted flag - this persists in localStorage
       updateUser({ onboardingCompleted: true });
-      // Hide onboarding immediately and permanently
       setShowOnboarding(false);
-      // Also store in localStorage as a backup to ensure it never shows again
       localStorage.setItem('onboarding_skipped', 'true');
-      // Refresh auth state to ensure onboarding status is updated
       await checkAuth();
       onComplete();
       onClose();
     } catch (error) {
       console.error('Skip onboarding error:', error);
-      // Even if API call fails, close the modal and mark as completed locally
       updateUser({ onboardingCompleted: true });
       setShowOnboarding(false);
-      // Store in localStorage as backup
       localStorage.setItem('onboarding_skipped', 'true');
       onComplete();
       onClose();
@@ -193,208 +167,182 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      {/* Confetti Effect */}
-      {showConfetti && (
-        <div className="absolute inset-0 pointer-events-none">
-          {[...Array(50)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute animate-confetti"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: '-10%',
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${3 + Math.random() * 2}s`,
-              }}
-            >
-              🎉
-            </div>
-          ))}
-        </div>
-      )}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+    >
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" aria-hidden />
 
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleSkip} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-3xl max-h-[85vh] overflow-hidden">
-        <GlassCard className="p-0">
-          {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
-                  <Sparkles className="text-white" size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold">Welcome to DevCommunity!</h2>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Let's personalize your experience
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleSkip}
-                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm"
+      <div className={`relative w-full max-w-lg ${onboardingShellClass}`}>
+        {/* Header */}
+        <div className="shrink-0 border-b border-zinc-100 px-4 py-3 dark:border-white/[0.06] sm:px-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+                aria-hidden
               >
-                Skip for now
-              </button>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="relative">
-              <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
-                  style={{ width: `${progress}%` }}
-                />
+                <Sparkles size={15} strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <h2
+                  id="onboarding-title"
+                  className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+                >
+                  Welcome to DevCommunity
+                </h2>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Step {currentStepIndex + 1} of {steps.length} · {activeStep.label}
+                </p>
               </div>
-              {/* Step Indicators */}
-              <div className="flex justify-between mt-3">
-                {steps.map((step, index) => (
-                  <div
-                    key={step.id}
-                    className={`flex flex-col items-center ${
-                      index <= currentStepIndex ? 'opacity-100' : 'opacity-40'
+            </div>
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="shrink-0 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"
+            >
+              Skip
+            </button>
+          </div>
+
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/[0.06]">
+            <div
+              className="h-full rounded-full bg-zinc-900 transition-all duration-300 dark:bg-zinc-100"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          <nav className="mt-2.5 flex gap-1" aria-label="Onboarding progress">
+            {steps.map((step, index) => {
+              const done = index < currentStepIndex;
+              const active = index === currentStepIndex;
+              return (
+                <div
+                  key={step.id}
+                  className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 ${
+                    index <= currentStepIndex ? 'opacity-100' : 'opacity-35'
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold transition-colors ${
+                      done
+                        ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                        : active
+                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'bg-zinc-200 text-zinc-500 dark:bg-white/10 dark:text-zinc-500'
                     }`}
                   >
-                    <div
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center mb-1 transition-all duration-300 ${
-                        index < currentStepIndex
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                          : index === currentStepIndex
-                          ? 'bg-gradient-to-r from-blue-500 to-cyan-500'
-                          : 'bg-gray-300 dark:bg-gray-700'
-                      }`}
-                    >
-                      {index < currentStepIndex ? (
-                        <Check size={12} className="text-white" />
-                      ) : (
-                        <span className="text-white text-[10px] sm:text-xs font-bold">{index + 1}</span>
-                      )}
-                    </div>
-                    <span className="text-[10px] sm:text-xs font-medium text-center">{step.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-4 sm:p-5 overflow-y-auto max-h-[55vh]">
-            {isLoadingData ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading your data...</p>
+                    {done ? <Check size={10} strokeWidth={3} /> : index + 1}
+                  </span>
+                  <span
+                    className={`hidden truncate text-[9px] font-medium sm:block ${
+                      active ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
                 </div>
-              </div>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          {isLoadingData ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10">
+              <Loader2 size={22} className="animate-spin text-zinc-400" strokeWidth={2} />
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Loading your profile…</p>
+            </div>
+          ) : (
+            <>
+              {currentStep === 'profile' && (
+                <ProfileSetup
+                  key={`profile-${user?.id}`}
+                  initialUsername={profileData.username}
+                  initialBio={profileData.bio}
+                  initialSkills={profileData.skills}
+                  onSave={handleProfileSave}
+                />
+              )}
+              {currentStep === 'interests' && (
+                <InterestSelection selectedTags={selectedTags} onTagsChange={setSelectedTags} />
+              )}
+              {currentStep === 'pages' && (
+                <PageSuggestions selectedPages={selectedPages} onPagesChange={setSelectedPages} />
+              )}
+              {currentStep === 'complete' && (
+                <div className="py-4 text-center">
+                  <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200/80 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-950/50 dark:text-emerald-400">
+                    <Check size={22} strokeWidth={2.5} />
+                  </span>
+                  <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                    You&apos;re all set
+                  </h3>
+                  <p className="mx-auto mt-1 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">
+                    Your feed is personalized from the topics and communities you chose.
+                  </p>
+                  <div className="mx-auto mt-4 flex max-w-xs justify-center gap-3">
+                    <div className={onboardingStatusBarClass}>
+                      <span className="tabular-nums font-semibold text-zinc-800 dark:text-zinc-200">
+                        {selectedTags.length}
+                      </span>
+                      <span>topics</span>
+                    </div>
+                    <div className={onboardingStatusBarClass}>
+                      <span className="tabular-nums font-semibold text-zinc-800 dark:text-zinc-200">
+                        {selectedPages.length}
+                      </span>
+                      <span>communities</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-zinc-100 px-4 py-3 dark:border-white/[0.06] sm:px-5">
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={currentStepIndex === 0 || isLoading}
+            className={onboardingGhostBtnClass}
+          >
+            <ChevronLeft size={16} strokeWidth={2} />
+            <span className="hidden sm:inline">Back</span>
+          </button>
+
+          <p className="min-w-0 flex-1 truncate text-center text-[11px] text-zinc-500 dark:text-zinc-400">
+            {activeStep.hint}
+          </p>
+
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed() || isLoading || isLoadingData}
+            className={onboardingPrimaryBtnClass}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                <span className="hidden sm:inline">Saving…</span>
+              </>
+            ) : currentStep === 'complete' ? (
+              'Get started'
             ) : (
               <>
-                {currentStep === 'profile' && (
-                  <ProfileSetup
-                    key={`profile-${user?.id}`}
-                    initialUsername={profileData.username}
-                    initialBio={profileData.bio}
-                    initialSkills={profileData.skills}
-                    onSave={handleProfileSave}
-                  />
-                )}
-                {currentStep === 'interests' && (
-                  <InterestSelection
-                    selectedTags={selectedTags}
-                    onTagsChange={setSelectedTags}
-                  />
-                )}
-                {currentStep === 'pages' && (
-                  <PageSuggestions
-                    selectedPages={selectedPages}
-                    onPagesChange={setSelectedPages}
-                  />
-                )}
-                {currentStep === 'complete' && (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4 animate-bounce">🎉</div>
-                    <h3 className="text-3xl font-bold mb-2">All Set!</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      Your feed is now personalized based on your interests
-                    </p>
-                    <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                      <div className="p-4 rounded-xl bg-blue-500/10">
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                          {selectedTags.length}
-                        </p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Topics</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-purple-500/10">
-                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {selectedPages.length}
-                        </p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Communities</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                Next
+                <ChevronRight size={14} strokeWidth={2} />
               </>
             )}
-          </div>
+          </button>
+        </div>
 
-          {/* Footer */}
-          <div className="p-4 sm:p-5 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <button
-              onClick={handleBack}
-              disabled={currentStepIndex === 0}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={16} />
-              <span className="hidden sm:inline">Back</span>
-            </button>
-
-            <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center flex-1 mx-2">
-              {currentStep === 'profile' && 'Complete your profile'}
-              {currentStep === 'interests' && '3+ topics'}
-              {currentStep === 'pages' && '1+ community'}
-              {currentStep === 'complete' && 'Ready!'}
-            </div>
-
-            <button
-              onClick={handleNext}
-              disabled={!canProceed() || isLoading}
-              className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-2 text-sm rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                'Loading...'
-              ) : currentStep === 'complete' ? (
-                'Get Started'
-              ) : (
-                <>
-                  Next
-                  <ChevronRight size={16} />
-                </>
-              )}
-            </button>
-          </div>
-        </GlassCard>
       </div>
-
-      {/* CSS for confetti animation */}
-      <style>{`
-        @keyframes confetti {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(100vh) rotate(720deg);
-            opacity: 0;
-          }
-        }
-        .animate-confetti {
-          animation: confetti 3s ease-in-out forwards;
-        }
-      `}</style>
     </div>
   );
 }
-

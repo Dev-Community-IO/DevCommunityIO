@@ -3,6 +3,7 @@ import { ArrowLeft, Bell, Check, Trash2, MessageCircle, Heart, AtSign, UserPlus,
 import { Notification as AppNotification, NotificationType } from '../types';
 import { Avatar } from './Avatar';
 import { GlassCard } from './GlassCard';
+import { TabPills } from './TabPills';
 import { Badge } from './Badge';
 import notificationsService, { type Notification } from '../services/api/notifications.service';
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
@@ -378,7 +379,7 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-transparent dark:via-transparent dark:to-transparent">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
           <p className="text-sm text-gray-600 dark:text-gray-400">Loading notifications...</p>
@@ -388,7 +389,7 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-transparent dark:via-transparent dark:to-transparent">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Compact Header */}
         <div className="mb-6">
@@ -426,38 +427,29 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
           </div>
         </div>
 
-        {/* Compact Filters */}
-        <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <button
+            type="button"
             onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
               showUnreadOnly
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                : 'border-zinc-200/80 bg-white/90 text-zinc-600 hover:bg-zinc-100 dark:border-white/10 dark:bg-black/25 dark:text-zinc-400 dark:hover:bg-white/10'
             }`}
           >
-            {showUnreadOnly && <CheckCircle2 size={12} className="inline mr-1" />}
-            Unread
+            {showUnreadOnly && <CheckCircle2 size={14} aria-hidden />}
+            Unread only
           </button>
-          
-          {filterOptions.map(option => {
-            const Icon = option.icon;
-            const isActive = activeFilter === option.type;
-            return (
-              <button
-                key={option.id}
-                onClick={() => setActiveFilter(option.type)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Icon size={12} />
-                {option.label}
-              </button>
-            );
-          })}
+          <TabPills
+            ariaLabel="Notification filters"
+            activeTab={activeFilter}
+            onChange={setActiveFilter}
+            tabs={filterOptions.map((option) => ({
+              id: option.type,
+              label: option.label,
+              icon: option.icon,
+            }))}
+          />
         </div>
 
         {/* Compact Notifications List */}
@@ -512,8 +504,8 @@ export function NotificationsPage({ onBack }: NotificationsPageProps) {
                             src={notification.user.avatar || notification.user.avatarUrl || ''}
                             alt={notification.user.username}
                             size="md"
-                            className="w-11 h-11 border-2 border-white dark:border-gray-800 group-hover/avatar:ring-2 group-hover/avatar:ring-blue-500 group-hover/avatar:ring-offset-2 dark:group-hover/avatar:ring-offset-gray-900 transition-all shadow-md hover:shadow-lg"
-                            isTrusted={notification.user.isTrusted}
+                            className="w-11 h-11 transition-all shadow-md hover:shadow-lg"
+
                           />
                         </div>
                         {isUnread && (

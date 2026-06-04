@@ -1,5 +1,4 @@
-import { ExternalLink, Globe } from 'lucide-react';
-import { GlassCard } from './GlassCard';
+import { ExternalLink, Link2 } from 'lucide-react';
 
 interface PostOriginDisplayProps {
   postOrigin?: string | null;
@@ -7,61 +6,78 @@ interface PostOriginDisplayProps {
   originUrl?: string | null;
 }
 
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+function formatLabel(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.length <= 3) return trimmed.toUpperCase();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 export function PostOriginDisplay({ postOrigin, originSource, originUrl }: PostOriginDisplayProps) {
-  // Don't render if no origin data exists
   if (!postOrigin && !originSource && !originUrl) {
     return null;
   }
 
-  // Extract domain from URL for display
-  const getDomain = (url: string | null | undefined): string => {
-    if (!url) return '';
-    try {
-      const urlObj = new URL(url);
-      return urlObj.hostname.replace('www.', '');
-    } catch {
-      return url;
-    }
-  };
-
   const domain = originUrl ? getDomain(originUrl) : '';
-  const displaySource = originSource || postOrigin || domain || 'External Source';
+  const sourceLabel = formatLabel(originSource || postOrigin || '');
+  const linkLabel = domain || originUrl || '';
+  const isRedundantSource =
+    Boolean(linkLabel) && sourceLabel.toLowerCase() === linkLabel.toLowerCase();
+  const showSource = Boolean(sourceLabel) && !isRedundantSource;
 
   return (
-    <GlassCard className="p-4 sm:p-5 border-l-4 border-l-blue-500 dark:border-l-blue-400 bg-gradient-to-r from-blue-50/50 to-transparent dark:from-blue-900/10 dark:to-transparent">
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 mt-0.5">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 flex items-center justify-center shadow-lg">
-            <Globe size={20} className="text-white" />
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Original Source
-            </span>
-          </div>
-          <div className="space-y-2">
-            {displaySource && (
-              <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
-                {displaySource}
-              </p>
+    <div
+      role="note"
+      aria-label="Original source"
+      className="flex items-center gap-2.5 rounded-lg border border-zinc-200/70 bg-zinc-50/80 px-3 py-2 dark:border-white/[0.08] dark:bg-white/[0.03]"
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400">
+        <Link2 className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+      </span>
+
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm leading-tight">
+        <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Source
+        </span>
+
+        {showSource && (
+          <>
+            <span className="hidden h-3 w-px shrink-0 bg-zinc-300/80 dark:bg-zinc-600 sm:block" aria-hidden />
+            <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{sourceLabel}</span>
+          </>
+        )}
+
+        {originUrl && (
+          <>
+            {(showSource || sourceLabel) && (
+              <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
+                ·
+              </span>
             )}
-            {originUrl && (
-              <a
-                href={originUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors group"
-              >
-                <span className="truncate max-w-[200px] sm:max-w-[300px]">{originUrl}</span>
-                <ExternalLink size={14} className="flex-shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-              </a>
-            )}
-          </div>
-        </div>
+            <a
+              href={originUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="truncate">{linkLabel}</span>
+              <ExternalLink
+                className="h-3 w-3 shrink-0 opacity-60 transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
+                aria-hidden
+              />
+            </a>
+          </>
+        )}
       </div>
-    </GlassCard>
+    </div>
   );
 }
-

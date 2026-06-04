@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, ExternalLink } from 'lucide-react';
+import { articleProseClass, compactProseClass } from './markdownProse';
 
 interface MarkdownRendererProps {
   content: string;
@@ -97,9 +98,22 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
       if (listItems.length > 0) {
         const ListTag = listType === 'ol' ? 'ol' : 'ul';
         elements.push(
-          <ListTag key={`list-${currentIndex}`} className={listType === 'ol' ? 'list-decimal list-inside my-4 space-y-2' : 'list-disc list-inside my-4 space-y-2'}>
+          <ListTag
+            key={`list-${currentIndex}`}
+            className={
+              compact
+                ? listType === 'ol'
+                  ? 'my-0.5 list-decimal list-inside space-y-0.5 text-sm leading-snug'
+                  : 'my-0.5 list-disc list-inside space-y-0.5 text-sm leading-snug'
+                : listType === 'ol'
+                  ? 'my-3 list-decimal list-inside space-y-1 pl-1 text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
+                  : 'my-3 list-disc list-inside space-y-1 pl-1 text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
+            }
+          >
             {listItems.map((item, i) => (
-              <li key={i} className="ml-4">{parseInlineMarkdown(item)}</li>
+              <li key={i} className={compact ? 'ml-3' : 'ml-4'}>
+                {parseInlineMarkdown(item)}
+              </li>
             ))}
           </ListTag>
         );
@@ -110,7 +124,14 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     const flushBlockquote = () => {
       if (blockquoteContent.length > 0) {
         elements.push(
-          <blockquote key={`quote-${currentIndex}`} className="border-l-4 border-blue-500 pl-4 py-2 my-4 italic text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
+          <blockquote
+            key={`quote-${currentIndex}`}
+            className={
+              compact
+                ? 'my-1 border-l-2 border-zinc-300 pl-2 text-sm italic text-zinc-600 dark:border-zinc-600 dark:text-zinc-400'
+                : 'my-3 border-l-2 border-zinc-300 pl-3 text-sm italic text-zinc-600 dark:border-zinc-600 dark:text-zinc-400'
+            }
+          >
             {blockquoteContent.map((line, i) => (
               <React.Fragment key={i}>
                 {parseInlineMarkdown(line)}
@@ -225,7 +246,16 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
         flushList();
         flushTable();
         flushBlockquote();
-        elements.push(<hr key={`hr-${i}`} className="my-6 border-t-2 border-gray-300 dark:border-gray-700" />);
+        elements.push(
+          <hr
+            key={`hr-${i}`}
+            className={
+              compact
+                ? 'my-2 border-t border-zinc-200 dark:border-zinc-700'
+                : 'my-6 border-t border-zinc-200 dark:border-zinc-700'
+            }
+          />
+        );
         continue;
       }
 
@@ -238,10 +268,13 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
         const level = headerMatch[1].length;
         const text = headerMatch[2];
         const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements;
-        const sizes = ['text-3xl', 'text-2xl', 'text-xl', 'text-lg', 'text-base', 'text-sm'];
-        const spacing = compact ? 'my-0.5' : 'my-4';
+        const sizes = compact
+          ? ['text-sm', 'text-sm', 'text-xs', 'text-xs', 'text-xs', 'text-xs']
+          : ['text-xl', 'text-lg', 'text-base', 'text-sm', 'text-sm', 'text-xs'];
+        const spacing = compact ? 'my-0.5' : 'mt-5 mb-2 first:mt-0';
+        const weight = compact ? 'font-semibold' : 'font-semibold text-zinc-900 dark:text-zinc-100';
         elements.push(
-          <HeaderTag key={`h${level}-${i}`} className={`${sizes[level - 1]} font-bold ${spacing}`}>
+          <HeaderTag key={`h${level}-${i}`} className={`${sizes[level - 1]} ${weight} ${spacing}`}>
             {parseInlineMarkdown(text)}
           </HeaderTag>
         );
@@ -261,7 +294,9 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
       flushList();
       flushTable();
       flushBlockquote();
-      const paraSpacing = compact ? 'my-0 leading-snug' : 'my-3 leading-relaxed';
+      const paraSpacing = compact
+        ? 'my-0 text-sm leading-snug'
+        : 'my-2.5 text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300';
       
       // Check if line is a standalone image: ![alt](url)
       const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
@@ -549,8 +584,12 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     return result.filter(item => item !== undefined && item !== null);
   };
 
+  const wrapperClass = compact
+    ? `${compactProseClass} ${className}`.trim()
+    : `${articleProseClass} ${className}`.trim();
+
   return (
-    <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
+    <div className={wrapperClass}>
       {renderMarkdown(content)}
     </div>
   );

@@ -807,7 +807,7 @@ export function AdminContents() {
                             src={item.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author.username}`}
                             alt={item.author.username}
                             size="sm"
-                            isTrusted={item.author.isTrusted}
+
                           />
                           <span className="text-xs font-medium text-gray-900 dark:text-white truncate max-w-[100px]">{item.author.username}</span>
                         </div>

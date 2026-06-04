@@ -6,6 +6,7 @@ import { Post } from '../types';
 import usersService from '../services/api/users.service';
 import postsService from '../services/api/posts.service';
 import { PostSkeletonList } from './skeletons';
+import { TabPills } from './TabPills';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -153,90 +154,43 @@ export function ProfilePosts({ username }: ProfilePostsProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1">
-            Posts
-          </h2>
-          {!loading && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {sortedPosts.length === 0 
-                ? 'No posts found'
-                : `${sortedPosts.length} ${sortedPosts.length === 1 ? 'post' : 'posts'}${searchQuery ? ` matching "${searchQuery}"` : ''}`
-              }
-            </p>
-          )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="shrink-0">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+              Posts
+            </h2>
+            {!loading && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {sortedPosts.length === 0
+                  ? 'No posts found'
+                  : `${sortedPosts.length} ${sortedPosts.length === 1 ? 'post' : 'posts'}${searchQuery ? ` matching "${searchQuery}"` : ''}`}
+              </p>
+            )}
+          </div>
+          <TabPills
+            ariaLabel="Post categories"
+            activeTab={categoryFilter}
+            onChange={setCategoryFilter}
+            className="min-w-0 sm:shrink-0"
+            tabs={[
+              { id: 'all', label: 'All', icon: FileText },
+              { id: 'hackathon', label: 'Hackathons', icon: Trophy },
+              { id: 'event', label: 'Events', icon: Calendar },
+              { id: 'opportunity', label: 'Opportunities', icon: Briefcase },
+            ]}
+          />
         </div>
         {isOwnProfile && sortedPosts.length > 0 && (
           <button
+            type="button"
             onClick={() => navigate('/create-post')}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg font-medium text-sm hover:bg-blue-600 active:scale-95 transition-all touch-manipulation w-full sm:w-auto"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-600 active:scale-95 touch-manipulation sm:w-auto"
           >
             <FileText size={16} />
             <span>New Post</span>
           </button>
         )}
-      </div>
-
-      {/* Category Tabs */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-3 sm:-mx-0 px-3 sm:px-0">
-        <button
-          onClick={() => setCategoryFilter('all')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
-            categoryFilter === 'all'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-        >
-          <FileText size={16} className="flex-shrink-0" />
-          <span>All</span>
-          {categoryFilter === 'all' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setCategoryFilter('hackathon')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
-            categoryFilter === 'hackathon'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-        >
-          <Trophy size={16} className="flex-shrink-0" />
-          <span>Hackathons</span>
-          {categoryFilter === 'hackathon' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setCategoryFilter('event')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
-            categoryFilter === 'event'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-        >
-          <Calendar size={16} className="flex-shrink-0" />
-          <span>Events</span>
-          {categoryFilter === 'event' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setCategoryFilter('opportunity')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all relative ${
-            categoryFilter === 'opportunity'
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-        >
-          <Briefcase size={16} className="flex-shrink-0" />
-          <span>Opportunities</span>
-          {categoryFilter === 'opportunity' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full"></span>
-          )}
-        </button>
       </div>
 
       {/* Filters */}

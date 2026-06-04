@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2, Pencil, UserX, ArrowRightLeft } from 'lucide-react';
+import { TabPills } from './TabPills';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { CompactPostCard } from './CompactPostCard';
+import { compactPostGridClass } from './postCardSurface';
 import { Post } from '../types';
 import { useNavigate } from 'react-router-dom';
 import usersService from '../services/api/users.service';
@@ -1404,47 +1406,31 @@ export function ProfilePages({ username }: ProfilePagesProps) {
           )}
         </div>
 
-        {/* Filters */}
         {isOwnProfile && userPages.length > 0 && (
-          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
-            {(['all', 'owner', 'admin', 'member'] as FilterType[]).map((filterType) => {
-              const icons = {
-                all: Sparkles,
-                owner: Crown,
-                admin: Shield,
-                member: Users
+          <TabPills
+            ariaLabel="Page roles"
+            activeTab={filter}
+            onChange={setFilter}
+            tabs={(['all', 'owner', 'admin', 'member'] as FilterType[]).map((filterType) => {
+              const icons = { all: Sparkles, owner: Crown, admin: Shield, member: Users };
+              const count =
+                filterType === 'all'
+                  ? userPages.length
+                  : filteredPages.filter((p) => {
+                      const role = p.role?.toLowerCase();
+                      if (filterType === 'owner') return role === 'owner';
+                      if (filterType === 'admin') return role === 'admin' || role === 'Admin';
+                      if (filterType === 'member') return !canManage(p);
+                      return true;
+                    }).length;
+              return {
+                id: filterType,
+                label: filterType.charAt(0).toUpperCase() + filterType.slice(1),
+                icon: icons[filterType],
+                count,
               };
-              const Icon = icons[filterType];
-              const isActive = filter === filterType;
-              const count = filterType === 'all' ? userPages.length : filteredPages.filter(p => {
-                const role = p.role?.toLowerCase();
-                if (filterType === 'owner') return role === 'owner';
-                if (filterType === 'admin') return role === 'admin' || role === 'Admin';
-                if (filterType === 'member') return !canManage(p);
-                return true;
-              }).length;
-              
-              return (
-                <button
-                  key={filterType}
-                  onClick={() => setFilter(filterType)}
-                  className={`group flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm whitespace-nowrap transition-all duration-300 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:scale-105'
-                  }`}
-                >
-                  <Icon size={16} className={isActive ? 'text-white' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'} />
-                  <span className="capitalize font-semibold">{filterType}</span>
-                  <Badge variant="default" className={`text-xs px-2 py-0.5 font-bold ${
-                    isActive ? 'bg-white/25 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {count}
-                  </Badge>
-                </button>
-              );
             })}
-          </div>
+          />
         )}
 
         {/* Loading State */}
@@ -1560,7 +1546,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                     />
                     {page.isVerified && (
                         <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-1 shadow-xl border-2 border-white dark:border-gray-900">
-                          <VerifiedBadge size={14} />
+                          <VerifiedBadge variant="page" size={14} />
                   </div>
                     )}
                     </div>
@@ -1583,7 +1569,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                     {page.name}
                   </h3>
                             {page.isVerified && (
-                      <VerifiedBadge size={18} />
+                      <VerifiedBadge variant="page" size={18} />
                             )}
                           </div>
                   {page.description && (
@@ -1717,7 +1703,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                           />
                           {page.isVerified && (
                               <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-lg border-2 border-white dark:border-gray-900">
-                                <VerifiedBadge size={12} />
+                                <VerifiedBadge variant="page" size={12} />
                             </div>
                           )}
                           </div>
@@ -1731,7 +1717,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                             {page.name}
                           </h3>
                           {page.isVerified && (
-                            <VerifiedBadge size={16} />
+                            <VerifiedBadge variant="page" size={16} />
                           )}
                         </div>
                         
@@ -1821,7 +1807,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                   />
                   {selectedPage.isVerified && (
                     <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
-                      <VerifiedBadge size={18} />
+                      <VerifiedBadge variant="page" size={18} />
                     </div>
                   )}
                   </div>
@@ -1836,7 +1822,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                           {selectedPage.name}
                         </h2>
                         {selectedPage.isVerified && (
-                          <VerifiedBadge size={20} />
+                          <VerifiedBadge variant="page" size={20} />
                         )}
                         <Badge variant="gradient" className="flex items-center gap-1">
                           {selectedPage.role === 'owner' || selectedPage.role === 'Owner' ? (
@@ -1887,32 +1873,18 @@ export function ProfilePages({ username }: ProfilePagesProps) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 rounded-t-2xl">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide px-2">
-            {[
+        <div className="sticky top-0 z-30 border-b border-zinc-200/80 bg-gray-50/95 backdrop-blur-md dark:border-white/10 dark:bg-gray-950/95 rounded-t-2xl px-2 py-2">
+          <TabPills
+            ariaLabel="Page sections"
+            activeTab={activeTab}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
+            tabs={[
               { id: 'overview', label: 'Overview', icon: Layout },
               { id: 'posts', label: 'Posts', icon: FileText },
               { id: 'members', label: 'Members', icon: Users },
-              { id: 'settings', label: 'Settings', icon: Settings }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              return (
-            <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-5 py-4 font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-            </button>
-              );
-            })}
-          </div>
+              { id: 'settings', label: 'Settings', icon: Settings },
+            ]}
+          />
         </div>
 
             {/* Tab Content */}
@@ -1982,7 +1954,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                 {loadingPosts ? (
                   <PostSkeletonList count={6} />
                 ) : pagePosts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className={compactPostGridClass}>
                     {pagePosts.map((post) => (
                       <CompactPostCard
                         key={post.id}

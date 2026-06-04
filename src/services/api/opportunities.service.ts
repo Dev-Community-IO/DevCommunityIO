@@ -63,6 +63,7 @@ export interface Opportunity {
     ogImageUrl?: string;
     postedAt: string;
     expiresAt?: string;
+    deadline?: string;
     createdAt: string;
     updatedAt: string;
 }

@@ -1,22 +1,24 @@
-import { MessageCircle, Share2, Bookmark, MoreHorizontal, Smile } from 'lucide-react';
+import { PostActionIcon } from './PostActionIcon';
 import { Post } from '../types';
-import { GlassCard } from './GlassCard';
-import { Avatar } from './Avatar';
-import { Badge } from './Badge';
-import { VerifiedBadge } from './VerifiedBadge';
+import {
+  postCardSurfaceClass,
+  postCardPaddingClass,
+  postTagClass,
+  postActionBtnClass,
+  postMentionClass,
+  postCardDividerClass,
+} from './postCardSurface';
 import { Tooltip } from './Tooltip';
-import { EmojiReactions } from './EmojiReactions';
-import { UserHoverCardDropdown } from './UserHoverCardDropdown';
-import { PageHoverCardDropdown } from './PageHoverCardDropdown';
+import { PostCardHeader } from './PostCardHeader';
 import { ShareDropdown } from './ShareDropdown';
 import { ResponsivePostImage } from './ResponsivePostImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import reactionsService from '../services/api/reactions.service';
 import bookmarksService from '../services/api/bookmarks.service';
+import postsService from '../services/api/posts.service';
 import { useNavigate } from 'react-router-dom';
-
-const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+import { extractPostPreviewText } from '../utils/extractPostPreviewText';
 
 interface PostCardProps {
   post: Post;
@@ -100,55 +102,6 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     };
   }, [showEmojiPicker]);
 
-  // Clean content for feed preview - remove markdown headers and formatting
-  // BUT preserve mentions (@username) for proper formatting
-  const getCleanPreview = (content: string, maxLength: number = 300): string => {
-    // Remove markdown headers (# ## ### etc)
-    let cleaned = content.replace(/^#{1,6}\s+/gm, '');
-    
-    // Remove emphasis markers but keep text
-    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');  // Bold
-    cleaned = cleaned.replace(/\*([^*]+)\*/g, '$1');      // Italic
-    cleaned = cleaned.replace(/__([^_]+)__/g, '$1');      // Bold underscore
-    cleaned = cleaned.replace(/_([^_]+)_/g, '$1');        // Italic underscore
-    
-    // Remove code blocks
-    cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
-    
-    // Remove inline code backticks (but preserve mentions in code - we'll handle separately)
-    cleaned = cleaned.replace(/`([^`]+)`/g, '$1');
-    
-    // Remove links but keep text [text](url) -> text
-    cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-    
-    // Remove images
-    cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
-    
-    // Preserve mentions - they'll be formatted in the render
-    
-    // Remove blockquotes
-    cleaned = cleaned.replace(/^>\s+/gm, '');
-    
-    // Remove horizontal rules
-    cleaned = cleaned.replace(/^[-*_]{3,}$/gm, '');
-    
-    // Clean up multiple newlines
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-    
-    // Trim and limit length
-    cleaned = cleaned.trim();
-    
-    // Take first 3 lines or maxLength characters, whichever comes first
-    const lines = cleaned.split('\n').filter(line => line.trim().length > 0);
-    const first3Lines = lines.slice(0, 3).join(' ');
-    
-    if (first3Lines.length > maxLength) {
-      return first3Lines.substring(0, maxLength).trim() + '...';
-    }
-    
-    return first3Lines + (lines.length > 3 ? '...' : '');
-  };
-
   // Format content preview with styled mentions
   const formatContentPreview = (text: string): React.ReactNode => {
     const parts: React.ReactNode[] = [];
@@ -180,7 +133,7 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
           key={`mention-${key++}`}
           href={`/profile/${username}`}
           onClick={(e) => handleMentionClick(username, e)}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 rounded hover:underline transition-colors inline-block"
+          className={`${postMentionClass} cursor-pointer inline-block`}
           onMouseDown={(e) => e.stopPropagation()} // Prevent triggering card click
         >
           @{username}
@@ -302,6 +255,15 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     }
   };
 
+  // Count a "card click" view (deduped + anonymous-friendly server-side), then
+  // navigate. Fire-and-forget so it never delays the click.
+  const handleCardClick = () => {
+    if (postData?.id) {
+      postsService.trackView(postData.id, 'card_click').catch(() => {});
+    }
+    onClick();
+  };
+
   const timeAgo = (date: Date | string | undefined | null) => {
     if (!date) return 'just now';
     
@@ -320,208 +282,85 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
     return `${days}d ago`;
   };
 
+  const hasCover =
+    (postData.autoGenerateImage &&
+      (postData.coverImage ||
+        postData.coverImageUrl ||
+        postData.coverImageSizes ||
+        postData.ogImageUrl)) ||
+    Boolean(postData.coverImage || postData.coverImageUrl || postData.coverImageSizes);
+
+  const contentPreview = extractPostPreviewText(postData.content, {
+    maxLength: 280,
+    skipTitle: postData.title,
+  });
+  const showContentPreview = contentPreview.length > 0;
+
+  const isPostOwner =
+    isAuthenticated &&
+    Boolean(user?.id) &&
+    Boolean(postData.author?.id) &&
+    String(user!.id) === String(postData.author.id);
+
   return (
-    <GlassCard hover className="p-3 sm:p-4 md:p-5 overflow-hidden active:scale-[0.98] transition-transform duration-150 touch-manipulation h-full flex flex-col" onClick={onClick}>
-      <div className="flex-1 flex flex-col space-y-2 sm:space-y-3">
+    <article
+      className={`${postCardSurfaceClass} ${postCardPaddingClass}`}
+      onClick={handleCardClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+      tabIndex={0}
+      role="link"
+      aria-label={postData.title}
+    >
+      <div className="flex flex-1 flex-col space-y-2 sm:space-y-2.5">
         {/* Main Content */}
         <div className="space-y-2 sm:space-y-3 min-w-0 flex-1 flex flex-col">
-          {/* Header with Author Info - Mobile Optimized */}
-          <div className="flex items-center justify-between gap-2 sm:gap-3 flex-shrink-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              {/* Page Logo and Author Avatar - With Hover Cards - Mobile Optimized */}
-              {postData.page ? (
-                <div className="relative flex-shrink-0 group flex items-center gap-0">
-                  {/* Page Logo with Hover Card */}
-                  <PageHoverCardDropdown
-                    page={postData.page}
-                    trigger={
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (postData.page?.slug) {
-                            navigate(`/pages/${postData.page.slug}`);
-                          }
-                        }}
-                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg active:scale-95 transition-all duration-200 relative z-10 cursor-pointer touch-manipulation`}>
-                        <img 
-                          src={postData.page.logo || postData.page.logoUrl || DEFAULT_PAGE_LOGO} 
-                          alt={postData.page.name} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = DEFAULT_PAGE_LOGO;
-                          }}
-                        />
-                        {postData.page.isVerified && (
-                          <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                            <VerifiedBadge size={10} className="sm:w-3 sm:h-3" />
-                          </div>
-                        )}
-                      </div>
-                    }
-                    onViewPage={() => {
-                      if (postData.page?.slug) {
-                        navigate(`/pages/${postData.page.slug}`);
-                      }
-                    }}
-                    onJoin={() => {
-                      if (!isAuthenticated) {
-                        onLoginRequired?.();
-                      }
-                    }}
-                  />
-                  {/* Author Avatar with Hover Card - Mobile Optimized */}
-                  <UserHoverCardDropdown
-                    user={postData.author}
-                    page={postData.page}
-                    trigger={
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/profile/${postData.author.username}`);
-                        }}
-                        className="-ml-1.5 sm:-ml-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg active:scale-95 transition-all duration-200 ring-2 ring-blue-500/20 relative z-20 touch-manipulation">
-                        <Avatar 
-                          src={postData.author.avatar || postData.author.avatarUrl} 
-                          alt={postData.author.username} 
-                          size="sm" 
-                          className="w-full h-full"
-                          isTrusted={postData.author.isTrusted}
-                        />
-                      </div>
-                    }
-                    onViewProfile={() => {
-                      navigate(`/profile/${post.author.username}`);
-                    }}
-                    onFollow={() => {
-                      if (!isAuthenticated) {
-                        onLoginRequired?.();
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <UserHoverCardDropdown
-                  user={postData.author}
-                  trigger={
-                    <div 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/profile/${post.author.username}`);
-                      }}
-                      className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 cursor-pointer active:scale-95 transition-transform duration-200 touch-manipulation">
-                      <Avatar 
-                        src={post.author.avatar || post.author.avatarUrl} 
-                        alt={post.author.username} 
-                        size="sm" 
-                        className="w-full h-full"
-                        isTrusted={post.author.isTrusted}
-                      />
-                    </div>
-                  }
-                  onViewProfile={() => {
-                    navigate(`/profile/${post.author.username}`);
-                  }}
-                  onFollow={() => {
-                    if (!isAuthenticated) {
-                      onLoginRequired?.();
-                    }
-                  }}
-                />
-              )}
+          <PostCardHeader
+            post={postData}
+            timeAgo={timeAgo(postData.publishedAt || postData.createdAt || postData.timestamp)}
+            isAuthenticated={isAuthenticated}
+            isPostOwner={isPostOwner}
+            onLoginRequired={onLoginRequired}
+            onNavigateProfile={(username) => navigate(`/profile/${username}`)}
+            onNavigatePage={(slug) => navigate(`/pages/${slug}`)}
+          />
 
-              {/* Author Name / Page Info - Mobile Optimized */}
-              {postData.page ? (
-                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-wrap">
-                  <span 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/profile/${post.author.username}`);
-                    }}
-                    className="font-semibold text-xs sm:text-sm truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
-                  >
-                    {postData.author.username}
-                  </span>
-                  {postData.author.isVerified && (
-                    <VerifiedBadge size={12} className="flex-shrink-0 sm:w-3.5 sm:h-3.5" />
-                  )}
-                  <span className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 font-medium hidden xs:inline">posted for</span>
-                  <span 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (postData.page?.slug) {
-                        navigate(`/pages/${postData.page.slug}`);
-                      }
-                    }}
-                    className="font-bold text-xs sm:text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer truncate touch-manipulation"
-                  >
-                    {postData.page.name}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-wrap">
-                  <span 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/profile/${post.author.username}`);
-                    }}
-                    className="font-medium text-xs sm:text-sm truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
-                  >
-                    {postData.author.username}
-                  </span>
-                  {postData.author.isVerified && (
-                    <VerifiedBadge size={12} className="flex-shrink-0 sm:w-3.5 sm:h-3.5" />
-                  )}
-                  <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate hidden sm:inline">
-                    {postData.author.walletAddress}
-                  </span>
-                </div>
-              )}
-
-              <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 hidden xs:inline">•</span>
-              <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {timeAgo(postData.publishedAt || postData.createdAt || postData.timestamp)}
-              </span>
-              {!postData.page && (
-                <Badge variant="gradient" className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 flex-shrink-0">{postData.author.reputation} rep</Badge>
-              )}
-            </div>
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="p-1.5 sm:p-2 rounded-md hover:bg-white/10 dark:hover:bg-white/5 active:scale-95 transition-all duration-200 flex-shrink-0 touch-manipulation"
-            >
-              <MoreHorizontal size={14} className="sm:w-4 sm:h-4" />
-            </button>
-          </div>
-
-          {/* Title - Colorful Gradient - Mobile Optimized */}
-          <h3 className="text-base sm:text-lg md:text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 dark:hover:from-blue-300 dark:hover:via-purple-300 dark:hover:to-pink-300 transition-all duration-300 leading-tight sm:leading-snug cursor-pointer line-clamp-2">
-            {postData.title}
-          </h3>
-
-          {/* Cover Image - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
-          {/* Don't show auto-generated OG images unless user explicitly requested them */}
-          {((postData.autoGenerateImage && (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes || postData.ogImageUrl)) || 
-            (postData.coverImage || postData.coverImageUrl || postData.coverImageSizes)) && (
-            <div className="relative w-full h-36 sm:h-40 md:h-48 rounded-xl sm:rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 sm:mb-3 flex-shrink-0">
+          {hasCover && (
+            <div className="relative mb-1 h-32 w-full shrink-0 overflow-hidden rounded-lg border border-zinc-200/60 bg-zinc-100 dark:border-white/[0.06] dark:bg-zinc-900/80 sm:h-36">
               <ResponsivePostImage
-                coverImageUrl={postData.coverImage || postData.coverImageUrl || (postData.autoGenerateImage ? postData.ogImageUrl : undefined)}
+                coverImageUrl={
+                  postData.coverImage ||
+                  postData.coverImageUrl ||
+                  (postData.autoGenerateImage ? postData.ogImageUrl : undefined)
+                }
                 coverImageSizes={postData.coverImageSizes}
                 alt={postData.title}
-                className="w-full h-full object-cover"
-                size="feed" // Use feed size for cards
+                className="h-full w-full object-cover"
+                size="feed"
                 onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
+                  (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
             </div>
           )}
 
-          {/* Content Preview - Clean Text with Formatted Mentions - Mobile Optimized */}
-          <div className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-2 sm:line-clamp-3 leading-relaxed flex-1">
-            {formatContentPreview(getCleanPreview(postData.content, 250))}
-          </div>
+          <h3 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-50 dark:group-hover:text-zinc-200 sm:text-[17px]">
+            {postData.title}
+          </h3>
+
+          {showContentPreview && (
+            <p
+              className={`flex-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm ${
+                hasCover ? 'line-clamp-2' : 'line-clamp-2 sm:line-clamp-3'
+              }`}
+            >
+              {formatContentPreview(contentPreview)}
+            </p>
+          )}
 
           {/* Tags - Mobile Optimized */}
           {postData.tags && postData.tags.length > 0 && (
@@ -530,17 +369,19 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                 const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
                 const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
                 return (
-                  <Badge key={tagKey} className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">#{tagName}</Badge>
+                  <span key={tagKey} className={postTagClass}>
+                    #{tagName}
+                  </span>
                 );
               })}
               {postData.tags.length > 3 && (
-                <Badge className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">+{postData.tags.length - 3}</Badge>
+                <span className={postTagClass}>+{postData.tags.length - 3}</span>
               )}
             </div>
           )}
 
           {/* Actions Footer - Mobile Optimized */}
-          <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200 dark:border-white/5 flex-shrink-0">
+          <div className={`flex shrink-0 items-center justify-between pt-2 sm:pt-2.5 ${postCardDividerClass}`}>
             <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap flex-1 min-w-0">
               {/* Emoji Reactions - Inline and Compact - Mobile Optimized */}
               {emojis.length > 0 && (
@@ -556,10 +397,10 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                         }
                         handleEmojiReaction(emoji);
                       }}
-                      className={`px-1 sm:px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 active:scale-95 touch-manipulation ${
+                      className={`flex items-center gap-0.5 rounded-md px-1 sm:px-1.5 py-0.5 text-xs transition-colors touch-manipulation ${
                         userEmojis.includes(emoji)
-                          ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-400/50'
-                          : 'hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600'
+                          ? 'bg-zinc-200/90 text-zinc-900 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:text-zinc-100 dark:ring-white/15'
+                          : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/[0.06]'
                       }`}
                     >
                       <span className="text-xs sm:text-sm">{emoji}</span>
@@ -580,48 +421,55 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
                     }
                     setShowEmojiPicker(!showEmojiPicker);
                   }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
+                  className={postActionBtnClass}
                 >
-                  <Smile size={12} className="sm:w-3.5 sm:h-3.5" />
+                  <PostActionIcon name="react" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   <span className="text-[10px] sm:text-xs font-medium hidden sm:inline">React</span>
                 </button>
 
                 {showEmojiPicker && (
-                  <div className="absolute bottom-full mb-2 sm:mb-3 left-0 z-[9999] animate-fade-in">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-2 sm:p-3 min-w-[200px] sm:min-w-[260px]">
-                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                  <div className="absolute bottom-full left-0 z-[9999] mb-2 animate-fade-in">
+                    <div className="min-w-[200px] rounded-lg border border-zinc-200/80 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-900 sm:min-w-[220px]">
+                      <div className="grid grid-cols-4 gap-0.5">
                         {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
                           <button
                             key={emoji}
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEmojiReaction(emoji);
                               setShowEmojiPicker(false);
                             }}
-                            className={`p-2 sm:p-3 text-xl sm:text-2xl rounded-lg sm:rounded-xl active:scale-95 hover:scale-110 transition-all duration-200 touch-manipulation ${
-                              userEmojis.includes(emoji) 
-                                ? 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600'
+                            className={`rounded-md p-2 text-xl transition-colors touch-manipulation sm:p-2.5 ${
+                              userEmojis.includes(emoji)
+                                ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
+                                : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                             }`}
                           >
                             {emoji}
                           </button>
                         ))}
                       </div>
-                      {/* Arrow pointer */}
-                      <div className="absolute -bottom-2 left-3 sm:left-4 w-3 h-3 sm:w-4 sm:h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
                     </div>
                   </div>
                 )}
               </div>
 
               <button
+                type="button"
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
+                className={postActionBtnClass}
               >
-                <MessageCircle size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span className="text-[10px] sm:text-xs font-medium">{postData.commentCount || 0}</span>
+                <PostActionIcon name="comment" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span>{postData.commentCount || 0}</span>
               </button>
+              <span
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 text-zinc-500 dark:text-zinc-400"
+                title={`${postData.viewCount || 0} views`}
+              >
+                <PostActionIcon name="view" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span className="text-[10px] sm:text-xs font-medium">{postData.viewCount || 0}</span>
+              </span>
               <ShareDropdown
         url={`${window.location.origin}/post/${postData.slug}`}
         title={postData.title}
@@ -630,11 +478,12 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
         description={postData.content?.substring(0, 150)}
                 trigger={
               <button
+                type="button"
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-all duration-200 touch-manipulation"
+                className={postActionBtnClass}
               >
-                <Share2 size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span className="text-[10px] sm:text-xs font-medium hidden sm:inline">Share</span>
+                <PostActionIcon name="share" size={14} className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Share</span>
               </button>
                 }
               />
@@ -642,20 +491,24 @@ export function PostCard({ post, onClick, onLoginRequired }: PostCardProps) {
             <Tooltip content={!isAuthenticated ? "Login to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark"}>
               <button
                 onClick={handleBookmark}
-                className={`p-1.5 sm:p-2 rounded-md transition-all duration-200 active:scale-95 touch-manipulation flex-shrink-0 ${
+                className={`shrink-0 rounded-md p-1.5 transition-colors touch-manipulation sm:p-2 ${
                   bookmarked
-                    ? 'bg-yellow-500/20 text-yellow-500 shadow-md shadow-yellow-500/20'
+                    ? 'bg-zinc-200/90 text-zinc-900 dark:bg-white/10 dark:text-zinc-100'
                     : !isAuthenticated
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:bg-white/10 dark:hover:bg-white/5'
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200'
                 }`}
               >
-                <Bookmark size={12} className="sm:w-3.5 sm:h-3.5" fill={bookmarked ? 'currentColor' : 'none'} strokeWidth={bookmarked ? 2.5 : 2} />
+                <PostActionIcon
+                  name={bookmarked ? 'bookmarkActive' : 'bookmark'}
+                  size={14}
+                  className="h-3 w-3 sm:h-3.5 sm:w-3.5"
+                />
               </button>
             </Tooltip>
           </div>
         </div>
       </div>
-    </GlassCard>
+    </article>
   );
 }

@@ -105,10 +105,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Try to fetch current user (works for both token and session-based auth)
       const userData = await authService.getCurrentUser();
-      
-      // Check if userData exists before normalizing
+
       if (!userData) {
-        throw new Error('No user data returned');
+        localStorageCache.remove(CacheKeys.USER);
+        localStorageCache.remove(CacheKeys.USER_SESSION);
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user');
+        }
+        setUser(null);
+        setShowOnboarding(false);
+        return;
       }
       
       // Normalize avatar field: ensure avatarUrl is used, fallback to avatar for legacy support

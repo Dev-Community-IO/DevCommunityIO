@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Upload, Camera, Twitter, Linkedin, Send, Github, Loader2, User, MapPin, Briefcase, FileText, Link as LinkIcon, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { TabPills } from './TabPills';
 import { Avatar } from './Avatar';
 import usersService from '../services/api/users.service';
 import onboardingService from '../services/api/onboarding.service';
 import authService from '../services/api/auth.service';
+import { BIO_MAX_LENGTH } from '../constants/bio';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -370,7 +372,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSave }: EditProfileM
       const response = await onboardingService.updateProfile({
         username: trimmedUsername,
         pseudo: formData.pseudo,
-        bio: formData.bio,
+        bio: formData.bio.slice(0, BIO_MAX_LENGTH),
         skills: skillsArray,
         location: formData.location,
         occupation: formData.occupation,
@@ -438,36 +440,18 @@ export function EditProfileModal({ isOpen, onClose, user, onSave }: EditProfileM
           </button>
         </div>
 
-        {/* Compact Tabs */}
-        <div className="flex border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <button
-            onClick={() => setActiveTab('basic')}
-            className={`flex-1 px-3 py-2.5 text-xs font-medium transition-all relative ${
-              activeTab === 'basic'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <User size={14} className="inline-block mr-1.5" />
-            Basic
-            {activeTab === 'basic' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500"></span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('social')}
-            className={`flex-1 px-3 py-2.5 text-xs font-medium transition-all relative ${
-              activeTab === 'social'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <LinkIcon size={14} className="inline-block mr-1.5" />
-            Social
-            {activeTab === 'social' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500"></span>
-            )}
-          </button>
+        <div className="border-b border-zinc-200/80 bg-white px-3 py-2 dark:border-white/10 dark:bg-gray-900">
+          <TabPills
+            ariaLabel="Edit profile sections"
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            scrollable={false}
+            variant="stretch"
+            tabs={[
+              { id: 'basic', label: 'Basic', icon: User },
+              { id: 'social', label: 'Social', icon: LinkIcon },
+            ]}
+          />
         </div>
 
         {/* Scrollable Content */}
@@ -642,13 +626,16 @@ export function EditProfileModal({ isOpen, onClose, user, onSave }: EditProfileM
                   </label>
                   <textarea
                     value={formData.bio}
-                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                    rows={2}
-                    maxLength={500}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value.slice(0, BIO_MAX_LENGTH) })}
+                    rows={4}
+                    maxLength={BIO_MAX_LENGTH}
                     className="w-full px-2.5 py-1.5 text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 resize-none transition-all"
-                    placeholder="Tell us about yourself..."
+                    placeholder="Tell us about yourself… Links, @users, and #tags are supported."
                   />
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 text-right">{formData.bio.length}/500</p>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 flex justify-between gap-2">
+                    <span>Use @username, #tag, or paste a link</span>
+                    <span>{formData.bio.length}/{BIO_MAX_LENGTH}</span>
+                  </p>
                 </div>
 
                 {/* Skills */}

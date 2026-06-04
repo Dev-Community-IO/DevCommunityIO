@@ -556,7 +556,7 @@ export function AdminPages() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium text-gray-900 dark:text-white">{page.name}</p>
-                            {page.isVerified && <VerifiedBadge size={14} />}
+                            {page.isVerified && <VerifiedBadge variant="page" size={14} />}
                           </div>
                           {page.description && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xs">
@@ -573,7 +573,7 @@ export function AdminPages() {
                             src={page.owner.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${page.owner.username}`}
                             alt={page.owner.username}
                             size="sm"
-                            isTrusted={page.owner.isTrusted}
+
                           />
                           <span className="text-sm text-gray-900 dark:text-white">{page.owner.username}</span>
                         </div>
@@ -910,7 +910,7 @@ export function AdminPages() {
                           src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                           alt={user.username}
                           size="sm"
-                          isTrusted={user.isTrusted}
+
                         />
                         <div className="flex-1">
                           <p className="font-medium">{user.username}</p>
@@ -1110,7 +1110,7 @@ export function AdminPages() {
                               src={member.user?.avatarUrl || member.user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user?.username || member.username}`}
                               alt={member.user?.username || member.username}
                               size="sm"
-                              isTrusted={member.user?.isTrusted}
+
                             />
                             <div>
                               <p className="font-medium">{member.user?.username || member.username}</p>

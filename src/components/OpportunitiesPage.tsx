@@ -1,13 +1,28 @@
-import { Briefcase, MapPin, DollarSign, Clock, ArrowLeft, Search, Filter, ExternalLink, Building, TrendingUp, Star, Zap, Loader2 } from 'lucide-react';
-import { GlassCard } from './GlassCard';
-import { Badge } from './Badge';
-import { Button } from './Button';
+import {
+  Briefcase,
+  MapPin,
+  DollarSign,
+  Clock,
+  Star,
+  Loader2,
+  ChevronRight,
+  Zap,
+} from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { opportunitiesService, Opportunity as APIOpportunity } from '../services/api/opportunities.service';
 import { ContentGridSkeletonList } from './skeletons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
+import {
+  ListingPageHeader,
+  ListingFilterToolbar,
+  ListingEmptyState,
+  ListingErrorState,
+  ListingSectionTitle,
+  formatListingLabel,
+} from './listingPageChrome';
+import { asidePanelClass, postCardSurfaceClass, postTagClass } from './postCardSurface';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
@@ -29,14 +44,180 @@ interface Opportunity {
   experience: string;
   posted: string;
   logo: string;
-  tags: string[];
   featured?: boolean;
   remote: boolean;
 }
 
+const TYPE_FILTERS = ['all', 'full-time', 'part-time', 'contract', 'internship'] as const;
+
+const TYPE_LABELS: Record<string, string> = {
+  all: 'All',
+  'full-time': 'Full-time',
+  'part-time': 'Part-time',
+  contract: 'Contract',
+  internship: 'Internship',
+};
+
+const featuredPillClass =
+  'inline-flex items-center gap-0.5 rounded-md border border-amber-200/80 bg-amber-50/95 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/80 dark:text-amber-200';
+
+const remotePillClass =
+  'inline-flex items-center gap-0.5 rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400';
+
+function OpportunityListCard({
+  opportunity,
+  large,
+  canManageFeatured,
+  togglingFeatured,
+  onToggleFeatured,
+  onClick,
+}: {
+  opportunity: Opportunity;
+  large?: boolean;
+  canManageFeatured: boolean;
+  togglingFeatured: boolean;
+  onToggleFeatured: (e: React.MouseEvent) => void;
+  onClick: () => void;
+}) {
+  const logoSize = large ? 'h-14 w-14' : 'h-11 w-11';
+
+  return (
+    <article
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`${postCardSurfaceClass} h-full`}
+    >
+      <div className={`flex gap-3 p-3.5 sm:gap-4 sm:p-4 ${large ? 'sm:p-5' : ''}`}>
+        <div
+          className={`${logoSize} shrink-0 overflow-hidden rounded-xl border border-zinc-200/80 bg-zinc-100 ring-1 ring-zinc-200/80 dark:border-white/10 dark:bg-zinc-800 dark:ring-white/10`}
+        >
+          <img
+            src={opportunity.logo}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (target.src !== DEFAULT_PAGE_LOGO) target.src = DEFAULT_PAGE_LOGO;
+            }}
+          />
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="mb-1.5 flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3
+                  className={`line-clamp-1 font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white ${
+                    large ? 'text-base' : 'text-sm'
+                  }`}
+                >
+                  {opportunity.title}
+                </h3>
+                {opportunity.featured && (
+                  <span className={featuredPillClass}>
+                    <Star size={10} strokeWidth={2.5} className="fill-current" />
+                    Featured
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 truncate text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                {opportunity.company}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {canManageFeatured && (
+                <button
+                  type="button"
+                  onClick={onToggleFeatured}
+                  disabled={togglingFeatured}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-amber-600 dark:border-white/10 dark:bg-white/[0.04] dark:hover:text-amber-400"
+                  title={opportunity.featured ? 'Remove from featured' : 'Add to featured'}
+                  aria-label={opportunity.featured ? 'Remove from featured' : 'Add to featured'}
+                >
+                  {togglingFeatured ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Star
+                      size={12}
+                      className={opportunity.featured ? 'fill-amber-500 text-amber-500' : ''}
+                      strokeWidth={2}
+                    />
+                  )}
+                </button>
+              )}
+              {opportunity.category && (
+                <span className={`${postTagClass} hidden sm:inline-flex capitalize`}>
+                  {opportunity.category}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p
+            className={`mb-2.5 line-clamp-2 text-zinc-600 dark:text-zinc-400 ${
+              large ? 'text-sm leading-relaxed' : 'text-xs leading-relaxed'
+            }`}
+          >
+            {opportunity.description}
+          </p>
+
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+            <span className={`${postTagClass} capitalize`}>{opportunity.type.replace('-', ' ')}</span>
+            {opportunity.remote && (
+              <span className={remotePillClass}>
+                <Zap size={10} strokeWidth={2} />
+                Remote
+              </span>
+            )}
+            {opportunity.experience && (
+              <span className={postTagClass}>{opportunity.experience}</span>
+            )}
+            {opportunity.category && (
+              <span className={`${postTagClass} capitalize sm:hidden`}>{opportunity.category}</span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+            <span className="inline-flex items-center gap-1 min-w-0">
+              <MapPin size={12} className="shrink-0 text-zinc-400" strokeWidth={2} />
+              <span className="truncate">{opportunity.location}</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <DollarSign size={12} className="shrink-0 text-zinc-400" strokeWidth={2} />
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">{opportunity.salary}</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock size={12} className="shrink-0 text-zinc-400" strokeWidth={2} />
+              {opportunity.posted}
+            </span>
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-end border-t border-zinc-100 pt-2.5 dark:border-white/[0.06]">
+            <span className="flex items-center gap-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+              View role
+              <ChevronRight
+                size={14}
+                className="transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: OpportunitiesPageProps) {
   const navigate = useNavigate();
-  const { user, isAdmin, canModerate } = useAuth();
+  const { isAdmin, canModerate } = useAuth();
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -47,12 +228,8 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
   const [togglingFeatured, setTogglingFeatured] = useState<string | null>(null);
   const canManageFeatured = isAdmin() || canModerate();
 
-  // Debounce search query
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
-
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -61,23 +238,22 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
       try {
         setLoading(true);
         setError(null);
-        
-        const params: any = {};
+
+        const params: Record<string, string> = {};
         if (debouncedSearchQuery.trim()) params.search = debouncedSearchQuery.trim();
         if (selectedFilter !== 'all') {
-          // Check if it's a type filter
           if (['full-time', 'part-time', 'contract', 'internship'].includes(selectedFilter)) {
             params.type = selectedFilter;
           } else {
-            // Otherwise it's a category filter
             params.category = selectedFilter;
           }
         }
-        
+
         const response = await opportunitiesService.getOpportunities(params);
         setOpportunities(response.data || response);
-      } catch (err: any) {
-        setError(err?.message || 'Failed to load opportunities');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load opportunities';
+        setError(message);
         console.error('Error fetching opportunities:', err);
       } finally {
         setLoading(false);
@@ -87,7 +263,7 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
     fetchOpportunities();
   }, [debouncedSearchQuery, selectedFilter]);
 
-  const opportunitiesData: Opportunity[] = opportunities.map(o => ({
+  const opportunitiesData: Opportunity[] = opportunities.map((o) => ({
     id: o.id,
     slug: o.slug,
     title: o.title,
@@ -100,10 +276,35 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
     experience: o.experience,
     posted: o.postedAt ? new Date(o.postedAt).toLocaleDateString() : 'Recently',
     logo: o.logoUrl || DEFAULT_PAGE_LOGO,
-    tags: [],
     featured: o.featured,
-    remote: o.remote
+    remote: o.remote,
   }));
+
+  const categories = useMemo(() => {
+    return Array.from(new Set(opportunitiesData.map((o) => o.category).filter(Boolean))).sort();
+  }, [opportunitiesData]);
+
+  const filterTabs = useMemo(
+    () => [
+      { id: 'all', label: 'All' },
+      ...TYPE_FILTERS.filter((t) => t !== 'all').map((t) => ({
+        id: t,
+        label: TYPE_LABELS[t] || formatListingLabel(t),
+      })),
+      ...categories.map((cat) => ({
+        id: cat,
+        label: formatListingLabel(cat),
+      })),
+    ],
+    [categories]
+  );
+
+  const showFeaturedSection =
+    !loading && !error && selectedFilter === 'all' && !debouncedSearchQuery;
+  const featuredOpportunities = opportunitiesData.filter((o) => o.featured);
+  const regularOpportunities = opportunitiesData.filter(
+    (o) => selectedFilter !== 'all' || debouncedSearchQuery || !o.featured
+  );
 
   const handleOpportunityClick = (opportunity: Opportunity) => {
     if (opportunity.slug) {
@@ -123,348 +324,123 @@ export function OpportunitiesPage({ onBack, onViewOpportunityDetail }: Opportuni
       setTogglingFeatured(opportunity.id);
       const newFeaturedStatus = !opportunity.featured;
       await opportunitiesService.updateOpportunity(opportunity.id, { featured: newFeaturedStatus });
-      
-      // Update local state
-      setOpportunities(prev => prev.map(o => 
-        o.id === opportunity.id ? { ...o, featured: newFeaturedStatus } : o
-      ));
-      
-      toast.success(newFeaturedStatus ? 'Opportunity featured successfully' : 'Opportunity removed from featured');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update featured status');
+      setOpportunities((prev) =>
+        prev.map((item) =>
+          item.id === opportunity.id ? { ...item, featured: newFeaturedStatus } : item
+        )
+      );
+      toast.success(
+        newFeaturedStatus
+          ? 'Opportunity featured successfully'
+          : 'Opportunity removed from featured'
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update featured status';
+      toast.error(message);
       console.error('Error toggling featured:', err);
     } finally {
       setTogglingFeatured(null);
     }
   };
 
-  // Separate type filters and category filters
-  const typeFilters = ['all', 'full-time', 'part-time', 'contract', 'internship'];
-  const categories = useMemo(() => {
-    const uniqueCategories = Array.from(new Set(opportunitiesData.map(o => o.category).filter(Boolean)));
-    return uniqueCategories.sort();
-  }, [opportunitiesData]);
-
-  const filteredOpportunities = opportunitiesData;
-
-  const getTypeBadge = (type: string) => {
-    const styles = {
-      'full-time': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-      'part-time': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-      'contract': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-      'internship': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-    };
-    return styles[type as keyof typeof styles] || styles['full-time'];
-  };
+  if (loading && opportunitiesData.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className={`${asidePanelClass} animate-pulse p-4`}>
+          <div className="h-5 w-40 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="mt-2 h-3.5 w-72 max-w-full rounded bg-zinc-100 dark:bg-zinc-800/80" />
+        </div>
+        <div className={`${asidePanelClass} animate-pulse p-4`}>
+          <div className="mb-3 h-9 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-8 w-full rounded-lg bg-zinc-100 dark:bg-zinc-800/80" />
+        </div>
+        <ContentGridSkeletonList count={6} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Header with Back Button */}
-      <div className="flex items-center gap-4">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-all duration-200 group"
-          >
-            <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
-          </button>
-        )}
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg shadow-md">
-              <Briefcase size={24} className="text-white" strokeWidth={2.5} />
-            </div>
-            Opportunities
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Find your next career opportunity in Web3
-          </p>
-        </div>
-      </div>
+      <ListingPageHeader
+        icon={Briefcase}
+        title="Opportunities"
+        subtitle="Find your next career opportunity in Web3"
+        onBack={onBack}
+        count={opportunitiesData.length}
+        countLabel={opportunitiesData.length === 1 ? 'role' : 'roles'}
+      />
 
-      {/* Search and Filters */}
-      <GlassCard className="p-4">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search opportunities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-400 flex-shrink-0" />
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="px-4 py-2 bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all capitalize"
-            >
-              <optgroup label="Type">
-                {typeFilters.map(filter => (
-                  <option key={filter} value={filter}>{filter === 'all' ? 'All' : filter.replace('-', ' ')}</option>
-                ))}
-              </optgroup>
-              {categories.length > 0 && (
-                <optgroup label="Category">
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          </div>
-        </div>
-      </GlassCard>
+      <ListingFilterToolbar
+        searchId="opportunities-search"
+        searchPlaceholder="Role, company, or keywords…"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        filterTabs={filterTabs}
+        selectedFilter={selectedFilter}
+        onFilterChange={setSelectedFilter}
+        filterAriaLabel="Filter opportunities"
+        resultCount={opportunitiesData.length}
+        loading={loading}
+        loadingLabel="Loading opportunities…"
+        entityPlural={opportunitiesData.length === 1 ? 'role' : 'roles'}
+      />
 
-      {/* Loading State */}
-      {loading && (
-        <ContentGridSkeletonList count={6} />
-      )}
-
-      {/* Error State */}
       {error && (
-        <div className="text-center py-12">
-          <Briefcase size={48} className="mx-auto text-red-300 dark:text-red-700 mb-4" />
-          <p className="text-red-500 dark:text-red-400 mb-2">Failed to load opportunities</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
-          <Button 
-            variant="primary" 
-            className="mt-4"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </Button>
-        </div>
+        <ListingErrorState
+          icon={Briefcase}
+          title="Failed to load opportunities"
+          message={error}
+          onRetry={() => window.location.reload()}
+        />
       )}
 
-      {/* Featured Opportunities */}
-      {!loading && !error && filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Star size={20} className="text-yellow-500" />
-            <h2 className="text-lg font-bold">Featured Opportunities</h2>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredOpportunities.filter(o => o.featured).map(opp => (
-              <GlassCard 
-                key={opp.id} 
-                className="p-4 hover:shadow-xl transition-all duration-300 group cursor-pointer"
-                onClick={() => handleOpportunityClick(opp)}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 flex-shrink-0 border border-gray-200 dark:border-gray-700">
-                    <img
-                      src={opp.logo}
-                      alt={opp.company}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold group-hover:text-blue-500 transition-colors line-clamp-1">
-                          {opp.title}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{opp.company}</span>
-                          {opp.remote && (
-                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
-                              <Zap size={8} className="inline mr-0.5" />
-                              Remote
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <Badge variant="gradient" className="text-[10px] px-2 py-1 flex-shrink-0">
-                        <Star size={10} className="inline mr-1" />
-                        Featured
-                      </Badge>
-                      {canManageFeatured && (
-                        <button
-                          onClick={(e) => handleToggleFeatured(e, opp)}
-                          disabled={togglingFeatured === opp.id}
-                          className="p-1.5 rounded-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 transition-all shadow-md"
-                          title="Remove from featured"
-                        >
-                          {togglingFeatured === opp.id ? (
-                            <Loader2 size={12} className="animate-spin text-red-500" />
-                          ) : (
-                            <Star size={12} className="text-yellow-500 fill-yellow-500" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
-                      {opp.description}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                      <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                        <MapPin size={14} className="text-blue-500" />
-                        <span className="truncate">{opp.location}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                        <DollarSign size={14} className="text-green-500" />
-                        <span className="font-semibold">{opp.salary}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                        <Building size={14} className="text-purple-500" />
-                        <span className={`capitalize ${getTypeBadge(opp.type)} px-2 py-0.5 rounded text-[10px] font-semibold`}>
-                          {opp.type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                        <Clock size={14} className="text-orange-500" />
-                        <span>{opp.posted}</span>
-                      </div>
-                    </div>
-                    {opp.tags && opp.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                        {opp.tags.map(tag => {
-                          const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
-                          const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
-                          return (
-                            <span key={tagKey} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                              #{tagName}
-                        </span>
-                          );
-                        })}
-                    </div>
-                    )}
-                    <Button 
-                      variant="primary" 
-                      className="w-full text-sm py-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpportunityClick(opp);
-                      }}
-                    >
-                      <ExternalLink size={14} className="mr-2" />
-                      Apply Now
-                    </Button>
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        </div>
+      {!loading && !error && opportunitiesData.length === 0 && (
+        <ListingEmptyState
+          icon={Briefcase}
+          message="No opportunities match your search or filters."
+        />
       )}
 
-      {/* All Opportunities */}
-      {!loading && !error && (
-      <div>
-        {filteredOpportunities.filter(o => o.featured).length > 0 && selectedFilter === 'all' && !debouncedSearchQuery && (
-          <h2 className="text-lg font-bold mb-3">All Opportunities</h2>
-        )}
-        <div className="space-y-3">
-          {filteredOpportunities.filter(o => selectedFilter !== 'all' || debouncedSearchQuery || !o.featured).map(opp => (
-            <GlassCard 
-              key={opp.id} 
-              className="p-4 hover:shadow-lg transition-all duration-300 group cursor-pointer"
-              onClick={() => handleOpportunityClick(opp)}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 flex-shrink-0 border border-gray-200 dark:border-gray-700">
-                  <img
-                    src={opp.logo}
-                    alt={opp.company}
-                    className="w-full h-full object-cover"
+      {!loading && !error && opportunitiesData.length > 0 && (
+        <div className="space-y-6">
+          {showFeaturedSection && featuredOpportunities.length > 0 && (
+            <section>
+              <ListingSectionTitle icon={Star}>Featured</ListingSectionTitle>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {featuredOpportunities.map((opp) => (
+                  <OpportunityListCard
+                    key={opp.id}
+                    opportunity={opp}
+                    large
+                    canManageFeatured={canManageFeatured}
+                    togglingFeatured={togglingFeatured === opp.id}
+                    onToggleFeatured={(e) => handleToggleFeatured(e, opp)}
+                    onClick={() => handleOpportunityClick(opp)}
                   />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold group-hover:text-blue-500 transition-colors line-clamp-1">
-                        {opp.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{opp.company}</span>
-                        {opp.remote && (
-                          <Badge variant="secondary" className="text-[8px] px-1.5 py-0.5">
-                            Remote
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {canManageFeatured && (
-                        <button
-                          onClick={(e) => handleToggleFeatured(e, opp)}
-                          disabled={togglingFeatured === opp.id}
-                          className="p-1.5 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
-                          title={opp.featured ? "Remove from featured" : "Add to featured"}
-                        >
-                          {togglingFeatured === opp.id ? (
-                            <Loader2 size={12} className="animate-spin text-blue-500" />
-                          ) : (
-                            <Star size={12} className={opp.featured ? "text-yellow-500 fill-yellow-500" : "text-gray-400 hover:text-yellow-500"} />
-                          )}
-                        </button>
-                      )}
-                      <Badge variant="secondary" className="text-[9px] px-2 py-0.5 flex-shrink-0">
-                        {opp.category}
-                      </Badge>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-gray-600 dark:text-gray-400 line-clamp-1 mb-2">
-                    {opp.description}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-600 dark:text-gray-400 mb-2">
-                    <div className="flex items-center gap-1">
-                      <MapPin size={12} className="text-blue-500" />
-                      <span>{opp.location}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <DollarSign size={12} className="text-green-500" />
-                      <span className="font-semibold">{opp.salary}</span>
-                    </div>
-                    <div className={`capitalize ${getTypeBadge(opp.type)} px-2 py-0.5 rounded font-semibold`}>
-                      {opp.type}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock size={12} className="text-orange-500" />
-                      <span>{opp.posted}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    {opp.tags && opp.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                        {opp.tags.slice(0, 3).map(tag => {
-                          const tagName = typeof tag === 'string' ? tag : (tag.name || tag.slug || '');
-                          const tagKey = typeof tag === 'string' ? tag : (tag.id || tag.slug || tagName);
-                          return (
-                            <span key={tagKey} className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                              #{tagName}
-                        </span>
-                          );
-                        })}
-                    </div>
-                    )}
-                    <Button 
-                      variant="primary" 
-                      className="text-xs py-1 px-3 ml-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpportunityClick(opp);
-                      }}
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                </div>
+                ))}
               </div>
-            </GlassCard>
-          ))}
-        </div>
-      </div>
-      )}
+            </section>
+          )}
 
-      {!loading && !error && filteredOpportunities.length === 0 && (
-        <div className="text-center py-12">
-          <Briefcase size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">No opportunities found matching your search</p>
+          {regularOpportunities.length > 0 && (
+            <section>
+              {showFeaturedSection && featuredOpportunities.length > 0 && (
+                <ListingSectionTitle>All roles</ListingSectionTitle>
+              )}
+              <div className="grid grid-cols-1 gap-3 md:gap-4">
+                {regularOpportunities.map((opp) => (
+                  <OpportunityListCard
+                    key={opp.id}
+                    opportunity={opp}
+                    canManageFeatured={canManageFeatured}
+                    togglingFeatured={togglingFeatured === opp.id}
+                    onToggleFeatured={(e) => handleToggleFeatured(e, opp)}
+                    onClick={() => handleOpportunityClick(opp)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

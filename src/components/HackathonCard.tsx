@@ -1,7 +1,27 @@
 import { Trophy, Calendar, Users, Award, MoreHorizontal, Smile, Bookmark, MessageCircle, Share2 } from 'lucide-react';
-import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
-import { Badge } from './Badge';
+import {
+  contentFeedCardClass,
+  contentFeedTitleClass,
+  contentFeedPreviewClass,
+  contentFeedCoverClass,
+  contentTypePillClass,
+  contentMetaChipClass,
+  contentAuthorLinkClass,
+  contentTimestampClass,
+  contentPageThumbClass,
+  contentStackedUserClass,
+  contentIconBtnClass,
+  contentEmojiActiveClass,
+  contentEmojiInactiveClass,
+  contentEmojiPickerClass,
+  contentBookmarkActiveClass,
+  contentBookmarkIdleClass,
+  postActionBtnClass,
+  postCardDividerClass,
+  postTagClass,
+} from './contentFeedCardTheme';
+import { ReputationBadge } from './ReputationBadge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Tooltip } from './Tooltip';
 import { UserHoverCardDropdown } from './UserHoverCardDropdown';
@@ -226,8 +246,20 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
   const commentCount = (hackathon.post as any)?.commentCount || 0;
 
   return (
-    <GlassCard hover className="p-4 overflow-hidden border-l-4 border-l-purple-500 hover:border-l-purple-600 transition-colors duration-300" onClick={onClick}>
-      <div className="space-y-3">
+    <article
+      className={contentFeedCardClass}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      tabIndex={0}
+      role="link"
+      aria-label={hackathon.title}
+    >
+      <div className="flex flex-col space-y-2 sm:space-y-2.5">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -244,7 +276,7 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                           navigate(`/pages/${hackathon.post.page.slug}`);
                         }
                       }}
-                      className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
+                      className={contentPageThumbClass}>
                       <img 
                         src={hackathon.post?.page?.logo || hackathon.post?.page?.logoUrl || DEFAULT_PAGE_LOGO} 
                         alt={hackathon.post?.page?.name || ''} 
@@ -254,11 +286,6 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                           target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
-                      {hackathon.post?.page?.isVerified && (
-                        <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                          <VerifiedBadge size={12} />
-                        </div>
-                      )}
                     </div>
                   }
                   onViewPage={() => {
@@ -278,7 +305,7 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                             navigate(`/profile/${organizer.username}`);
                           }
                         }}
-                        className="-ml-2 w-7 h-7 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ring-2 ring-purple-500/20 hover:ring-purple-500/40 relative z-20">
+                        className={contentStackedUserClass}>
                         <Avatar src={organizer.avatar || organizer.avatarUrl || ''} alt={organizer.username} size="sm" />
                       </div>
                     }
@@ -315,25 +342,23 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                         navigate(`/profile/${organizer.username}`);
                       }
                     }}
-                    className="font-semibold text-sm truncate cursor-pointer hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                    className={contentAuthorLinkClass}
                   >
                     {organizer.username}
                   </span>
                   {organizer.isVerified && <VerifiedBadge size={14} />}
                   {!hackathon.post?.page && (
-                    <Badge variant="gradient" className="text-xs px-2 py-0.5">{organizer.reputation || 0} rep</Badge>
+                    <ReputationBadge value={organizer.reputation || 0} />
                   )}
                 </>
               )}
-              <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {timeAgo(hackathon.createdAt)}
-              </span>
+              <span className={contentTimestampClass}>•</span>
+              <span className={contentTimestampClass}>{timeAgo(hackathon.createdAt)}</span>
             </div>
           </div>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 flex-shrink-0"
+            className={contentIconBtnClass}
             type="button"
           >
             <MoreHorizontal size={16} />
@@ -341,37 +366,25 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
         </div>
 
         {/* Type Badge */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 shadow-sm">
-            <Trophy size={14} className="text-purple-500" />
-            <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Hackathon</span>
-          </div>
-          <Badge className="text-xs px-2 py-0.5">{hackathon.category}</Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={contentTypePillClass}>
+            <Trophy size={12} strokeWidth={2} />
+            Hackathon
+          </span>
+          {hackathon.category && <span className={`${postTagClass} capitalize`}>{hackathon.category}</span>}
           {hackathon.difficulty && (
-            <Badge className={`text-xs capitalize px-2 py-0.5 ${
-              hackathon.difficulty === 'beginner' 
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                : hackathon.difficulty === 'intermediate'
-                ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
-                : 'bg-red-500/10 text-red-600 dark:text-red-400'
-            }`}>
-              {hackathon.difficulty}
-            </Badge>
+            <span className={`${postTagClass} capitalize`}>{hackathon.difficulty}</span>
           )}
         </div>
 
-        {/* Title */}
-        <h3 className="text-xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-700 dark:from-purple-400 dark:via-pink-400 dark:to-purple-500 bg-clip-text text-transparent hover:from-purple-700 hover:via-pink-700 hover:to-purple-800 dark:hover:from-purple-300 dark:hover:via-pink-300 dark:hover:to-purple-400 transition-all duration-300 leading-tight cursor-pointer">
-          {hackathon.title}
-        </h3>
+        <h3 className={contentFeedTitleClass}>{hackathon.title}</h3>
 
-        {/* Cover Image */}
         {((hackathon.post as any)?.coverImage || (hackathon.post as any)?.coverImageUrl || hackathon.imageUrl) && (
-          <div className="relative w-full h-40 sm:h-48 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <div className={contentFeedCoverClass}>
             <img
               src={(hackathon.post as any)?.coverImage || (hackathon.post as any)?.coverImageUrl || hackathon.imageUrl}
               alt={hackathon.title}
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+              className="h-full w-full object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
@@ -381,34 +394,30 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
         )}
 
         {/* Description Preview */}
-        <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
-          {getCleanPreview(hackathon.description, 200)}
-        </p>
+        <p className={contentFeedPreviewClass}>{getCleanPreview(hackathon.description, 200)}</p>
 
-        {/* Hackathon Metadata */}
-        <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 flex-wrap">
+        <div className="flex flex-wrap items-center gap-1.5">
           {hackathon.startDate && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <Calendar size={12} className="text-purple-500" />
-              <span className="font-medium">{formatDate(hackathon.startDate)}</span>
-            </div>
+            <span className={contentMetaChipClass}>
+              <Calendar size={12} strokeWidth={2} className="text-zinc-400" />
+              {formatDate(hackathon.startDate)}
+            </span>
           )}
           {hackathon.participantCount !== undefined && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <Users size={12} className="text-blue-500" />
-              <span className="font-medium">{hackathon.participantCount} participants</span>
-            </div>
+            <span className={contentMetaChipClass}>
+              <Users size={12} strokeWidth={2} className="text-zinc-400" />
+              {hackathon.participantCount} participants
+            </span>
           )}
           {hackathon.prize && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <Award size={12} className="text-yellow-500" />
-              <span className="font-medium">{hackathon.prize}</span>
-            </div>
+            <span className={contentMetaChipClass}>
+              <Award size={12} strokeWidth={2} className="text-zinc-400" />
+              {hackathon.prize}
+            </span>
           )}
         </div>
 
-        {/* Actions Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-white/5">
+        <div className={`flex items-center justify-between pt-2 sm:pt-2.5 ${postCardDividerClass}`}>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Emoji Reactions */}
             {emojis.length > 0 && (
@@ -424,11 +433,9 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                       }
                       handleEmojiReaction(emoji);
                     }}
-                    className={`px-2 py-1 rounded-lg text-xs transition-all duration-200 flex items-center gap-1 ${
-                      userEmojis.includes(emoji)
-                        ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400 ring-1 ring-purple-400/50 shadow-sm'
-                        : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
+                    className={
+                      userEmojis.includes(emoji) ? contentEmojiActiveClass : contentEmojiInactiveClass
+                    }
                   >
                     <span className="text-sm">{emoji}</span>
                     <span className="font-semibold">{count}</span>
@@ -449,35 +456,35 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                     }
                     setShowEmojiPicker(!showEmojiPicker);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium"
+                  className={postActionBtnClass}
                 >
-                  <Smile size={14} />
-                  <span>React</span>
+                  <Smile size={14} strokeWidth={2} />
+                  <span className="hidden text-xs font-medium sm:inline">React</span>
                 </button>
 
                 {showEmojiPicker && (
-                  <div className="absolute bottom-full mb-3 left-0 z-[9999] animate-fade-in">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-3 min-w-[260px]">
-                      <div className="grid grid-cols-4 gap-2">
+                  <div className="absolute bottom-full left-0 z-[9999] mb-2 animate-fade-in">
+                    <div className={contentEmojiPickerClass}>
+                      <div className="grid grid-cols-4 gap-0.5">
                         {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
                           <button
                             key={emoji}
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEmojiReaction(emoji);
                               setShowEmojiPicker(false);
                             }}
-                            className={`p-3 text-2xl rounded-xl hover:scale-110 transition-all duration-200 ${
-                              userEmojis.includes(emoji) 
-                                ? 'bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/40 dark:to-purple-800/40 ring-2 ring-purple-400 dark:ring-purple-500 shadow-lg' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            className={`rounded-md p-2 text-xl transition-colors ${
+                              userEmojis.includes(emoji)
+                                ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
+                                : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                             }`}
                           >
                             {emoji}
                           </button>
                         ))}
                       </div>
-                      <div className="absolute -bottom-2 left-4 w-4 h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
                     </div>
                   </div>
                 )}
@@ -491,10 +498,10 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                   e.stopPropagation();
                   onClick();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium"
+                className={postActionBtnClass}
               >
-                <MessageCircle size={14} />
-                <span>{commentCount}</span>
+                <MessageCircle size={14} strokeWidth={2} />
+                <span className="text-xs font-medium tabular-nums">{commentCount}</span>
               </button>
             )}
 
@@ -507,9 +514,9 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
                 hashtags={(hackathon.post as any)?.tags || []}
                 description={hackathon.description?.substring(0, 150)}
                 trigger={
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium">
-                    <Share2 size={14} />
-                    <span className="hidden sm:inline">Share</span>
+                  <button type="button" className={postActionBtnClass}>
+                    <Share2 size={14} strokeWidth={2} />
+                    <span className="hidden text-xs font-medium sm:inline">Share</span>
                   </button>
                 }
               />
@@ -520,19 +527,19 @@ export function HackathonCard({ hackathon, onClick, onLoginRequired }: Hackathon
           <Tooltip content={!isAuthenticated ? "Login to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark"}>
             <button
               onClick={handleBookmark}
-              className={`p-2 rounded-lg transition-all duration-200 ${
+              className={
                 bookmarked
-                  ? 'bg-purple-500/20 text-purple-500 shadow-md shadow-purple-500/20'
+                  ? contentBookmarkActiveClass
                   : !isAuthenticated
-                    ? 'opacity-50 cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
+                    ? `${contentBookmarkIdleClass} cursor-not-allowed opacity-50`
+                    : contentBookmarkIdleClass
+              }
             >
               <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} strokeWidth={bookmarked ? 2.5 : 2} />
             </button>
           </Tooltip>
         </div>
       </div>
-    </GlassCard>
+    </article>
   );
 }

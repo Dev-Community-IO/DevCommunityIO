@@ -15,13 +15,18 @@ export interface Page {
     description?: string;
     category?: string;
     logoUrl?: string;
+    logo?: string;
     coverImageUrl?: string;
+    coverImage?: string;
+    username?: string | null;
     ownerId: string;
     memberCount?: number;
+    postCount?: number;
     followerCount?: number;
     follower_count?: number;
     isFollowing?: boolean;
     isTrending: boolean;
+    isVerified?: boolean;
     createdAt: string;
     updatedAt: string;
     url?: string;

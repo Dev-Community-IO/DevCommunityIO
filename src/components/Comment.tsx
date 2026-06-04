@@ -185,8 +185,8 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
                   src={(comment.author.avatar || comment.author.avatarUrl) || ''} 
                   alt={comment.author.username} 
                   size="sm" 
-                  className="cursor-pointer ring-2 ring-transparent hover:ring-blue-500 transition-all"
-                  isTrusted={comment.author.isTrusted}
+                  className="cursor-pointer transition-all"
+
                 />
               </div>
             </Tooltip>
@@ -248,9 +248,7 @@ export function Comment({ comment, postId, isReply = false, onReplySuccess, onDe
               )}
             </div>
 
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MarkdownRenderer content={comment.content} compact />
-            </div>
+            <MarkdownRenderer content={comment.content} compact />
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* Emoji Reactions */}

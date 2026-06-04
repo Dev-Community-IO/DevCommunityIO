@@ -1,13 +1,18 @@
-import { MessageCircle, Clock, Smile } from 'lucide-react';
+import { MessageCircle, ChevronRight } from 'lucide-react';
 import { Post } from '../types';
-import { GlassCard } from './GlassCard';
+import {
+  compactPostCardClass,
+  postCardDividerClass,
+  postTagClass,
+} from './postCardSurface';
 import { Avatar } from './Avatar';
-import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import reactionsService from '../services/api/reactions.service';
+import postsService from '../services/api/posts.service';
+import { extractPostPreviewText } from '../utils/extractPostPreviewText';
 
 interface CompactPostCardProps {
   post: Post;
@@ -16,25 +21,41 @@ interface CompactPostCardProps {
   hideTags?: boolean;
 }
 
-export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = false }: CompactPostCardProps) {
-  const navigate = useNavigate();
-  const { isAuthenticated, user, updateUser } = useAuth();
-  const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
-  const [userEmojis, setUserEmojis] = useState<string[]>([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
+function formatTimeAgo(date: Date | string | undefined | null): string {
+  if (!date) return 'Just now';
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  if (!dateObj || Number.isNaN(dateObj.getTime())) return 'Just now';
 
-  // Load emoji reactions on mount
+  const seconds = Math.floor((Date.now() - dateObj.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export function CompactPostCard({
+  post,
+  onClick,
+  hideTags = false,
+}: CompactPostCardProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [emojis, setEmojis] = useState<{ emoji: string; count: number }[]>([]);
+  const [coverError, setCoverError] = useState(false);
+
+  useEffect(() => {
+    setCoverError(false);
+  }, [post.id, post.coverImage, post.coverImageUrl, post.ogImageUrl]);
+
   useEffect(() => {
     const loadReactions = async () => {
       try {
         const { reactions } = await reactionsService.getEmojis({ postId: post.id });
         setEmojis(reactions || []);
-        
-        if (user) {
-          const { emojis: userEmojisList } = await reactionsService.getUserEmojis({ postId: post.id });
-          setUserEmojis(userEmojisList || []);
-        }
       } catch (error) {
         console.error('Failed to load reactions:', error);
       }
@@ -42,284 +63,175 @@ export function CompactPostCard({ post, onClick, onLoginRequired, hideTags = fal
     loadReactions();
   }, [post.id, user]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false);
-      }
-    };
+  const coverSrc =
+    post.coverImage ||
+    post.coverImageUrl ||
+    (post.autoGenerateImage ? post.ogImageUrl : undefined);
 
-    if (showEmojiPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
+  const showCover =
+    Boolean(coverSrc) &&
+    !coverError &&
+    (post.autoGenerateImage || post.coverImage || post.coverImageUrl);
+
+  const totalReactions = emojis.reduce((sum, e) => sum + e.count, 0);
+  const topEmojis = emojis.slice(0, 3);
+  const contentPreview = extractPostPreviewText(post.content, {
+    maxLength: 130,
+    skipTitle: post.title,
+  });
+
+  const authorLabel =
+    post.author?.username || post.author?.pseudo || post.page?.name || 'Member';
+
+  const firstTag = post.tags?.[0];
+  const tagLabel =
+    !hideTags && firstTag
+      ? typeof firstTag === 'string'
+        ? firstTag
+        : firstTag?.name || firstTag?.slug
+      : null;
+
+  const commentCount = post.commentCount ?? 0;
+  const viewCount = post.viewCount ?? 0;
+  const publishedLabel = formatTimeAgo(
+    post.publishedAt || post.createdAt || post.timestamp
+  );
+
+  const handleCardClick = () => {
+    if (post?.id) {
+      postsService.trackView(post.id, 'card_click').catch(() => {});
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showEmojiPicker]);
-
-  const handleEmojiReaction = async (emoji: string) => {
-    if (!isAuthenticated) {
-      onLoginRequired?.();
-      return;
-    }
-
-    try {
-      const response = await reactionsService.addEmoji({ postId: post.id, emoji });
-      
-      // Update emojis list
-      const emojiIndex = emojis.findIndex(e => e.emoji === emoji);
-      
-      if (response.reacted) {
-        // Add emoji
-        if (emojiIndex >= 0) {
-          setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: e.count + 1 } : e));
-        } else {
-          setEmojis([...emojis, { emoji, count: 1 }]);
-        }
-        setUserEmojis([...userEmojis, emoji]);
-      } else {
-        // Remove emoji
-        if (emojiIndex >= 0) {
-          const newCount = emojis[emojiIndex].count - 1;
-          if (newCount > 0) {
-            setEmojis(emojis.map(e => e.emoji === emoji ? { ...e, count: newCount } : e));
-          } else {
-            setEmojis(emojis.filter(e => e.emoji !== emoji));
-          }
-        }
-        setUserEmojis(userEmojis.filter(e => e !== emoji));
-      }
-
-      if (response.reactorReputation !== undefined && response.reactorReputation !== null) {
-        updateUser({ reputation: response.reactorReputation });
-      }
-    } catch (error) {
-      console.error('Failed to add emoji:', error);
-    }
+    onClick();
   };
 
-  const timeAgo = (date: Date | string | undefined | null) => {
-    if (!date) return 'just now';
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    if (!dateObj || isNaN(dateObj.getTime())) return 'just now';
-    const seconds = Math.floor((new Date().getTime() - dateObj.getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `${days}d`;
-  };
-
-  const getCleanPreview = (content: string, maxLength: number = 120): string => {
-    let cleaned = content
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
-      .replace(/^>\s+/gm, '')
-      .replace(/^[-*_]{3,}$/gm, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    
-    const lines = cleaned.split('\n').filter(line => line.trim().length > 0);
-    const firstLine = lines[0] || '';
-    
-    if (firstLine.length > maxLength) {
-      return firstLine.substring(0, maxLength).trim() + '...';
+  const handleAuthorClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (post.author?.username) {
+      navigate(`/profile/${post.author.username}`);
     }
-    return firstLine;
   };
 
   return (
-    <GlassCard 
-      hover 
-      className="p-4 cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-[1.02] group"
-      onClick={onClick}
+    <article
+      className={compactPostCardClass}
+      onClick={handleCardClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+      tabIndex={0}
+      role="link"
+      aria-label={post.title}
     >
-      <div className="space-y-3">
-        {/* Header */}
-        <div className="flex items-start gap-3">
-          {/* Avatar */}
-          <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              if (post.author?.username) {
-                navigate(`/profile/${post.author.username}`);
-              }
-            }}
-          >
-            <Avatar 
-              src={post.author?.avatar || post.author?.avatarUrl || ''} 
-              alt={post.author?.username || 'User'} 
-              size="sm" 
-              className="flex-shrink-0 ring-2 ring-gray-200 dark:ring-gray-700 cursor-pointer hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
-            />
-          </div>
-          
-          {/* Title and Meta */}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-              {post.title}
-            </h3>
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
-              <span 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (post.author?.username) {
-                    navigate(`/profile/${post.author.username}`);
-                  }
-                }}
-                className="font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                {post.author?.username}
-              </span>
-              {post.author?.isVerified && <VerifiedBadge size={12} />}
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Clock size={10} />
-                {timeAgo(post.publishedAt || post.createdAt || post.timestamp)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Preview */}
-        {post.content && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
-            {getCleanPreview(post.content)}
-          </p>
-        )}
-
-        {/* Cover Image - Small Thumbnail - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
-        {((post.autoGenerateImage && (post.coverImage || post.coverImageUrl || post.ogImageUrl)) || 
-          (post.coverImage || post.coverImageUrl)) && (
-          <div className="relative w-full h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-            <img
-              src={post.coverImage || post.coverImageUrl || (post.autoGenerateImage ? post.ogImageUrl : undefined)}
-              alt={post.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-          {/* Tags */}
-          {!hideTags && post.tags && post.tags.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {post.tags.slice(0, 2).map((tag: any) => {
-                const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
-                return (
-                  <Badge key={tagName} className="text-[10px] px-1.5 py-0.5">
-                    #{tagName}
-                  </Badge>
-                );
-              })}
-              {post.tags.length > 2 && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">+{post.tags.length - 2}</span>
-              )}
-            </div>
-          )}
-
-          {/* Stats - Reactions and Comments */}
-          <div className={`flex items-center gap-2 text-xs ${hideTags ? 'ml-auto' : ''}`}>
-            {/* Emoji Reactions */}
-            {emojis.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                {emojis.map(({ emoji, count }) => (
-                  <button
-                    key={emoji}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isAuthenticated) {
-                        onLoginRequired?.();
-                        return;
-                      }
-                      handleEmojiReaction(emoji);
-                    }}
-                    className={`px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 ${
-                      userEmojis.includes(emoji)
-                        ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-400/50'
-                        : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
-                    }`}
-                  >
-                    <span className="text-sm">{emoji}</span>
-                    <span className="font-semibold text-[10px]">{count}</span>
-                  </button>
-                ))}
-                {emojis.length > 3 && (
-                  <span className="text-gray-500 dark:text-gray-400 text-[10px]">+{emojis.length - 3}</span>
-                )}
-              </div>
-            )}
-            
-            {/* Add Emoji Button */}
-            <div className="relative" ref={emojiPickerRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isAuthenticated) {
-                    onLoginRequired?.();
-                    return;
-                  }
-                  setShowEmojiPicker(!showEmojiPicker);
-                }}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-gray-500 dark:text-gray-400"
-              >
-                <Smile size={12} />
-              </button>
-
-              {showEmojiPicker && (
-                <div className="absolute bottom-full mb-2 left-0 z-[9999] animate-fade-in">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-2 min-w-[200px]">
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEmojiReaction(emoji);
-                            setShowEmojiPicker(false);
-                          }}
-                          className={`p-2 text-lg rounded-lg hover:scale-110 transition-all duration-200 ${
-                            userEmojis.includes(emoji) 
-                              ? 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg' 
-                              : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Arrow pointer */}
-                    <div className="absolute -bottom-2 left-3 w-3 h-3 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Comments */}
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-gray-500 dark:text-gray-400"
+      {showCover ? (
+        <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-950">
+          <img
+            src={coverSrc}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+            loading="lazy"
+            onError={() => setCoverError(true)}
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent"
+            aria-hidden
+          />
+          {tagLabel && (
+            <span
+              className={`${postTagClass} absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate border-white/20 bg-white/90 text-zinc-700 backdrop-blur-sm dark:bg-zinc-900/90 dark:text-zinc-300`}
             >
-              <MessageCircle size={12} />
-              <span className="font-medium">{post.commentCount || 0}</span>
-            </button>
+              #{tagLabel}
+            </span>
+          )}
+        </div>
+      ) : (
+        <div
+          className="flex h-1.5 w-full shrink-0 bg-gradient-to-r from-zinc-200 via-zinc-300/80 to-zinc-200 dark:from-white/[0.06] dark:via-white/[0.12] dark:to-white/[0.06]"
+          aria-hidden
+        />
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <button
+          type="button"
+          onClick={handleAuthorClick}
+          className="mb-3 flex w-full min-w-0 items-center gap-2.5 text-left touch-manipulation"
+        >
+          <Avatar
+            src={post.author?.avatar || post.author?.avatarUrl || ''}
+            alt={authorLabel}
+            size="sm"
+            className="h-9 w-9 shrink-0 ring-2 ring-white dark:ring-zinc-900"
+          />
+          <div className="min-w-0 flex-1 leading-tight">
+            <span className="flex min-w-0 items-center gap-1">
+              <span className="truncate text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                {authorLabel}
+              </span>
+              {post.author?.isVerified && <VerifiedBadge size={11} className="shrink-0" />}
+            </span>
+            <span className="mt-0.5 block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+              {publishedLabel}
+            </span>
           </div>
+        </button>
+
+        {!showCover && tagLabel && (
+          <span className={`${postTagClass} mb-2 max-w-full self-start truncate`}>#{tagLabel}</span>
+        )}
+
+        <h3 className="mb-2 line-clamp-2 text-[15px] font-semibold leading-snug tracking-tight text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-50 dark:group-hover:text-white sm:text-base">
+          {post.title}
+        </h3>
+
+        {contentPreview ? (
+          <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            {contentPreview}
+          </p>
+        ) : (
+          <div className="mb-4 flex-1" />
+        )}
+
+        <div
+          className={`mt-auto flex items-center justify-between gap-3 pt-3 ${postCardDividerClass}`}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+            {topEmojis.length > 0 && totalReactions > 0 && (
+              <span className="inline-flex max-w-full items-center gap-1 tabular-nums">
+                <span className="flex items-center -space-x-0.5">
+                  {topEmojis.map(({ emoji }) => (
+                    <span
+                      key={emoji}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200/80 bg-zinc-50 text-[10px] dark:border-white/10 dark:bg-zinc-800"
+                    >
+                      {emoji}
+                    </span>
+                  ))}
+                </span>
+                <span>{totalReactions}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <MessageCircle size={12} strokeWidth={2} className="shrink-0 opacity-70" />
+              {commentCount}
+            </span>
+            {viewCount > 0 && (
+              <span className="hidden tabular-nums sm:inline">{viewCount.toLocaleString()} views</span>
+            )}
+          </div>
+
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-zinc-500 transition-colors group-hover:text-zinc-800 dark:text-zinc-400 dark:group-hover:text-zinc-200">
+            Read
+            <ChevronRight
+              size={14}
+              strokeWidth={2}
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+            />
+          </span>
         </div>
       </div>
-    </GlassCard>
+    </article>
   );
 }
-

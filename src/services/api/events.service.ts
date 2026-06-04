@@ -72,6 +72,11 @@ export const eventsService = {
         return response.data;
     },
 
+    getUpcomingEvents: async (params?: { limit?: number }) => {
+        const response = await apiClient.get('/events/upcoming', { params });
+        return response.data;
+    },
+
     getEvent: async (slug: string) => {
         const response = await apiClient.get(`/events/${slug}`);
         return response.data;

@@ -20,6 +20,8 @@ interface PostsQueryParams {
     pageId?: string;
     sort?: 'hot' | 'new' | 'top';
     excludeIds?: string; // Comma-separated list of post IDs to exclude
+    recommendations?: string; // 'true' | 'false' — toggle the recommendation engine
+    following?: string; // 'true' — restrict to authors the viewer follows
 }
 
 class PostsService {
@@ -44,6 +46,23 @@ class PostsService {
     async getPost(postId: string): Promise<Post> {
         const response = await apiClient.get(`/posts/${postId}`);
         return response.data.post;
+    }
+
+    /**
+     * Record a view for a post (deduped + anonymous-friendly server-side).
+     * Fire-and-forget — never disrupts the UI if it fails.
+     * 'card_click' = clicked a card in a feed; 'open' = opened the detail page.
+     */
+    async trackView(
+        postIdOrSlug: string,
+        source: 'card_click' | 'open' = 'card_click'
+    ): Promise<{ counted: boolean; viewCount: number } | null> {
+        try {
+            const response = await apiClient.post(`/posts/${postIdOrSlug}/view`, { source });
+            return response.data ?? null;
+        } catch {
+            return null;
+        }
     }
 
     // Create post

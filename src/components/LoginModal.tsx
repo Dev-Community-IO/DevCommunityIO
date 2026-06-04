@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Loader, Wallet, Chrome, Github, Shield, Zap, Lock, ChevronRight, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  XCircle,
+  Loader2,
+  Wallet,
+  Chrome,
+  Github,
+  Lock,
+  ChevronRight,
+  AlertCircle,
+  ArrowLeft,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import authService from '../services/api/auth.service';
 import { connectCardanoWallet, getAvailableWallets, signCardanoMessage, stringToHex } from '../utils/cardanoWallet';
-import { GlassCard } from './GlassCard';
 import { executeRecaptcha } from '../utils/recaptcha';
 
 interface LoginModalProps {
@@ -13,14 +23,25 @@ interface LoginModalProps {
 
 type LoginStep = 'select' | 'connecting' | 'signing';
 
+const modalShellClass =
+  'rounded-xl border border-zinc-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-white/[0.08] dark:bg-zinc-900';
+
+const optionBtnClass =
+  'flex w-full items-center gap-3 rounded-xl border border-zinc-200/80 bg-white p-3 text-left transition-colors hover:border-zinc-300 hover:bg-zinc-50/90 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-white/15 dark:hover:bg-white/[0.05] active:bg-zinc-100 dark:active:bg-white/[0.08]';
+
+const socialBtnClass =
+  'flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-200/80 bg-white px-3 py-2.5 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-white/[0.02] dark:text-zinc-200 dark:hover:bg-white/[0.06]';
+
+const walletTileClass =
+  'flex flex-col items-center gap-2 rounded-xl border border-zinc-200/80 bg-white p-3 transition-colors hover:border-zinc-300 hover:bg-zinc-50/90 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-white/15 dark:hover:bg-white/[0.05]';
+
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const { login, checkAuth } = useAuth();
   const [step, setStep] = useState<LoginStep>('select');
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showCardanoWallets, setShowCardanoWallets] = useState(false);
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
       setStep('select');
@@ -30,7 +51,6 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   }, [isOpen]);
 
-  // Don't render login modal if not open
   if (!isOpen) return null;
 
   const handleCardanoLogin = async (walletName: string) => {
@@ -39,24 +59,17 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setStep('connecting');
 
     try {
-      // Connect to Cardano wallet
       const { address, stakeAddress, networkId } = await connectCardanoWallet(walletName);
 
-      // Verify it's mainnet (networkId === 1)
-      // Testnet has networkId === 0, Preview has networkId === 2, etc.
       if (networkId !== 1) {
         throw new Error('Please switch to Cardano Mainnet. Testnet wallets are not supported.');
       }
 
       setStep('signing');
 
-      // Get nonce from backend
       const { nonce, message } = await authService.getCardanoNonce(address, stakeAddress);
-
-      // Sign message
       const signedData = await signCardanoMessage(walletName, address, stringToHex(message));
 
-      // Verify signature with backend
       const response = await authService.verifyCardano(
         address,
         signedData.signature,
@@ -65,18 +78,13 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         stakeAddress
       );
 
-      // Save auth state (this will check onboarding automatically)
       await login(response.user, response.token);
-
-      // Ensure onboarding is checked after wallet login
-      // This is important because wallet users might be new and need onboarding
       await checkAuth();
-
-      // Close modal - onboarding will be handled globally if needed
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Cardano login error:', err);
-      setError(err.message || `Failed to connect with ${walletName}`);
+      const message = err instanceof Error ? err.message : `Failed to connect with ${walletName}`;
+      setError(message);
       setStep('select');
       setShowCardanoWallets(false);
     } finally {
@@ -90,15 +98,9 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       const recaptchaToken = await executeRecaptcha('google_login');
-      if (!recaptchaToken) {
-        console.warn('Google login: reCAPTCHA token missing, continuing without token.');
-      } else {
-        console.debug('Google login: reCAPTCHA token retrieved.', { tokenLength: recaptchaToken.length });
-      }
       const authUrl = authService.getGoogleAuthUrl(recaptchaToken || undefined);
-      console.debug('Google login: redirecting to auth URL with reCAPTCHA token?', Boolean(recaptchaToken));
-    window.location.href = authUrl;
-    } catch (err: any) {
+      window.location.href = authUrl;
+    } catch (err: unknown) {
       console.error('Google login reCAPTCHA error:', err);
       setError('Security verification failed. Please refresh and try again.');
       setIsLoading(false);
@@ -106,246 +108,213 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   };
 
   const handleGithubLogin = () => {
-    const authUrl = authService.getGithubAuthUrl();
-    window.location.href = authUrl;
+    window.location.href = authService.getGithubAuthUrl();
   };
 
   const cardanoWallets = getAvailableWallets();
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/60 to-black/70 backdrop-blur-md" 
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="login-modal-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        aria-label="Close dialog"
         onClick={() => {
-          if (!isLoading) {
-            onClose();
-          }
+          if (!isLoading) onClose();
         }}
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg animate-slide-up">
-        <GlassCard className="p-8 shadow-2xl border-2 border-white/10 dark:border-white/5">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                  <Lock size={24} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
-                    Welcome!
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Join the community
-                  </p>
-                </div>
-              </div>
-              {!isLoading && (
-                <button
-                  onClick={onClose}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all duration-300 hover:scale-110"
+      <div className="relative w-full max-w-md animate-slide-up">
+        <div className={modalShellClass}>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400">
+                <Lock size={16} strokeWidth={2} aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h2
+                  id="login-modal-title"
+                  className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100"
                 >
-                  <X size={20} />
-                </button>
-              )}
-            </div>
-            
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Connect your Web3 wallet or sign in with your social account to start engaging with the community.
-            </p>
-
-            {/* Security Features */}
-            <div className="grid grid-cols-3 gap-2 mt-4">
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                <Shield size={14} className="text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Secure</span>
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                <Zap size={14} className="text-green-600 dark:text-green-400" />
-                <span className="text-xs font-medium text-green-700 dark:text-green-300">Fast</span>
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
-                <Lock size={14} className="text-purple-600 dark:text-purple-400" />
-                <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Private</span>
+                  Sign in
+                </h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Join the community</p>
               </div>
             </div>
+            {!isLoading && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
+                aria-label="Close"
+              >
+                <XCircle size={18} strokeWidth={2} aria-hidden />
+              </button>
+            )}
           </div>
 
-          {/* Error Message */}
+          <p className="mb-4 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
+            Connect a Cardano wallet or continue with Google or GitHub.
+          </p>
+
           {error && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-start gap-3 animate-shake">
-              <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200/80 bg-red-50/90 px-3 py-2.5 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-300">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" strokeWidth={2} />
+              <p className="text-xs leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="py-10 text-center">
+              <Loader2 size={32} className="mx-auto animate-spin text-zinc-500" strokeWidth={2} />
+              <p className="mt-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {step === 'connecting' && 'Connecting to your wallet…'}
+                {step === 'signing' && 'Sign the message in your wallet'}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                {step === 'signing' && 'Check your wallet extension for the request'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
               <div>
-                <p className="font-semibold mb-1">Connection Failed</p>
-                <p className="text-xs opacity-90">{error}</p>
-              </div>
-            </div>
-          )}
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                  Cardano wallet
+                </p>
 
-          {/* Loading State */}
-          {isLoading && (
-            <div className="text-center py-12">
-              <div className="relative inline-block">
-                <Loader className="animate-spin text-blue-500" size={48} strokeWidth={2.5} />
-                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl animate-pulse"></div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 mt-6 font-medium">
-                {step === 'connecting' && 'Connecting to your wallet...'}
-                {step === 'signing' && 'Please sign the message in your wallet...'}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                {step === 'connecting' && 'This will only take a moment'}
-                {step === 'signing' && 'Check your wallet extension for a signature request'}
-              </p>
-            </div>
-          )}
-
-          {/* Login Options */}
-          {!isLoading && (
-            <div className="space-y-6">
-              {/* Cardano Wallets Section */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                    <Wallet size={16} className="text-white" />
-                  </div>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">
-                    Cardano Wallets
-                  </p>
-                </div>
-
-                {/* Cardano Wallets */}
                 {!showCardanoWallets ? (
-                  <button
-                    onClick={() => setShowCardanoWallets(true)}
-                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-gradient-to-r hover:from-blue-500/5 hover:to-cyan-500/5 transition-all duration-300 group hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow">
-                      <img 
-                        src="/Cardano-RGB_Logo-Icon-Blue.png" 
-                        alt="Cardano" 
-                        className="w-7 h-7"
+                  <button type="button" onClick={() => setShowCardanoWallets(true)} className={optionBtnClass}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 dark:border-white/10 dark:bg-white/[0.04]">
+                      <img
+                        src="/Cardano-RGB_Logo-Icon-Blue.png"
+                        alt=""
+                        className="h-6 w-6 object-contain"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
-                          e.currentTarget.parentElement!.innerHTML = '<span class="text-white font-bold text-xl">₳</span>';
+                          const fallback = e.currentTarget.nextElementSibling;
+                          if (fallback) (fallback as HTMLElement).style.display = 'block';
                         }}
                       />
+                      <Wallet
+                        size={18}
+                        strokeWidth={2}
+                        className="hidden text-zinc-500"
+                        aria-hidden
+                      />
                     </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-bold text-gray-900 dark:text-white">Cardano Wallet</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {cardanoWallets.length > 0 
-                          ? `${cardanoWallets.length} wallet(s) available` 
-                          : 'Connect with Cardano'}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Cardano wallet</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {cardanoWallets.length > 0
+                          ? `${cardanoWallets.length} detected`
+                          : 'Browse available wallets'}
                       </p>
                     </div>
-                    <ChevronRight size={20} className="text-gray-400 group-hover:text-blue-500 transition-colors group-hover:translate-x-1 transition-transform" />
+                    <ChevronRight size={16} className="shrink-0 text-zinc-400" strokeWidth={2} />
                   </button>
                 ) : (
-                  <div className="space-y-4 animate-slide-in">
+                  <div className="space-y-3">
                     {cardanoWallets.length > 0 ? (
                       <>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                           {cardanoWallets.map((wallet) => (
                             <button
                               key={wallet.name}
+                              type="button"
                               onClick={() => handleCardanoLogin(wallet.name)}
-                              className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-500/5 hover:to-cyan-500/5 transition-all duration-300 group hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                              className={walletTileClass}
                             >
-                              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 flex items-center justify-center flex-shrink-0 group-hover:from-blue-500/20 group-hover:to-cyan-500/20 transition-all border-2 border-blue-500/20 group-hover:border-blue-500/40">
+                              <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-200/70 bg-zinc-50 dark:border-white/10 dark:bg-white/[0.04]">
                                 {wallet.icon ? (
-                                  <img src={wallet.icon} alt={wallet.name} className="w-10 h-10 object-contain" />
+                                  <img
+                                    src={wallet.icon}
+                                    alt=""
+                                    className="h-8 w-8 object-contain"
+                                  />
                                 ) : (
-                                  <span className="text-blue-500 font-bold text-2xl">₳</span>
+                                  <span className="text-lg font-semibold text-zinc-600 dark:text-zinc-400">
+                                    ₳
+                                  </span>
                                 )}
                               </div>
-                              <div className="text-center">
-                                <p className="font-semibold text-sm text-gray-900 dark:text-white">{wallet.name}</p>
-                                {wallet.version && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">v{wallet.version}</p>
-                                )}
-                              </div>
+                              <p className="line-clamp-1 text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                                {wallet.name}
+                              </p>
                             </button>
                           ))}
                         </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3">
-                          <p className="text-xs text-blue-700 dark:text-blue-300 font-medium text-center">
-                            ⚠️ Mainnet wallets only. Testnet wallets are not supported.
-                          </p>
-                        </div>
+                        <p className="rounded-lg border border-zinc-200/70 bg-zinc-50/90 px-2.5 py-2 text-center text-[11px] text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400">
+                          Mainnet only — testnet wallets are not supported.
+                        </p>
                       </>
                     ) : (
-                      <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                        <p className="font-medium mb-1">No Cardano wallet detected</p>
-                        <p className="text-xs">Please install Nami, Eternl, or another Cardano wallet</p>
+                      <div className="rounded-lg border border-dashed border-zinc-200 px-3 py-4 text-center text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                        <p className="font-medium text-zinc-700 dark:text-zinc-300">No wallet detected</p>
+                        <p className="mt-0.5">Install Nami, Eternl, or another Cardano wallet</p>
                       </div>
                     )}
                     <button
+                      type="button"
                       onClick={() => setShowCardanoWallets(false)}
-                      className="w-full text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 py-2 font-medium transition-colors"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                     >
-                      ← Back to wallets
+                      <ArrowLeft size={14} strokeWidth={2} />
+                      Back
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Divider */}
-              <div className="relative py-4">
+              <div className="relative py-1">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+                  <div className="w-full border-t border-zinc-200 dark:border-white/[0.08]" />
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900">
-                    OR CONTINUE WITH
+                  <span className="bg-white px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">
+                    Or
                   </span>
                 </div>
               </div>
 
-              {/* Social Login Section */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Google */}
-                  <button
-                    onClick={handleGoogleLogin}
-                    className="flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-red-500 dark:hover:border-red-500 hover:bg-gradient-to-r hover:from-red-500/5 hover:to-pink-500/5 transition-all duration-300 group hover:shadow-lg hover:shadow-red-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <Chrome size={20} className="text-red-500" />
-                    <span className="font-semibold">Google</span>
-                  </button>
-
-                  {/* GitHub */}
-                  <button
-                    onClick={handleGithubLogin}
-                    className="flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-800 dark:hover:border-gray-400 hover:bg-gradient-to-r hover:from-gray-800/5 hover:to-gray-600/5 dark:hover:from-gray-400/5 dark:hover:to-gray-500/5 transition-all duration-300 group hover:shadow-lg hover:shadow-gray-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <Github size={20} />
-                    <span className="font-semibold">GitHub</span>
-                  </button>
-                </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={handleGoogleLogin} className={socialBtnClass}>
+                  <Chrome size={16} className="text-zinc-600 dark:text-zinc-400" strokeWidth={2} />
+                  Google
+                </button>
+                <button type="button" onClick={handleGithubLogin} className={socialBtnClass}>
+                  <Github size={16} className="text-zinc-700 dark:text-zinc-300" strokeWidth={2} />
+                  GitHub
+                </button>
               </div>
             </div>
           )}
 
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              By connecting, you agree to our{' '}
-              <button className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                Terms of Service
-              </button>{' '}
-              and{' '}
-              <button className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                Privacy Policy
-              </button>
-            </p>
-          </div>
-        </GlassCard>
+          <p className="mt-5 border-t border-zinc-100 pt-4 text-center text-[11px] leading-relaxed text-zinc-500 dark:border-white/[0.06] dark:text-zinc-500">
+            By signing in, you agree to our{' '}
+            <Link
+              to="/terms-of-use"
+              onClick={onClose}
+              className="font-medium text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
+            >
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link
+              to="/privacy-policy"
+              onClick={onClose}
+              className="font-medium text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-

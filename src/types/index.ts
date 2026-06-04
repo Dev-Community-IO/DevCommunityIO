@@ -75,6 +75,7 @@ export interface Post {
   upvotes: number;
   downvotes: number;
   commentCount: number;
+  viewCount?: number;
   timestamp?: Date | string;
   createdAt?: string;
   publishedAt?: string;

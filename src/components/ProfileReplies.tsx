@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MessageSquare, Calendar, Edit2, Trash2, MoreVertical } from 'lucide-react';
-import { GlassCard } from './GlassCard';
-import { Avatar } from './Avatar';
+import { Search, MessageSquare, Edit2, Trash2, MoreVertical, ArrowRight } from 'lucide-react';
 import usersService from '../services/api/users.service';
 import commentsService from '../services/api/comments.service';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,25 +7,20 @@ import { useNavigate } from 'react-router-dom';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 
 const ReplySkeleton = () => (
-  <div className="animate-pulse">
-    <GlassCard className="p-6">
-      <div className="flex items-start gap-4">
-        <div className="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded-full" />
-        <div className="flex-1 space-y-3">
-          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4" />
-          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2" />
-          <div className="flex gap-4 mt-4">
-            <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16" />
-            <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16" />
-          </div>
-        </div>
-      </div>
-    </GlassCard>
+  <div className="animate-pulse rounded-xl border border-gray-200/80 bg-white p-3 dark:border-white/10 dark:bg-black/20">
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="h-3 flex-1 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-3 w-10 shrink-0 rounded bg-gray-200 dark:bg-gray-700" />
+    </div>
+    <div className="space-y-1.5">
+      <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-3 w-4/5 rounded bg-gray-200 dark:bg-gray-700" />
+    </div>
   </div>
 );
 
-const ReplySkeletonList = ({ count = 3 }: { count?: number }) => (
-  <div className="space-y-4">
+const ReplySkeletonList = ({ count = 4 }: { count?: number }) => (
+  <div className="space-y-2">
     {Array.from({ length: count }).map((_, i) => (
       <ReplySkeleton key={i} />
     ))}
@@ -36,6 +29,18 @@ const ReplySkeletonList = ({ count = 3 }: { count?: number }) => (
 
 interface ProfileRepliesProps {
   username: string;
+}
+
+function getReplyPost(reply: Record<string, unknown>) {
+  const post = reply.post as { title?: string; slug?: string; id?: string } | undefined;
+  return {
+    title: (reply.postTitle as string) || post?.title || 'Post',
+    slug: (reply.postSlug as string) || post?.slug || (reply.postId as string) || post?.id,
+  };
+}
+
+function getReplyCreatedAt(reply: Record<string, unknown>) {
+  return (reply.createdAt || reply.created_at || reply.timestamp) as string | Date | undefined;
 }
 
 export function ProfileReplies({ username }: ProfileRepliesProps) {
@@ -66,12 +71,11 @@ export function ProfileReplies({ username }: ProfileRepliesProps) {
           page: currentPage,
           limit: 20,
         });
-        
+
         if (response && response.data) {
           setReplies(response.data);
           setPaginationMeta(response.meta || paginationMeta);
         } else {
-          // Handle legacy response format
           setReplies(Array.isArray(response) ? response : []);
         }
       } catch (err) {
@@ -90,9 +94,9 @@ export function ProfileReplies({ username }: ProfileRepliesProps) {
   const handleEditReply = async (replyId: string) => {
     try {
       await commentsService.updateComment(replyId, { content: editingContent });
-      setReplies(prev => prev.map(r => 
-        r.id === replyId ? { ...r, content: editingContent } : r
-      ));
+      setReplies((prev) =>
+        prev.map((r) => (r.id === replyId ? { ...r, content: editingContent } : r))
+      );
       setEditingReplyId(null);
       setEditingContent('');
     } catch (error: any) {
@@ -109,7 +113,7 @@ export function ProfileReplies({ username }: ProfileRepliesProps) {
     try {
       setDeletingReplyId(replyId);
       await commentsService.deleteComment(replyId);
-      setReplies(prev => prev.filter(r => r.id !== replyId));
+      setReplies((prev) => prev.filter((r) => r.id !== replyId));
     } catch (error: any) {
       console.error('Failed to delete reply:', error);
       alert('Failed to delete reply: ' + (error.response?.data?.message || error.message));
@@ -125,227 +129,255 @@ export function ProfileReplies({ username }: ProfileRepliesProps) {
     setShowMenuId(null);
   };
 
-  const filteredReplies = replies.filter(reply =>
-    (reply.content && reply.content.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (reply.postTitle && reply.postTitle.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredReplies = replies.filter((reply) => {
+    const { title } = getReplyPost(reply);
+    const q = searchQuery.toLowerCase();
+    return (
+      (reply.content && reply.content.toLowerCase().includes(q)) ||
+      title.toLowerCase().includes(q)
+    );
+  });
 
-  const timeAgo = (date: Date | string) => {
-    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
+  const timeAgo = (date: Date | string | undefined) => {
+    if (!date) return '';
+    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return `${minutes}m`;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    if (days < 30) return `${days}d`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo`;
+    return `${Math.floor(months / 12)}y`;
+  };
+
+  const openThread = (reply: Record<string, unknown>) => {
+    const { slug } = getReplyPost(reply);
+    if (slug) navigate(`/post/${slug}`);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <GlassCard className="p-4">
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search your replies..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg bg-white/50 dark:bg-black/20 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-          />
-        </div>
-      </GlassCard>
-
-      {/* Replies List */}
-      {loading ? (
-        <ReplySkeletonList count={3} />
-      ) : filteredReplies.length === 0 ? (
-        <GlassCard className="p-12 text-center space-y-4">
-          <div className="text-6xl">💬</div>
-          <div>
-            <h3 className="text-xl font-bold mb-2">No Replies Yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {isOwnProfile ? "You haven't replied to any posts yet." : "This user hasn't replied to any posts yet."}
+    <div className="space-y-4 sm:space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="shrink-0">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Replies</h2>
+          {!loading && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {filteredReplies.length === 0
+                ? 'No replies found'
+                : `${filteredReplies.length} ${filteredReplies.length === 1 ? 'reply' : 'replies'}${searchQuery ? ` matching "${searchQuery}"` : ''}`}
             </p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
-            >
-              Join Discussions
-            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search
+          size={16}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+        <input
+          type="text"
+          placeholder={isOwnProfile ? 'Search your replies...' : 'Search replies...'}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 dark:border-gray-700 dark:bg-gray-800 dark:focus:border-zinc-500"
+        />
+      </div>
+
+      {loading ? (
+        <ReplySkeletonList count={4} />
+      ) : filteredReplies.length === 0 ? (
+        <div className="py-10 text-center sm:py-12">
+          <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+            <MessageSquare size={22} className="text-gray-400 dark:text-gray-500" />
           </div>
-        </GlassCard>
+          <h3 className="mb-1 text-base font-semibold text-gray-900 dark:text-white">
+            {searchQuery ? 'No matching replies' : 'No replies yet'}
+          </h3>
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            {searchQuery
+              ? 'Try a different search term.'
+              : isOwnProfile
+                ? "You haven't joined any discussions yet."
+                : "This user hasn't replied to any posts yet."}
+          </p>
+          {!searchQuery && isOwnProfile && (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            >
+              Browse feed
+            </button>
+          )}
+        </div>
       ) : (
-        <div className="space-y-4">
-          {filteredReplies.map(reply => (
-            <GlassCard key={reply.id} className="p-5 hover:scale-[1.01] transition-transform duration-300">
-              <div className="space-y-3">
-                {/* Reply Header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2 mb-2">
-                      <MessageSquare size={14} />
-                      Replied to:
+        <ul className="space-y-2">
+          {filteredReplies.map((reply) => {
+            const post = getReplyPost(reply);
+            const createdAt = getReplyCreatedAt(reply);
+            const isEditing = editingReplyId === reply.id;
+
+            return (
+              <li
+                key={reply.id}
+                className="group rounded-xl border border-gray-200/80 bg-white p-3 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-black/20 dark:hover:border-white/20"
+              >
+                <div className="mb-1.5 flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      <MessageSquare size={12} className="shrink-0 text-gray-400" />
+                      <span className="shrink-0">on</span>
                       <button
-                        onClick={() => navigate(`/post/${reply.postSlug || reply.postId}`)}
-                        className="font-semibold text-blue-500 hover:text-blue-600 hover:underline"
+                        type="button"
+                        onClick={() => openThread(reply)}
+                        className="max-w-[min(100%,14rem)] truncate font-medium text-gray-900 hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400 sm:max-w-xs"
                       >
-                        {reply.postTitle || 'Post'}
+                        {post.title}
                       </button>
-                    </p>
+                      {createdAt && (
+                        <>
+                          <span className="text-gray-300 dark:text-gray-600">·</span>
+                          <time dateTime={new Date(createdAt).toISOString()} className="shrink-0 tabular-nums">
+                            {timeAgo(createdAt)}
+                          </time>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                      <Calendar size={12} />
-                      {timeAgo(reply.createdAt || reply.timestamp)}
-                    </span>
-                    {isOwnProfile && (
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenuId(showMenuId === reply.id ? null : reply.id);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        >
-                          <MoreVertical size={16} className="text-gray-500" />
-                        </button>
-                        {showMenuId === reply.id && (
-                          <div className="absolute top-full right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-10">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEdit(reply);
-                              }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                              <Edit2 size={14} />
-                              Edit
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteReply(reply.id);
-                              }}
-                              disabled={deletingReplyId === reply.id}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                            >
-                              <Trash2 size={14} />
-                              {deletingReplyId === reply.id ? 'Deleting...' : 'Delete'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+
+                  {isOwnProfile && (
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMenuId(showMenuId === reply.id ? null : reply.id);
+                        }}
+                        className="rounded-md p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                        aria-label="Reply options"
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+                      {showMenuId === reply.id && (
+                        <div className="absolute right-0 top-full z-10 mt-1 w-36 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEdit(reply);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <Edit2 size={13} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteReply(reply.id);
+                            }}
+                            disabled={deletingReplyId === reply.id}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                          >
+                            <Trash2 size={13} />
+                            {deletingReplyId === reply.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Reply Content */}
-                {editingReplyId === reply.id ? (
+                {isEditing ? (
                   <div className="space-y-2">
                     <textarea
                       value={editingContent}
                       onChange={(e) => setEditingContent(e.target.value)}
-                      rows={4}
-                      className="w-full px-3 py-2 text-sm rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={3}
+                      className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
                       placeholder="Edit your reply..."
                     />
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={() => handleEditReply(reply.id)}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
                       >
                         Save
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setEditingReplyId(null);
                           setEditingContent('');
                         }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                       >
                         Cancel
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    <MarkdownRenderer content={reply.content || ''} compact />
-                  </div>
-                )}
-
-                {/* Reply Footer */}
-                {!editingReplyId && (
-                  <div className="flex items-center gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => navigate(`/post/${reply.postSlug || reply.postId}`)}
-                      className="text-sm text-blue-500 hover:text-blue-600 font-medium"
+                  <>
+                    <div
+                      className="line-clamp-3 text-sm leading-snug text-gray-700 dark:text-gray-300 [&_*]:!my-0"
+                      onClick={() => openThread(reply)}
+                      onKeyDown={(e) => e.key === 'Enter' && openThread(reply)}
+                      role="button"
+                      tabIndex={0}
                     >
-                      View Thread
+                      <MarkdownRenderer content={reply.content || ''} compact />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openThread(reply)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                    >
+                      View thread
+                      <ArrowRight size={12} />
                     </button>
-                  </div>
+                  </>
                 )}
-              </div>
-            </GlassCard>
-          ))}
-        </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {/* Pagination */}
       {!loading && filteredReplies.length > 0 && paginationMeta.lastPage > 1 && (
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {((currentPage - 1) * paginationMeta.perPage) + 1} to{' '}
-              {Math.min(currentPage * paginationMeta.perPage, paginationMeta.total)} of{' '}
-              {paginationMeta.total} replies
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, paginationMeta.lastPage) }, (_, i) => {
-                  let pageNum;
-                  if (paginationMeta.lastPage <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= paginationMeta.lastPage - 2) {
-                    pageNum = paginationMeta.lastPage - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 rounded-lg transition-colors ${
-                        currentPage === pageNum
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(paginationMeta.lastPage, prev + 1))}
-                disabled={currentPage === paginationMeta.lastPage}
-                className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
+        <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {(currentPage - 1) * paginationMeta.perPage + 1}–
+            {Math.min(currentPage * paginationMeta.perPage, paginationMeta.total)} of{' '}
+            {paginationMeta.total}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Previous
+            </button>
+            <span className="min-w-[4rem] text-center text-xs tabular-nums text-gray-500 dark:text-gray-400">
+              {currentPage} / {paginationMeta.lastPage}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(paginationMeta.lastPage, prev + 1))}
+              disabled={currentPage === paginationMeta.lastPage}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Next
+            </button>
           </div>
-        </GlassCard>
+        </div>
       )}
     </div>
   );

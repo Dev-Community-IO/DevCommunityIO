@@ -10,6 +10,15 @@ import { useNavigate } from 'react-router-dom';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
+const hoverCardShellClass =
+  'fixed z-[9999] w-72 overflow-hidden rounded-xl border p-0 pointer-events-auto ' +
+  'bg-white/95 border-zinc-200/80 shadow-lg shadow-black/5 backdrop-blur-xl ' +
+  'animate-in fade-in duration-200 ' +
+  'dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40';
+
+const hoverCardHeaderFallbackClass =
+  'absolute inset-0 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-200 dark:from-[#0a1220] dark:via-[#060b14] dark:to-[#0a1020]';
+
 interface UserHoverCardDropdownProps {
   user: {
     id: string;
@@ -181,14 +190,7 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
       ref={cardRef}
       onMouseEnter={cancelClose}
       onMouseLeave={handleCardMouseLeave}
-      className={`
-        fixed z-[9999] w-72 p-0 rounded-xl
-        bg-white dark:bg-gray-900 backdrop-blur-xl
-        border border-gray-200 dark:border-gray-700
-        shadow-xl shadow-black/5 dark:shadow-black/30
-        animate-in fade-in duration-200
-        overflow-hidden pointer-events-auto
-      `}
+      className={hoverCardShellClass}
       style={{
         top: position === 'top' ? 'auto' : `${cardPosition.top}px`,
         bottom: position === 'top' ? `${window.innerHeight - cardPosition.top}px` : 'auto',
@@ -198,7 +200,7 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
       }}
     >
           {/* Header with Cover Image and Avatar Overlay */}
-          <div className="relative h-24 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 overflow-visible">
+          <div className="relative h-24 overflow-visible bg-zinc-100 dark:bg-[#0a1020]">
             {/* User Cover Image */}
             {(user.coverImage || user.coverImageUrl) ? (
               <>
@@ -216,7 +218,7 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
                 </div>
               </>
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
+              <div className={hoverCardHeaderFallbackClass} />
             )}
             
             {/* Shimmer effect */}
@@ -225,18 +227,17 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
             {/* Avatar positioned at bottom of header - circular, no square background */}
             <div className="absolute -bottom-8 left-4 z-20">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full border-3 border-white dark:border-gray-900 overflow-hidden shadow-xl bg-white dark:bg-gray-800">
-                  <Avatar 
-                    src={user.avatarUrl || user.avatar} 
+                <div className="w-16 h-16 rounded-full overflow-hidden shadow-lg">
+                  <Avatar
+                    src={user.avatarUrl || user.avatar}
                     alt={user.username}
-                    isTrusted={user.isTrusted} 
-                    size="lg" 
-                    className="w-full h-full rounded-full"
+                    size="lg"
+                    className="w-full h-full rounded-full ring-0"
                   />
                 </div>
                 {/* Page Logo under avatar if post is for a page */}
                 {page && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg overflow-hidden border-2 border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg">
+                  <div className="absolute -bottom-1 -right-1 h-6 w-6 overflow-hidden rounded-lg border-2 border-white bg-white shadow-lg dark:border-zinc-900 dark:bg-zinc-800">
                     <img 
                       src={page.logo || page.logoUrl || DEFAULT_PAGE_LOGO}
                       alt={page.name || 'Page'}
@@ -257,19 +258,17 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
             {/* Name & Badge - Compact */}
             <div className="mb-2">
               <div className="flex items-center gap-1.5">
-                <h3 className="font-bold text-base text-gray-900 dark:text-white truncate">
+                <h3 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
                   {user.pseudo || user.username}
                 </h3>
                 {user.isVerified && <VerifiedBadge size={14} />}
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                @{user.username}
-              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">@{user.username}</p>
             </div>
 
             {/* Bio - Compact */}
             {user.bio && (
-              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed mb-3">
+              <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
                 {user.bio}
               </p>
             )}
@@ -277,8 +276,10 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
             {/* Compact Stats - Inline */}
             <div className="flex items-center gap-3 mb-3 text-xs">
               <div className="flex items-center gap-1">
-                <span className="font-semibold text-gray-900 dark:text-white">{user.reputation}</span>
-                <span className="text-gray-500 dark:text-gray-400">Rep</span>
+                <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                  {user.reputation}
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">Rep</span>
               </div>
             </div>
 
@@ -286,19 +287,19 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
             {(user.location || user.website) && (
               <div className="space-y-1 mb-3">
                 {user.location && (
-                  <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                    <MapPin size={12} className="flex-shrink-0" />
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                    <MapPin size={12} className="shrink-0" strokeWidth={2} />
                     <span className="truncate">{user.location}</span>
                   </div>
                 )}
                 {user.website && (
                   <div className="flex items-center gap-1.5 text-xs">
-                    <LinkIcon size={12} className="flex-shrink-0 text-gray-600 dark:text-gray-400" />
+                    <LinkIcon size={12} className="shrink-0 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
                     <a 
                       href={user.website} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="truncate text-blue-600 dark:text-blue-400 hover:underline"
+                      className="truncate text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {user.website.replace(/^https?:\/\//, '')}

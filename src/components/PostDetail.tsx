@@ -1,6 +1,6 @@
-import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile, Award, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Smile, Award, AlertCircle, X, Eye } from 'lucide-react';
 import { Post, Comment as CommentType, Page } from '../types';
-import { GlassCard } from './GlassCard';
+import { asidePanelClass, postCardDividerClass, postActionBtnClass } from './postCardSurface';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Comment } from './Comment';
@@ -11,6 +11,7 @@ import { ShareDropdown } from './ShareDropdown';
 import { ReportModal } from './ReportModal';
 import { MentionTextarea } from './MentionTextarea';
 import { PostOriginDisplay } from './PostOriginDisplay';
+import { PostTags } from './PostTags';
 import { ResponsivePostImage } from './ResponsivePostImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -19,8 +20,13 @@ import commentsService from '../services/api/comments.service';
 import reactionsService from '../services/api/reactions.service';
 import pagesService from '../services/api/pages.service';
 import bookmarksService from '../services/api/bookmarks.service';
+import postsService from '../services/api/posts.service';
+import { formatReadingTime } from '../utils/readingTime';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
+const detailPanelClass = `${asidePanelClass} p-3 sm:p-4 md:p-5`;
+
 import { PostDetailSkeleton, CommentSkeletonList } from './skeletons';
 import { useToast } from './Toast';
 
@@ -65,6 +71,26 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     }
     debugCommentGate('updateCommentRequirement', { value });
   }, [debugCommentGate]);
+
+  // Count a post "open" every time the detail page is opened (no per-user dedup).
+  // The displayed count updates from the server's response so it ticks up live.
+  // A ref guards React strict-mode's dev double-invoke from counting one open
+  // twice; genuine re-opens (new post.id) still count each time.
+  const [viewCount, setViewCount] = useState<number>(post.viewCount || 0);
+  const lastTrackedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!post?.id) return;
+    setViewCount(post.viewCount || 0);
+    if (lastTrackedRef.current === post.id) return;
+    lastTrackedRef.current = post.id;
+    postsService
+      .trackView(post.id, 'open')
+      .then((r) => {
+        if (r && typeof r.viewCount === 'number') setViewCount(r.viewCount);
+      })
+      .catch(() => {});
+  }, [post?.id]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const cachedRequirement = window.sessionStorage.getItem(COMMENT_REQUIREMENT_CACHE_KEY);
@@ -503,18 +529,17 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
     <>
       <button
         onClick={onClose}
-        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 active:text-gray-900 dark:active:text-gray-100 transition-colors group mb-3 sm:mb-4 md:mb-6 min-h-[44px] touch-manipulation -ml-1 pl-1"
+        className="mb-3 flex min-h-[40px] items-center gap-1.5 pl-1 text-zinc-500 transition-colors hover:text-zinc-800 active:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 dark:active:text-zinc-100 touch-manipulation -ml-1"
       >
-        <ArrowLeft size={18} className="sm:w-5 sm:h-5 group-active:-translate-x-1 transition-transform" />
-        <span className="text-xs sm:text-sm md:text-base font-medium">Back to Feed</span>
+        <ArrowLeft size={16} className="group-active:-translate-x-0.5 transition-transform" />
+        <span className="text-xs font-medium">Back to feed</span>
       </button>
 
-      <div className="space-y-4 sm:space-y-6">
-        {/* Main Content */}
-        <div className="space-y-4 sm:space-y-6 min-w-0">
-          <GlassCard className="p-3 sm:p-4 md:p-6 lg:p-8">
-            <div className="space-y-4 sm:space-y-5 min-w-0">
-              <div className="flex items-start justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="min-w-0 space-y-3 sm:space-y-4">
+          <article className={detailPanelClass}>
+            <div className="min-w-0 space-y-3 sm:space-y-3.5">
+              <div className="mb-2 flex items-start justify-between gap-2 sm:gap-3">
                 <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 flex-1 min-w-0">
                   {/* User Avatar and Page Logo */}
                   <div className="relative flex-shrink-0">
@@ -528,8 +553,8 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                             src={(post.author.avatar || post.author.avatarUrl) || ''} 
                             alt={post.author.username || post.author.pseudo || 'Unknown'} 
                             size="md" 
-                            className="cursor-pointer ring-2 ring-gray-200 dark:ring-gray-700 hover:ring-blue-500 dark:hover:ring-blue-400 transition-all"
-                            isTrusted={post.author.isTrusted}
+                            className="cursor-pointer"
+
                           />
                         {/* Page Logo under avatar if post is for a page */}
                         {pageData && (
@@ -562,19 +587,20 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                       <div className="flex items-center gap-2 flex-wrap">
                         <span 
                           onClick={() => navigate(`/profile/${post.author.username || post.author.pseudo || ''}`)}
-                          className="font-bold text-sm sm:text-base cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          className="cursor-pointer text-sm font-semibold text-zinc-900 transition-colors hover:text-zinc-700 dark:text-zinc-100 dark:hover:text-zinc-300"
                         >
                           {post.author.username || post.author.pseudo || 'Unknown'}
                         </span>
                         {post.author.isVerified && (
-                          <VerifiedBadge size={16} />
+                          <VerifiedBadge size={14} />
                         )}
                         {pageData && (
                           <>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">posted for</span>
+                            <span className="text-[11px] text-zinc-400 dark:text-zinc-500">posted for</span>
                             <button
+                              type="button"
                               onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
-                              className="font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-300 dark:hover:to-cyan-300 transition-all cursor-pointer"
+                              className="cursor-pointer text-sm font-semibold text-zinc-700 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
                             >
                               {pageData.name}
                             </button>
@@ -582,21 +608,29 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                         )}
                       </div>
                     )}
-                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
                       <span>{timeAgo(post.publishedAt || post.createdAt || post.timestamp)}</span>
                       <span>•</span>
-                      <span className="text-xs">{Math.ceil(post.content.length / 200)} min read</span>
+                      <span className="text-xs">{formatReadingTime(post.content)}</span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-xs" title={`${viewCount} views`}>
+                        <Eye size={13} />
+                        {viewCount}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-all duration-300 flex-shrink-0">
-                  <MoreHorizontal size={20} />
+                <button
+                  type="button"
+                  className="shrink-0 rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 dark:hover:bg-white/[0.06]"
+                >
+                  <MoreHorizontal size={18} />
                 </button>
               </div>
 
               {/* Post Origin Display - Under Author Card */}
               {post.postOrigin || post.originSource || post.originUrl ? (
-                <div className="mb-4 sm:mb-6">
+                <div className="mb-3 sm:mb-4">
                   <PostOriginDisplay 
                     postOrigin={post.postOrigin}
                     originSource={post.originSource}
@@ -606,19 +640,21 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
               ) : null}
 
               <div>
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6 leading-tight">{post.title}</h1>
+                <h1 className="mb-3 text-xl font-semibold leading-snug tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
+                  {post.title}
+                </h1>
 
               {/* Cover Image - Only show if user checked "Auto-generate social preview image" OR uploaded an image */}
               {/* Don't show auto-generated OG images unless user explicitly requested them */}
               {((post.autoGenerateImage && (post.coverImage || post.coverImageUrl || post.coverImageSizes || post.ogImageUrl)) || 
                 (post.coverImage || post.coverImageUrl || post.coverImageSizes)) ? (
-                <div className="relative w-full h-48 sm:h-64 md:h-80 lg:h-96 xl:h-[28rem] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-4 sm:mb-6 shadow-lg">
+                <div className="relative mb-4 w-full overflow-hidden rounded-lg border border-zinc-200/60 bg-zinc-100 dark:border-white/[0.06] dark:bg-zinc-900/80 sm:mb-6">
                   <ResponsivePostImage
                     coverImageUrl={post.coverImage || post.coverImageUrl || (post.autoGenerateImage ? post.ogImageUrl : undefined)}
                     coverImageSizes={post.coverImageSizes}
                     alt={post.title}
-                    className="w-full h-full object-cover"
-                    size="full" // Use full size for detail view
+                    naturalHeight
+                    size="full"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
@@ -628,68 +664,12 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
               ) : null}
 
 
-              {post.tags && post.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-5">
-                  {post.tags.map((tag: any) => {
-                    const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
-                    const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
-                    const tagLogoUrl = typeof tag === 'string' ? null : (tag?.logoUrl || tag?.logo_url);
-                    return (
-                      <span
-                        key={tagKey}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
-                      >
-                        {tagLogoUrl ? (
-                          <>
-                            <img
-                              src={tagLogoUrl}
-                              alt={tagName}
-                              className="w-4 h-4 rounded object-cover flex-shrink-0"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
-                            <span>#{tagName}</span>
-                          </>
-                        ) : (
-                          <span>#{tagName}</span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+              <PostTags tags={post.tags} className="mb-3" />
 
-              <div className="prose prose-lg dark:prose-invert max-w-none
-                prose-headings:font-bold prose-headings:tracking-tight
-                prose-h1:text-3xl prose-h1:mt-8 prose-h1:mb-4
-                prose-h2:text-2xl prose-h2:mt-6 prose-h2:mb-3
-                prose-h3:text-xl prose-h3:mt-5 prose-h3:mb-2
-                prose-p:my-4 prose-p:leading-7
-                prose-ul:my-4 prose-ul:list-disc prose-ul:pl-6
-                prose-ol:my-4 prose-ol:list-decimal prose-ol:pl-6
-                prose-li:my-1 prose-li:leading-7
-                prose-blockquote:my-4 prose-blockquote:pl-4 prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:italic prose-blockquote:text-gray-700 dark:prose-blockquote:text-gray-300
-                prose-code:text-sm prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:before:content-[''] prose-code:after:content-['']
-                prose-pre:my-4 prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-pre:shadow-lg
-                prose-pre:code:bg-transparent prose-pre:code:p-0 prose-pre:code:text-sm prose-pre:code:leading-6
-                prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline prose-a:font-medium hover:prose-a:underline
-                prose-strong:font-bold prose-strong:text-gray-900 dark:prose-strong:text-white
-                prose-em:italic
-                prose-img:my-6 prose-img:rounded-lg prose-img:shadow-md
-                prose-hr:my-8 prose-hr:border-gray-300 dark:prose-hr:border-gray-700
-                prose-table:my-6 prose-table:w-full
-                prose-th:bg-gray-100 dark:prose-th:bg-gray-800 prose-th:p-3 prose-th:text-left prose-th:font-semibold
-                prose-td:p-3 prose-td:border-t prose-td:border-gray-200 dark:prose-td:border-gray-700
-                [&_pre]:!my-4 [&_pre]:!leading-6
-                [&_pre_code]:!leading-6 [&_pre_code]:!block
-                [&_code]:!leading-normal">
-                <MarkdownRenderer content={post.content} />
-              </div>
+              <MarkdownRenderer content={post.content} />
               </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-4 sm:pt-5 border-t border-gray-200 dark:border-gray-700">
+            <div className={`flex flex-col items-stretch justify-between gap-2 pt-3 sm:flex-row sm:items-center sm:gap-3 ${postCardDividerClass}`}>
               <div className="flex items-center flex-wrap gap-2">
                 {/* Emoji Reactions - Inline and Compact */}
                 {emojis.length > 0 && (
@@ -705,10 +685,10 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                           }
                           handleEmojiReaction(emoji);
                         }}
-                        className={`px-1.5 py-0.5 rounded text-xs transition-all duration-200 flex items-center gap-0.5 ${
+                        className={`flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs transition-colors ${
                           userEmojis.includes(emoji)
-                            ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-400/50'
-                            : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+                            ? 'bg-zinc-200/90 text-zinc-900 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:text-zinc-100 dark:ring-white/15'
+                            : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                         }`}
                       >
                         <span className="text-sm">{emoji}</span>
@@ -728,46 +708,45 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                       }
                       setShowEmojiPicker(!showEmojiPicker);
                     }}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
+                    className={postActionBtnClass}
                   >
                     <Smile size={14} />
-                    <span className="text-xs font-medium">React</span>
+                    <span>React</span>
                   </button>
 
                   {showEmojiPicker && (
-                    <div className="absolute bottom-full mb-3 left-0 z-[9999] animate-fade-in">
-                      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-3 min-w-[260px]">
-                        <div className="grid grid-cols-4 gap-2">
+                    <div className="absolute bottom-full left-0 z-[9999] mb-2 animate-fade-in">
+                      <div className="min-w-[220px] rounded-lg border border-zinc-200/80 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-zinc-900">
+                        <div className="grid grid-cols-4 gap-0.5">
                           {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
                             <button
                               key={emoji}
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleEmojiReaction(emoji);
                                 setShowEmojiPicker(false);
                               }}
-                              className={`p-3 text-2xl rounded-xl hover:scale-110 transition-all duration-200 ${
-                                userEmojis.includes(emoji) 
-                                  ? 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 ring-2 ring-blue-400 dark:ring-blue-500 shadow-lg' 
-                                  : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                              className={`rounded-md p-2 text-lg transition-colors ${
+                                userEmojis.includes(emoji)
+                                  ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
+                                  : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                               }`}
                             >
                               {emoji}
                             </button>
                           ))}
                         </div>
-                        {/* Arrow pointer */}
-                        <div className="absolute -bottom-2 left-4 w-4 h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300">
-                  <MessageCircle size={16} />
-                  <span className="text-xs sm:text-sm font-medium">{comments.length}</span>
+                <button type="button" className={postActionBtnClass}>
+                  <MessageCircle size={14} />
+                  <span>{comments.length}</span>
                 </button>
-                
+
                 <ShareDropdown
                   url={window.location.href}
                   title={post.title}
@@ -775,54 +754,54 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                   hashtags={post.tags || []}
                   description={post.content?.substring(0, 150)}
                   trigger={
-                    <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300">
-                      <Share2 size={16} />
-                      <span className="text-xs sm:text-sm font-medium hidden sm:inline">Share</span>
+                    <button type="button" className={postActionBtnClass}>
+                      <Share2 size={14} />
+                      <span className="hidden sm:inline">Share</span>
                     </button>
                   }
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   onClick={handleBookmark}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ${
-                    bookmarked
-                      ? 'bg-yellow-500/20 text-yellow-500 shadow-lg shadow-yellow-500/20'
-                      : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  className={`${postActionBtnClass} ${
+                    bookmarked ? 'text-zinc-900 dark:text-zinc-100' : ''
                   }`}
                 >
-                  <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
-                  <span className="text-xs sm:text-sm font-medium">{bookmarked ? 'Saved' : 'Save'}</span>
+                  <Bookmark size={14} fill={bookmarked ? 'currentColor' : 'none'} />
+                  <span>{bookmarked ? 'Saved' : 'Save'}</span>
                 </button>
-                
+
                 <button
+                  type="button"
                   onClick={() => setIsReportModalOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-all duration-300"
+                  className={`${postActionBtnClass} hover:text-red-600 dark:hover:text-red-400`}
                 >
-                  <Flag size={16} />
-                  <span className="text-xs sm:text-sm font-medium hidden sm:inline">Report</span>
+                  <Flag size={14} />
+                  <span className="hidden sm:inline">Report</span>
                 </button>
               </div>
             </div>
             </div>
-          </GlassCard>
+          </article>
 
           {isAuthenticated ? (
-          <GlassCard className="p-4 sm:p-6">
-        <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center gap-2">
-          <MessageCircle size={20} className="text-blue-500" />
-          Add a Comment
+          <section className={detailPanelClass}>
+        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <MessageCircle size={16} className="text-zinc-500" />
+          Add a comment
         </h3>
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-2.5">
           <MentionTextarea
             value={comment}
             onChange={handleCommentChange}
             placeholder="Share your thoughts... Use @ to mention other users"
-            rows={6}
+            rows={4}
             className={isCommentRequirementBlocking ? 'ring-2 ring-yellow-400/60 dark:ring-yellow-500/40' : ''}
           />
           {commentNotice && (
-            <div className="relative flex items-start gap-3 p-3 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-sm text-red-900 dark:text-red-100">
+            <div className="relative flex items-start gap-2.5 rounded-lg border border-red-300/80 bg-red-50 p-2.5 text-xs text-red-900 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100">
               <AlertCircle size={18} className="flex-shrink-0 mt-0.5 text-red-700 dark:text-red-300" />
               <div className="flex-1">
                 <p className="font-semibold mb-1">Action requise</p>
@@ -838,9 +817,9 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
             </div>
           )}
           {isCommentRequirementBlocking && (
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20">
-              <Award size={18} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-800 dark:text-yellow-200">
+            <div className="flex items-start gap-2.5 rounded-lg border border-yellow-200/80 bg-yellow-50 p-2.5 dark:border-yellow-800 dark:bg-yellow-900/20">
+              <Award size={16} className="mt-0.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+              <div className="text-xs text-yellow-800 dark:text-yellow-200">
                 <p className="font-semibold">Reputation required to comment</p>
                 {requirementMessage && (
                   <p className="mt-1">
@@ -854,9 +833,9 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
             </div>
           )}
           {commentError && (
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-              <AlertCircle size={18} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700 dark:text-red-300">{commentError}</p>
+            <div className="flex items-start gap-2.5 rounded-lg border border-red-200/80 bg-red-50 p-2.5 dark:border-red-800 dark:bg-red-900/20">
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+              <p className="text-xs text-red-700 dark:text-red-300">{commentError}</p>
             </div>
           )}
           <div className="flex justify-end">
@@ -870,13 +849,13 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
             </Button>
           </div>
         </div>
-      </GlassCard>
+      </section>
           ) : (
-            <GlassCard className="p-4 sm:p-6">
-              <div className="text-center py-4">
-                <MessageCircle size={24} className="text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-                <p className="text-gray-600 dark:text-gray-400 mb-3">
-                  Please log in to leave a comment
+            <section className={detailPanelClass}>
+              <div className="py-3 text-center">
+                <MessageCircle size={20} className="mx-auto mb-2 text-zinc-400" />
+                <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+                  Log in to leave a comment
                 </p>
                 <Button 
                   variant="primary" 
@@ -886,19 +865,19 @@ export function PostDetail({ post, onClose, onLoginRequired }: PostDetailProps) 
                   Log In to Comment
                 </Button>
               </div>
-            </GlassCard>
+            </section>
           )}
 
-      <div className="space-y-4 mb-6">
-        <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-          <MessageCircle size={20} className="text-gray-500 dark:text-gray-400" />
+      <div className="mb-4 space-y-3">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <MessageCircle size={16} className="text-zinc-500" />
           Comments ({comments.length})
         </h3>
         {loadingComments ? (
           <CommentSkeletonList count={3} />
         ) : comments.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            No comments yet. Be the first to comment!
+          <div className="py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+            No comments yet. Be the first to comment.
           </div>
         ) : (
           comments.map(comment => (

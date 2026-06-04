@@ -4,9 +4,11 @@ import { HackathonCard } from './HackathonCard';
 import { EventCard } from './EventCard';
 import { OpportunityCard } from './OpportunityCard';
 import { TrendingUp, Sparkles, Trophy, ChevronDown, Loader2, FileText, Hash, X, Heart, Clock, Flame } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import InfiniteScroll from 'react-infinite-scroll-component';
+import adsService, { PublicAd } from '../services/api/ads.service';
+import { InFeedAd } from './ads/InFeedAd';
 import { PostSkeletonList } from './skeletons';
 import { Hackathon } from '../services/api/hackathons.service';
 import { Event } from '../services/api/events.service';
@@ -39,11 +41,31 @@ interface PostFeedProps {
   activeCategory?: string;
 }
 
-export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, onOpportunityClick, onLoginRequired, loading, error, hasMore = false, fetchMore, activeTagFilter, activeTagLogo, onClearTagFilter, activeSort = 'hot', onSortChange, activeCategory = 'for-you' }: PostFeedProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+type FeedMenu = 'feed' | 'sort';
+
+export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, onOpportunityClick, onLoginRequired, loading, error, hasMore = false, fetchMore, activeTagFilter, activeTagLogo, onClearTagFilter, activeSort = 'hot', onSortChange, activeCategory = 'trending' }: PostFeedProps) {
+  const [openMenu, setOpenMenu] = useState<FeedMenu | null>(null);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Sponsored "pub" slots injected between posts (every few posts).
+  const [feedAds, setFeedAds] = useState<PublicAd[]>([]);
+  useEffect(() => {
+    let alive = true;
+    adsService.getAds('feed').then((a) => {
+      if (alive) setFeedAds(a);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const AD_INTERVAL = 5; // insert an ad after every N posts
+
+  const toggleMenu = (menu: FeedMenu) => {
+    setOpenMenu((current) => (current === menu ? null : menu));
+  };
+
+  const closeMenus = () => setOpenMenu(null);
 
   const filters = [
     { label: 'Hot', value: 'hot' as const, icon: TrendingUp, color: 'from-orange-500 to-red-500' },
@@ -52,9 +74,9 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
   ];
 
   const categoryFilters = [
+    { label: 'Trending', value: 'trending', icon: Flame, color: 'from-orange-500 to-red-500', requiresAuth: false },
     { label: 'For You', value: 'for-you', icon: Heart, color: 'from-pink-500 to-rose-500', requiresAuth: true },
     { label: 'Latest', value: 'latest', icon: Clock, color: 'from-blue-500 to-cyan-500', requiresAuth: false },
-    { label: 'Trending', value: 'trending', icon: Flame, color: 'from-orange-500 to-red-500', requiresAuth: false },
     { label: 'Following', value: 'following', icon: Sparkles, color: 'from-purple-500 to-pink-500', requiresAuth: true }
   ];
 
@@ -69,13 +91,90 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
 
   const handleCategoryChange = (category: string) => {
     const routes: Record<string, string> = {
-      'for-you': '/',
+      'trending': '/',
+      'for-you': '/for-you',
       'latest': '/latest',
-      'trending': '/trending',
       'following': '/following'
     };
     navigate(routes[category] || '/');
-    setIsCategoryDropdownOpen(false);
+    closeMenus();
+  };
+
+  const triggerClass = (isOpen: boolean) =>
+    `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 touch-manipulation sm:flex-none sm:justify-start sm:px-3.5 ${
+      isOpen
+        ? 'bg-zinc-100 text-zinc-900 shadow-sm dark:bg-white/10 dark:text-zinc-50'
+        : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100'
+    }`;
+
+  const menuPanelClass =
+    'absolute top-[calc(100%+6px)] z-40 min-w-[12.5rem] overflow-hidden rounded-xl border border-zinc-200/80 bg-white/95 shadow-lg backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/95 animate-slide-up';
+
+  const menuItemClass = (isActive: boolean) =>
+    `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors touch-manipulation ${
+      isActive
+        ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-white/10 dark:text-zinc-50'
+        : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-white/5'
+    }`;
+
+  const renderItem = (item: FeedItem) => {
+    if (item.type === 'post') {
+      return (
+        <PostCard
+          key={`post-${item.data.id}`}
+          post={item.data}
+          onClick={() => onPostClick(item.data)}
+          onLoginRequired={onLoginRequired}
+        />
+      );
+    } else if (item.type === 'hackathon') {
+      return (
+        <HackathonCard
+          key={`hackathon-${item.data.id}`}
+          hackathon={item.data}
+          onClick={() => onHackathonClick?.(item.data)}
+          onLoginRequired={onLoginRequired}
+        />
+      );
+    } else if (item.type === 'event') {
+      return (
+        <EventCard
+          key={`event-${item.data.id}`}
+          event={item.data}
+          onClick={() => onEventClick?.(item.data)}
+          onLoginRequired={onLoginRequired}
+        />
+      );
+    } else if (item.type === 'opportunity') {
+      return (
+        <OpportunityCard
+          key={`opportunity-${item.data.id}`}
+          opportunity={item.data}
+          onClick={() => onOpportunityClick?.(item.data)}
+          onLoginRequired={onLoginRequired}
+        />
+      );
+    }
+    return null;
+  };
+
+  // Render the feed, interleaving sponsored slots after every AD_INTERVAL posts.
+  const renderFeed = () => {
+    const nodes: Array<JSX.Element | null> = [];
+    let postCount = 0;
+    let adIndex = 0;
+    items.forEach((item) => {
+      nodes.push(renderItem(item));
+      if (item.type === 'post') {
+        postCount += 1;
+        if (postCount % AD_INTERVAL === 0 && feedAds.length > 0) {
+          const ad = feedAds[adIndex % feedAds.length];
+          adIndex += 1;
+          nodes.push(<InFeedAd key={`ad-${ad.id}-${postCount}`} ad={ad} />);
+        }
+      }
+    });
+    return nodes;
   };
 
   return (
@@ -123,126 +222,120 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
           Discover
         </h2>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Category Filter - Mobile Optimized */}
-            <div className="relative flex-1 sm:flex-none">
+        <div className="relative w-full sm:w-auto">
+          {openMenu !== null && (
+            <div
+              className="fixed inset-0 z-30 bg-black/25 backdrop-blur-[2px]"
+              aria-hidden
+              onClick={closeMenus}
+            />
+          )}
+
+          <div className="relative z-40 flex w-full items-stretch gap-0.5 rounded-xl border border-zinc-200/80 bg-white/90 p-1 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-black/30 sm:w-auto">
+            {/* Feed (category) */}
+            <div className="relative min-w-0 flex-1 sm:flex-none">
               <button
-                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md group w-full sm:w-auto touch-manipulation"
+                type="button"
+                aria-expanded={openMenu === 'feed'}
+                aria-haspopup="listbox"
+                onClick={() => toggleMenu('feed')}
+                className={triggerClass(openMenu === 'feed')}
               >
-                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${activeCategoryData.color} shadow-sm flex-shrink-0`}>
-                  <ActiveCategoryIcon size={14} className="text-white" strokeWidth={2.5} />
-                </div>
-                <span className="text-xs sm:text-sm font-semibold truncate">{activeCategoryData.label}</span>
-                <ChevronDown size={14} className={`transition-transform duration-300 flex-shrink-0 sm:w-4 sm:h-4 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isCategoryDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm sm:hidden"
-                    onClick={() => setIsCategoryDropdownOpen(false)}
-                  />
-                  <div className="absolute left-0 sm:right-0 mt-2 w-full sm:w-56 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-30 animate-slide-up">
-                    <div className="p-2 max-h-[70vh] sm:max-h-none overflow-y-auto">
-                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2 sticky top-0 bg-white dark:bg-gray-800 z-10">
-                        Feed
-                      </div>
-                      {availableCategories.map((category) => {
-                        const Icon = category.icon;
-                        const isActive = activeCategory === category.value;
-                        return (
-                          <button
-                            key={category.value}
-                            onClick={() => handleCategoryChange(category.value)}
-                            className={`w-full flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl transition-all duration-200 active:scale-95 touch-manipulation ${
-                              isActive
-                                ? 'bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 shadow-sm'
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700'
-                            }`}
-                          >
-                            <div className={`p-2 rounded-lg bg-gradient-to-br ${category.color} ${isActive ? 'shadow-lg' : 'opacity-70'} flex-shrink-0`}>
-                              <Icon size={14} className="text-white" strokeWidth={2.5} />
-                            </div>
-                            <span className={`text-sm font-medium flex-1 text-left ${
-                              isActive
-                                ? 'text-gray-900 dark:text-white'
-                                : 'text-gray-700 dark:text-gray-300'
-                            }`}>
-                              {category.label}
-                            </span>
-                            {isActive && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex-shrink-0"></div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Sort Filter - Mobile Optimized */}
-            <div className="relative flex-1 sm:flex-none">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md group w-full sm:w-auto touch-manipulation"
-              >
-                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${activeFilterData.color} shadow-sm flex-shrink-0`}>
-                  <ActiveIcon size={14} className="text-white" strokeWidth={2.5} />
-                </div>
-                <span className="text-xs sm:text-sm font-semibold truncate">{activeFilterData.label}</span>
-                <ChevronDown size={14} className={`transition-transform duration-300 flex-shrink-0 sm:w-4 sm:h-4 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-            {isDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10 bg-black/20 backdrop-blur-sm sm:hidden"
-                  onClick={() => setIsDropdownOpen(false)}
+                <ActiveCategoryIcon size={16} strokeWidth={2} className="shrink-0 text-zinc-500 dark:text-zinc-400" />
+                <span className="truncate">{activeCategoryData.label}</span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-zinc-400 transition-transform duration-200 ${openMenu === 'feed' ? 'rotate-180' : ''}`}
                 />
-                <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-20 animate-slide-up">
-                  <div className="p-2">
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2">
-                      Sort By
-                    </div>
-                    {filters.map((filter) => {
-                      const Icon = filter.icon;
-                      const isActive = activeSort === filter.value;
+              </button>
+
+              {openMenu === 'feed' && (
+                <div className={`${menuPanelClass} left-0 w-full sm:w-52`} role="listbox">
+                  <p className="border-b border-zinc-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:border-white/5 dark:text-zinc-500">
+                    Feed
+                  </p>
+                  <div className="max-h-[60vh] space-y-0.5 overflow-y-auto p-1.5 sm:max-h-none">
+                    {availableCategories.map((category) => {
+                      const Icon = category.icon;
+                      const isActive = activeCategory === category.value;
                       return (
                         <button
-                          key={filter.value}
-                          onClick={() => {
-                            onSortChange?.(filter.value);
-                            setIsDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl transition-all duration-200 active:scale-95 touch-manipulation ${
-                            isActive
-                              ? 'bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 shadow-sm'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700'
-                          }`}
+                          key={category.value}
+                          type="button"
+                          role="option"
+                          aria-selected={isActive}
+                          onClick={() => handleCategoryChange(category.value)}
+                          className={menuItemClass(isActive)}
                         >
-                          <div className={`p-2 rounded-lg bg-gradient-to-br ${filter.color} ${isActive ? 'shadow-lg' : 'opacity-70'} flex-shrink-0`}>
-                            <Icon size={14} className="text-white" strokeWidth={2.5} />
-                          </div>
-                          <span className={`text-sm font-medium ${
-                            isActive
-                              ? 'text-gray-900 dark:text-white'
-                              : 'text-gray-700 dark:text-gray-300'
-                          }`}>
-                            {filter.label}
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 dark:bg-white/5">
+                            <Icon size={14} strokeWidth={2} className="text-zinc-600 dark:text-zinc-300" />
                           </span>
+                          <span className="min-w-0 flex-1 truncate">{category.label}</span>
                           {isActive && (
-                            <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex-shrink-0"></div>
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-900 dark:bg-zinc-100" />
                           )}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
+
+            <div className="my-1 w-px shrink-0 self-stretch bg-zinc-200/80 dark:bg-white/10" aria-hidden />
+
+            {/* Sort */}
+            <div className="relative min-w-0 flex-1 sm:flex-none">
+              <button
+                type="button"
+                aria-expanded={openMenu === 'sort'}
+                aria-haspopup="listbox"
+                onClick={() => toggleMenu('sort')}
+                className={triggerClass(openMenu === 'sort')}
+              >
+                <ActiveIcon size={16} strokeWidth={2} className="shrink-0 text-zinc-500 dark:text-zinc-400" />
+                <span className="truncate">{activeFilterData.label}</span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-zinc-400 transition-transform duration-200 ${openMenu === 'sort' ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {openMenu === 'sort' && (
+                <div className={`${menuPanelClass} right-0 w-full sm:w-44`} role="listbox">
+                  <p className="border-b border-zinc-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:border-white/5 dark:text-zinc-500">
+                    Sort
+                  </p>
+                  <div className="space-y-0.5 p-1.5">
+                    {filters.map((filter) => {
+                      const Icon = filter.icon;
+                      const isActive = activeSort === filter.value;
+                      return (
+                        <button
+                          key={filter.value}
+                          type="button"
+                          role="option"
+                          aria-selected={isActive}
+                          onClick={() => {
+                            onSortChange?.(filter.value);
+                            closeMenus();
+                          }}
+                          className={menuItemClass(isActive)}
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 dark:bg-white/5">
+                            <Icon size={14} strokeWidth={2} className="text-zinc-600 dark:text-zinc-300" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{filter.label}</span>
+                          {isActive && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-900 dark:bg-zinc-100" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -287,89 +380,11 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
           }
           className="space-y-2 sm:space-y-3 md:space-y-4"
         >
-          {items.map((item) => {
-            if (item.type === 'post') {
-              return (
-                <PostCard
-                  key={`post-${item.data.id}`}
-                  post={item.data}
-                  onClick={() => onPostClick(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'hackathon') {
-              return (
-                <HackathonCard
-                  key={`hackathon-${item.data.id}`}
-                  hackathon={item.data}
-                  onClick={() => onHackathonClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'event') {
-              return (
-                <EventCard
-                  key={`event-${item.data.id}`}
-                  event={item.data}
-                  onClick={() => onEventClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'opportunity') {
-              return (
-                <OpportunityCard
-                  key={`opportunity-${item.data.id}`}
-                  opportunity={item.data}
-                  onClick={() => onOpportunityClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            }
-            return null;
-          })}
+          {renderFeed()}
         </InfiniteScroll>
       ) : !loading && !error && items.length > 0 ? (
         <div className="space-y-2 sm:space-y-3 md:space-y-4">
-          {items.map((item) => {
-            if (item.type === 'post') {
-              return (
-                <PostCard
-                  key={`post-${item.data.id}`}
-                  post={item.data}
-                  onClick={() => onPostClick(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'hackathon') {
-              return (
-                <HackathonCard
-                  key={`hackathon-${item.data.id}`}
-                  hackathon={item.data}
-                  onClick={() => onHackathonClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'event') {
-              return (
-                <EventCard
-                  key={`event-${item.data.id}`}
-                  event={item.data}
-                  onClick={() => onEventClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            } else if (item.type === 'opportunity') {
-              return (
-                <OpportunityCard
-                  key={`opportunity-${item.data.id}`}
-                  opportunity={item.data}
-                  onClick={() => onOpportunityClick?.(item.data)}
-                  onLoginRequired={onLoginRequired}
-                />
-              );
-            }
-            return null;
-          })}
+          {renderFeed()}
         </div>
       ) : !loading && !error && items.length === 0 ? (
         <div className="text-center py-12 text-gray-500 dark:text-gray-400">

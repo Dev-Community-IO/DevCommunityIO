@@ -352,23 +352,25 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300"
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
+        aria-label="Notifications"
+        type="button"
       >
-        <Bell size={20} className="text-gray-700 dark:text-gray-300" />
+        <Bell size={20} strokeWidth={2} />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold rounded-full animate-pulse">
+          <span className="absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[380px] sm:w-[420px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-fade-in">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-800 dark:to-gray-800">
+        <div className="absolute right-0 z-50 mt-2 w-[380px] overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-lg animate-fade-in dark:border-white/10 dark:bg-zinc-900 sm:w-[420px]">
+          <div className="flex items-center justify-between border-b border-zinc-100 p-4 dark:border-white/[0.06] dark:bg-zinc-900/80">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Notifications</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Notifications</h3>
               {unreadCount > 0 && (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
                 </p>
               )}
@@ -376,7 +378,7 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/[0.06]"
               >
                 <Check size={14} />
                 Mark all read
@@ -425,8 +427,8 @@ export function NotificationDropdown({ onViewAll }: NotificationDropdownProps) {
                             src={notification.user.avatar || notification.user.avatarUrl || ''}
                             alt={notification.user.username}
                             size="sm"
-                            className="flex-shrink-0 hover:ring-2 hover:ring-blue-500 transition-all border-2 border-gray-200 dark:border-gray-700"
-                            isTrusted={notification.user.isTrusted}
+                            className="flex-shrink-0 flex-shrink-0"
+
                         />
                         </div>
                       ) : (

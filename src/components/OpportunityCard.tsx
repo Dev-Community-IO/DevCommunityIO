@@ -1,7 +1,27 @@
 import { Briefcase, MapPin, DollarSign, Clock, MoreHorizontal, Smile, Bookmark, MessageCircle, Share2 } from 'lucide-react';
-import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
-import { Badge } from './Badge';
+import {
+  contentFeedCardClass,
+  contentFeedTitleClass,
+  contentFeedPreviewClass,
+  contentFeedCoverClass,
+  contentTypePillClass,
+  contentMetaChipClass,
+  contentAuthorLinkClass,
+  contentTimestampClass,
+  contentPageThumbClass,
+  contentStackedUserClass,
+  contentIconBtnClass,
+  contentEmojiActiveClass,
+  contentEmojiInactiveClass,
+  contentEmojiPickerClass,
+  contentBookmarkActiveClass,
+  contentBookmarkIdleClass,
+  postActionBtnClass,
+  postCardDividerClass,
+  postTagClass,
+} from './contentFeedCardTheme';
+import { ReputationBadge } from './ReputationBadge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Tooltip } from './Tooltip';
 import { UserHoverCardDropdown } from './UserHoverCardDropdown';
@@ -217,8 +237,20 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
   const commentCount = (opportunity.post as any)?.commentCount || 0;
 
   return (
-    <GlassCard hover className="p-4 overflow-hidden border-l-4 border-l-green-500 hover:border-l-green-600 transition-colors duration-300" onClick={onClick}>
-      <div className="space-y-3">
+    <article
+      className={contentFeedCardClass}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      tabIndex={0}
+      role="link"
+      aria-label={opportunity.title}
+    >
+      <div className="flex flex-col space-y-2 sm:space-y-2.5">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -235,7 +267,7 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                           navigate(`/pages/${opportunity.post.page.slug}`);
                         }
                       }}
-                      className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/80 dark:border-gray-800/80 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 relative z-10 cursor-pointer">
+                      className={contentPageThumbClass}>
                       <img 
                         src={opportunity.post?.page?.logo || opportunity.post?.page?.logoUrl || opportunity.logoUrl || DEFAULT_PAGE_LOGO} 
                         alt={opportunity.post?.page?.name || ''} 
@@ -245,11 +277,6 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                           target.src = DEFAULT_PAGE_LOGO;
                         }}
                       />
-                      {opportunity.post?.page?.isVerified && (
-                        <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                          <VerifiedBadge size={12} />
-                        </div>
-                      )}
                     </div>
                   }
                   onViewPage={() => {
@@ -275,7 +302,7 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                             navigate(`/profile/${company.username}`);
                           }
                         }}
-                        className="-ml-2 w-7 h-7 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ring-2 ring-green-500/20 hover:ring-green-500/40 relative z-20">
+                        className={contentStackedUserClass}>
                         <Avatar src={company.avatar || company.avatarUrl || opportunity.logoUrl || ''} alt={company.username} size="sm" />
                       </div>
                     }
@@ -318,25 +345,25 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                         navigate(`/profile/${company.username}`);
                       }
                     }}
-                    className="font-semibold text-sm truncate cursor-pointer hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                    className={contentAuthorLinkClass}
                   >
                     {company.username}
                   </span>
-                  {company.isVerified && <VerifiedBadge size={14} />}
+                  {company.isVerified && <VerifiedBadge variant="page" size={14} />}
                   {!opportunity.post?.page && (
-                    <Badge variant="gradient" className="text-xs px-2 py-0.5">{company.reputation || 0} rep</Badge>
+                    <ReputationBadge value={company.reputation || 0} />
                   )}
                 </>
               )}
-              <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              <span className={contentTimestampClass}>•</span>
+              <span className={contentTimestampClass}>
                 {timeAgo(opportunity.postedAt || opportunity.createdAt)}
               </span>
             </div>
           </div>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 flex-shrink-0"
+            className={contentIconBtnClass}
             type="button"
           >
             <MoreHorizontal size={16} />
@@ -344,30 +371,24 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
         </div>
 
         {/* Type Badge */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 shadow-sm">
-            <Briefcase size={14} className="text-green-500" />
-            <span className="text-xs font-semibold text-green-600 dark:text-green-400">Opportunity</span>
-          </div>
-          <Badge className="text-xs px-2 py-0.5">{opportunity.category}</Badge>
-          <Badge className="text-xs capitalize px-2 py-0.5">{opportunity.type}</Badge>
-          {opportunity.remote && (
-            <Badge className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400">Remote</Badge>
-          )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={contentTypePillClass}>
+            <Briefcase size={12} strokeWidth={2} />
+            Opportunity
+          </span>
+          {opportunity.category && <span className={`${postTagClass} capitalize`}>{opportunity.category}</span>}
+          {opportunity.type && <span className={`${postTagClass} capitalize`}>{opportunity.type}</span>}
+          {opportunity.remote && <span className={postTagClass}>Remote</span>}
         </div>
 
-        {/* Title */}
-        <h3 className="text-xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 dark:from-green-400 dark:via-emerald-400 dark:to-green-500 bg-clip-text text-transparent hover:from-green-700 hover:via-emerald-700 hover:to-green-800 dark:hover:from-green-300 dark:hover:via-emerald-300 dark:hover:to-green-400 transition-all duration-300 leading-tight cursor-pointer">
-          {opportunity.title}
-        </h3>
+        <h3 className={contentFeedTitleClass}>{opportunity.title}</h3>
 
-        {/* Cover Image */}
         {((opportunity.post as any)?.coverImage || (opportunity.post as any)?.coverImageUrl) && (
-          <div className="relative w-full h-40 sm:h-48 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 mb-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <div className={contentFeedCoverClass}>
             <img
               src={(opportunity.post as any).coverImage || (opportunity.post as any).coverImageUrl}
               alt={opportunity.title}
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+              className="h-full w-full object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
@@ -377,34 +398,30 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
         )}
 
         {/* Description Preview */}
-        <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
-          {getCleanPreview(opportunity.description, 200)}
-        </p>
+        <p className={contentFeedPreviewClass}>{getCleanPreview(opportunity.description, 200)}</p>
 
-        {/* Opportunity Metadata */}
-        <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 flex-wrap">
+        <div className="flex flex-wrap items-center gap-1.5">
           {opportunity.location && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <MapPin size={12} className="text-green-500" />
-              <span className="font-medium truncate max-w-[150px]">{opportunity.location}</span>
-            </div>
+            <span className={`${contentMetaChipClass} max-w-[180px] truncate`}>
+              <MapPin size={12} strokeWidth={2} className="shrink-0 text-zinc-400" />
+              {opportunity.location}
+            </span>
           )}
           {opportunity.salary && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <DollarSign size={12} className="text-yellow-500" />
-              <span className="font-medium">{opportunity.salary}</span>
-            </div>
+            <span className={contentMetaChipClass}>
+              <DollarSign size={12} strokeWidth={2} className="text-zinc-400" />
+              {opportunity.salary}
+            </span>
           )}
           {opportunity.experience && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-800/50">
-              <Clock size={12} className="text-blue-500" />
-              <span className="font-medium capitalize">{opportunity.experience}</span>
-            </div>
+            <span className={`${contentMetaChipClass} capitalize`}>
+              <Clock size={12} strokeWidth={2} className="text-zinc-400" />
+              {opportunity.experience}
+            </span>
           )}
         </div>
 
-        {/* Actions Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-white/5">
+        <div className={`flex items-center justify-between pt-2 sm:pt-2.5 ${postCardDividerClass}`}>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Emoji Reactions */}
             {emojis.length > 0 && (
@@ -420,11 +437,9 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                       }
                       handleEmojiReaction(emoji);
                     }}
-                    className={`px-2 py-1 rounded-lg text-xs transition-all duration-200 flex items-center gap-1 ${
-                      userEmojis.includes(emoji)
-                        ? 'bg-green-500/20 text-green-600 dark:text-green-400 ring-1 ring-green-400/50 shadow-sm'
-                        : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
+                    className={
+                      userEmojis.includes(emoji) ? contentEmojiActiveClass : contentEmojiInactiveClass
+                    }
                   >
                     <span className="text-sm">{emoji}</span>
                     <span className="font-semibold">{count}</span>
@@ -445,35 +460,35 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                     }
                     setShowEmojiPicker(!showEmojiPicker);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium"
+                  className={postActionBtnClass}
                 >
-                  <Smile size={14} />
-                  <span>React</span>
+                  <Smile size={14} strokeWidth={2} />
+                  <span className="hidden text-xs font-medium sm:inline">React</span>
                 </button>
 
                 {showEmojiPicker && (
-                  <div className="absolute bottom-full mb-3 left-0 z-[9999] animate-fade-in">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-gray-700 p-3 min-w-[260px]">
-                      <div className="grid grid-cols-4 gap-2">
+                  <div className="absolute bottom-full left-0 z-[9999] mb-2 animate-fade-in">
+                    <div className={contentEmojiPickerClass}>
+                      <div className="grid grid-cols-4 gap-0.5">
                         {['👍', '❤️', '🔥', '👏', '😂', '😮', '😢', '🎉'].map((emoji) => (
                           <button
                             key={emoji}
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEmojiReaction(emoji);
                               setShowEmojiPicker(false);
                             }}
-                            className={`p-3 text-2xl rounded-xl hover:scale-110 transition-all duration-200 ${
-                              userEmojis.includes(emoji) 
-                                ? 'bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 ring-2 ring-green-400 dark:ring-green-500 shadow-lg' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            className={`rounded-md p-2 text-xl transition-colors ${
+                              userEmojis.includes(emoji)
+                                ? 'bg-zinc-100 ring-1 ring-zinc-300/80 dark:bg-white/10 dark:ring-white/15'
+                                : 'hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                             }`}
                           >
                             {emoji}
                           </button>
                         ))}
                       </div>
-                      <div className="absolute -bottom-2 left-4 w-4 h-4 bg-white dark:bg-gray-800 border-b-2 border-r-2 border-gray-200 dark:border-gray-700 rotate-45"></div>
                     </div>
                   </div>
                 )}
@@ -487,10 +502,10 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                   e.stopPropagation();
                   onClick();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium"
+                className={postActionBtnClass}
               >
-                <MessageCircle size={14} />
-                <span>{commentCount}</span>
+                <MessageCircle size={14} strokeWidth={2} />
+                <span className="text-xs font-medium tabular-nums">{commentCount}</span>
               </button>
             )}
 
@@ -503,9 +518,9 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
                 hashtags={(opportunity.post as any)?.tags || []}
                 description={opportunity.description?.substring(0, 150)}
                 trigger={
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 text-sm font-medium">
-                    <Share2 size={14} />
-                    <span className="hidden sm:inline">Share</span>
+                  <button type="button" className={postActionBtnClass}>
+                    <Share2 size={14} strokeWidth={2} />
+                    <span className="hidden text-xs font-medium sm:inline">Share</span>
                   </button>
                 }
               />
@@ -516,19 +531,19 @@ export function OpportunityCard({ opportunity, onClick, onLoginRequired }: Oppor
           <Tooltip content={!isAuthenticated ? "Login to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark"}>
             <button
               onClick={handleBookmark}
-              className={`p-2 rounded-lg transition-all duration-200 ${
+              className={
                 bookmarked
-                  ? 'bg-green-500/20 text-green-500 shadow-md shadow-green-500/20'
+                  ? contentBookmarkActiveClass
                   : !isAuthenticated
-                    ? 'opacity-50 cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
+                    ? `${contentBookmarkIdleClass} cursor-not-allowed opacity-50`
+                    : contentBookmarkIdleClass
+              }
             >
               <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} strokeWidth={bookmarked ? 2.5 : 2} />
             </button>
           </Tooltip>
         </div>
       </div>
-    </GlassCard>
+    </article>
   );
 }

@@ -10,7 +10,7 @@ class OnboardingService {
     // Get suggested tags
     async getSuggestedTags(): Promise<any[]> {
         const response = await apiClient.get('/onboarding/suggested-tags');
-        return response.data.tags;
+        return response.data?.tags ?? response.data ?? [];
     }
 
     // Get suggested users

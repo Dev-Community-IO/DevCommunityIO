@@ -1,33 +1,25 @@
 import React from 'react';
 
+const cardClass =
+  'overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-sm dark:border-white/[0.08] dark:bg-zinc-900/40 animate-pulse';
+
 export const PageCardSkeleton: React.FC = () => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 animate-pulse">
-      {/* Cover image */}
-      <div className="w-full h-48 bg-gray-300 dark:bg-gray-700 rounded-lg mb-4" />
-      
-      {/* Title */}
-      <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-3" />
-      
-      {/* Excerpt */}
-      <div className="space-y-2 mb-4">
-        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full" />
-        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-5/6" />
-      </div>
-      
-      {/* Author and date */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-700 rounded-full" />
-        <div className="flex-1">
-          <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-24 mb-1" />
-          <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-20" />
+    <div className={cardClass}>
+      <div className="h-24 bg-zinc-200 dark:bg-zinc-800" />
+      <div className="relative px-4 pb-4 pt-10">
+        <div className="absolute -top-8 left-4 h-14 w-14 rounded-xl bg-zinc-300 dark:bg-zinc-700" />
+        <div className="mb-2 h-4 w-2/3 rounded bg-zinc-200 dark:bg-zinc-800" />
+        <div className="mb-1 h-3 w-1/3 rounded bg-zinc-100 dark:bg-zinc-800/80" />
+        <div className="mb-4 space-y-1.5">
+          <div className="h-3 w-full rounded bg-zinc-100 dark:bg-zinc-800/80" />
+          <div className="h-3 w-4/5 rounded bg-zinc-100 dark:bg-zinc-800/80" />
         </div>
-      </div>
-      
-      {/* Stats */}
-      <div className="flex items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16" />
-        <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-16" />
+        <div className="flex gap-2 border-t border-zinc-100 pt-3 dark:border-white/[0.06]">
+          <div className="h-7 flex-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80" />
+          <div className="h-7 flex-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80" />
+          <div className="h-7 flex-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80" />
+        </div>
       </div>
     </div>
   );
@@ -35,11 +27,10 @@ export const PageCardSkeleton: React.FC = () => {
 
 export const PageCardSkeletonList: React.FC<{ count?: number }> = ({ count = 3 }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">
       {Array.from({ length: count }).map((_, index) => (
         <PageCardSkeleton key={index} />
       ))}
     </div>
   );
 };
-

@@ -7,6 +7,8 @@ interface ResponsivePostImageProps {
   className?: string;
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
   size?: 'thumb' | 'feed' | 'mobile' | 'full'; // Force a specific size
+  /** Full width, intrinsic height (post detail). Default fills a fixed box with object-cover. */
+  naturalHeight?: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export function ResponsivePostImage({
   className = '',
   onError,
   size,
+  naturalHeight = false,
 }: ResponsivePostImageProps) {
   const [imageSize, setImageSize] = useState<'thumb' | 'feed' | 'mobile' | 'full'>('feed');
   const [currentSrc, setCurrentSrc] = useState<string | null>(null);
@@ -106,13 +109,19 @@ export function ResponsivePostImage({
     ? undefined 
     : '(max-width: 640px) 400px, (max-width: 1024px) 800px, (max-width: 1280px) 1200px, 1920px';
 
+  const resolvedClassName =
+    className ||
+    (naturalHeight
+      ? 'block h-auto w-full max-h-[min(70vh,40rem)] object-contain'
+      : 'h-full w-full object-cover');
+
   return (
     <img
       src={currentSrc}
       srcSet={srcSet}
       sizes={sizes}
       alt={alt}
-      className={className}
+      className={resolvedClassName}
       onError={onError}
       loading="lazy"
       decoding="async"

@@ -11,10 +11,12 @@ import {
   Award,
   AlertTriangle,
   Github,
-  MessageSquare
+  MessageSquare,
+  Megaphone
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { GlassCard } from './GlassCard';
+import { TabPills } from './TabPills';
 import { AdminOverview } from './admin/AdminOverview';
 import { AdminContents } from './admin/AdminContents';
 import { AdminUsers } from './admin/AdminUsers';
@@ -26,9 +28,10 @@ import { AdminApp } from './admin/AdminApp';
 import { AdminConfigs } from './admin/AdminConfigs';
 import { AdminStaticPages } from './admin/AdminStaticPages';
 import { AdminAutoModeration } from './admin/AdminAutoModeration';
+import { AdminAds } from './admin/AdminAds';
 import siteSettingsService from '../services/api/siteSettings.service';
 
-type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages' | 'auto-moderation';
+type TabType = 'overview' | 'contents' | 'users' | 'pages' | 'tags' | 'achievements' | 'app' | 'configs' | 'requests' | 'static-pages' | 'auto-moderation' | 'ads';
 
 export function AdminDashboard() {
   const { user, isAdmin } = useAuth();
@@ -87,6 +90,7 @@ export function AdminDashboard() {
     { id: 'static-pages' as TabType, label: 'Static Pages', icon: FileText, adminOnly: true },
     { id: 'requests' as TabType, label: 'Requests', icon: MessageSquare, adminOnly: true },
     { id: 'app' as TabType, label: 'App', icon: Settings, adminOnly: true },
+    { id: 'ads' as TabType, label: 'Ads', icon: Megaphone, adminOnly: true },
     { id: 'configs' as TabType, label: 'Configs', icon: Database, adminOnly: true },
   ];
 
@@ -126,28 +130,17 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* Sticky Tabs Navigation */}
-        <div className="sticky top-20 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-12 xl:-mx-24 2xl:-mx-48 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-2">
-            {availableTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-lg border-b-2 transition-all duration-300 whitespace-nowrap ${
-                    isActive
-                      ? 'border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 font-semibold'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="font-medium">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="sticky top-20 z-40 border-b border-zinc-200/80 bg-gray-50/95 backdrop-blur-md dark:border-white/10 dark:bg-gray-950/95 -mx-4 sm:-mx-6 lg:-mx-12 xl:-mx-24 2xl:-mx-48 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48 py-2">
+          <TabPills
+            ariaLabel="Admin sections"
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            tabs={availableTabs.map((tab) => ({
+              id: tab.id,
+              label: tab.label,
+              icon: tab.icon,
+            }))}
+          />
         </div>
 
         {/* Tab Content */}
@@ -162,6 +155,7 @@ export function AdminDashboard() {
           {activeTab === 'static-pages' && isFullAdmin && <AdminStaticPages />}
           {activeTab === 'requests' && isFullAdmin && <AdminRequests />}
           {activeTab === 'app' && isFullAdmin && <AdminApp />}
+          {activeTab === 'ads' && isFullAdmin && <AdminAds />}
           {activeTab === 'configs' && isFullAdmin && <AdminConfigs />}
         </div>
       </div>

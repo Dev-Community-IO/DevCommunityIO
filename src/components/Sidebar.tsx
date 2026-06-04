@@ -1,5 +1,4 @@
-import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Star, Code2, Twitter, Github, Linkedin, Facebook, Instagram, Youtube, Award } from 'lucide-react';
-import { GlassCard } from './GlassCard';
+import { Home, FileText, Info, Mail, Shield, Lock, File, Trophy, Calendar, Briefcase, Bookmark, Hash, Code2, Twitter, Github, Linkedin, Facebook, Instagram, Youtube, Award } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useMemo } from 'react';
@@ -9,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import siteSettingsService from '../services/api/siteSettings.service';
 import { isNetworkError } from '../services/api/config';
 import { getVersion, getGitTag, getCommitHash } from '../utils/version';
+import { StickyAsidePanel } from './layout/StickyAsidePanel';
 
 // Helper function to determine platform and icon from URL
 interface SocialLinkInfo {
@@ -18,6 +18,9 @@ interface SocialLinkInfo {
   label: string;
   className: string;
 }
+
+const SOCIAL_ICON_CLASS =
+  'inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200/80 text-zinc-500 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-800 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-200';
 
 const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
   if (!url || typeof url !== 'string' || url.trim() === '') return null;
@@ -31,7 +34,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'twitter',
       icon: Twitter,
       label: 'Twitter',
-      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -42,7 +45,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'github',
       icon: Github,
       label: 'GitHub',
-      className: 'p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -53,7 +56,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'discord',
       icon: null, // Custom SVG
       label: 'Discord',
-      className: 'p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -64,7 +67,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'linkedin',
       icon: Linkedin,
       label: 'LinkedIn',
-      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -75,7 +78,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'facebook',
       icon: Facebook,
       label: 'Facebook',
-      className: 'p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -86,7 +89,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'instagram',
       icon: Instagram,
       label: 'Instagram',
-      className: 'p-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -97,7 +100,7 @@ const getSocialPlatformFromUrl = (url: string): SocialLinkInfo | null => {
       platform: 'youtube',
       icon: Youtube,
       label: 'YouTube',
-      className: 'p-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all'
+      className: SOCIAL_ICON_CLASS,
     };
   }
   
@@ -109,6 +112,22 @@ interface SidebarProps {
   onCategoryChange: (categoryId: string) => void;
   forceIconOnly?: boolean;
   isMobileSidebar?: boolean;
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setMatches(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [query]);
+
+  return matches;
 }
 
 const mainMenuItems = [
@@ -237,8 +256,6 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
         const contributeUrl = url && url.trim() !== '' ? url.trim() : null;
         setGithubContributeUrl(contributeUrl);
         
-        console.log('[Sidebar] Loaded GitHub contribute URL:', contributeUrl);
-        
         const settingsRecord = settings as Record<string, string | null>;
         
         setSiteSettings({
@@ -275,6 +292,81 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   // Combine menu items based on authentication
   const allMenuItems = isAuthenticated ? [...mainMenuItems, ...authenticatedMenuItems] : mainMenuItems;
 
+  const isLgUp = useMediaQuery('(min-width: 1024px)');
+  const isIconRail = (forceIconOnly || !showText) && !isMobileSidebar;
+  /** Icon rail md–lg only; full aligned sidebar at lg+ */
+  const isNavRail = !isMobileSidebar && showText && !forceIconOnly && !isLgUp;
+  const navItemClass = (active: boolean) => {
+    const layout = isIconRail || isNavRail
+      ? 'h-9 w-9 shrink-0 justify-center p-0'
+      : isMobileSidebar
+        ? 'w-full gap-2.5 px-3 py-2 justify-start'
+        : 'w-full gap-2.5 px-2.5 py-2 justify-start';
+    const tone = active
+      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+      : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100';
+    return `flex items-center rounded-lg text-sm font-medium transition-colors touch-manipulation ${layout} ${tone}`;
+  };
+
+  const sectionLabelClass =
+    'mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500';
+
+  const panelClass =
+    'rounded-xl border border-zinc-200/80 bg-white/90 shadow-sm dark:border-white/[0.08] dark:bg-zinc-900/40';
+
+  const panelRailClass = `${panelClass} flex w-full flex-col items-center gap-0.5 py-1.5 px-1`;
+  const panelExpandedClass = `${panelClass} w-full p-1`;
+
+  const panelInnerClass = isIconRail || isNavRail ? panelRailClass : panelExpandedClass;
+
+  const menuListClass =
+    isIconRail || isNavRail
+      ? 'flex w-full flex-col items-center gap-0.5'
+      : 'flex w-full flex-col space-y-0.5';
+
+  const menuListItemClass =
+    isIconRail || isNavRail ? 'flex w-full justify-center' : 'w-full';
+
+  const showNavTooltips = isIconRail || isNavRail || !showText || forceIconOnly;
+
+  const wrapWithTooltip = (label: string, node: React.ReactNode) =>
+    isIconRail ? (
+      <div className="relative flex w-full justify-center">
+        <Tooltip content={label} delay={200} side="right">
+          {node}
+        </Tooltip>
+      </div>
+    ) : (
+      <Tooltip content={label} delay={200} side="right">
+        {node}
+      </Tooltip>
+    );
+
+  const collapsedRailDivider = (
+    <div className="mx-auto my-1 h-px w-8 bg-zinc-200/80 dark:bg-white/10" aria-hidden />
+  );
+
+  const tagIconBtnClass =
+    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-zinc-100 dark:hover:bg-white/[0.06]';
+
+  const renderTagIconButton = (tag: Tag) => (
+    <button type="button" onClick={() => handleTagClick(tag)} className={tagIconBtnClass}>
+      {tag.logoUrl ? (
+        <img
+          src={tag.logoUrl}
+          alt=""
+          className="h-7 w-7 shrink-0 rounded-md border border-zinc-200/80 object-cover dark:border-white/10"
+        />
+      ) : (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-200 dark:bg-zinc-700">
+          <Hash size={14} className="text-zinc-600 dark:text-zinc-300" />
+        </span>
+      )}
+    </button>
+  );
+
+  const useTagTooltips = isIconRail || isNavRail;
+
   // Build social links array from database settings, dynamically determining icons from URLs
   const socialLinks = useMemo(() => {
     const links: SocialLinkInfo[] = [];
@@ -310,287 +402,289 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   ]);
 
   return (
-    <aside className={`${isMobileSidebar ? '' : `hidden lg:block left-4 sm:left-6 lg:left-12 xl:left-24 2xl:left-48 ${forceIconOnly ? 'w-16' : 'w-16 xl:w-64 2xl:w-72'} z-40`}`}>
-      <div className={`sticky top-24 self-start space-y-3`}>
-      <GlassCard className="p-2 lg:p-3 overflow-hidden">
-        <div className="space-y-2">
-          {allMenuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeCategory === item.id;
-
-            const buttonContent = (
-              <button
-                key={item.id}
-                onClick={() => onCategoryChange(item.id)}
-                className={`
-                  w-full flex items-center ${isMobileSidebar ? 'justify-start' : forceIconOnly ? 'justify-center' : 'justify-center xl:justify-start'} gap-3 px-2 ${showText && !forceIconOnly ? 'xl:px-4' : ''} ${isMobileSidebar ? 'px-4' : ''} py-3.5 rounded-xl
-                  transition-all duration-300 group relative overflow-hidden
-                  ${isActive
-                    ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
-                    : 'hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-50 dark:hover:from-white/10 dark:hover:to-white/5 active:scale-95'
-                  }
-                `}
-              >
-                <div className={`relative z-10 ${isActive ? 'animate-pulse-subtle' : ''}`}>
-                  <Icon
-                    size={22}
-                    className={`flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}
-                    strokeWidth={isActive ? 2.5 : 2}
-                  />
-                </div>
-                {showText && !forceIconOnly && (
-                  <span className={`font-semibold text-sm ${isMobileSidebar ? 'block' : 'hidden xl:block'} relative z-10 ${isActive ? 'tracking-wide' : ''}`}>
-                    {item.name}
-                    {item.id === 'bookmarks' && bookmarkCount !== null && (
-                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${isActive ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+    <aside
+      className={
+        isMobileSidebar
+          ? 'w-full'
+          : 'flex h-full min-h-0 w-full flex-1 flex-col z-40'
+      }
+    >
+      <StickyAsidePanel pin={isLgUp && !isMobileSidebar} className="pb-2">
+        <nav className="flex w-full flex-col gap-3 md:gap-4" aria-label="Main navigation">
+          <div className={`${panelInnerClass} w-full`}>
+            <ul className={menuListClass} role="list">
+              {allMenuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeCategory === item.id;
+                const button = (
+                  <button
+                    type="button"
+                    onClick={() => onCategoryChange(item.id)}
+                    className={navItemClass(isActive)}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <Icon size={17} strokeWidth={2} className="shrink-0 opacity-90" />
+                    {showText && !forceIconOnly && (isMobileSidebar || isLgUp) && (
+                      <span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
+                    )}
+                    {showText && !forceIconOnly && item.id === 'bookmarks' && bookmarkCount !== null && (
+                      <span
+                        className={`${isMobileSidebar || isLgUp ? 'inline' : 'hidden'} shrink-0 tabular-nums rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                          isActive
+                            ? 'bg-white/15 text-white'
+                            : 'bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300'
+                        }`}
+                      >
                         {bookmarkCount}
                       </span>
                     )}
-                  </span>
-                )}
-                {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
-                )}
-              </button>
-            );
+                  </button>
+                );
+                return (
+                  <li key={item.id} className={menuListItemClass}>
+                    {showNavTooltips ? wrapWithTooltip(item.name, button) : button}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-            return (
-              !showText || forceIconOnly ? (
-                <Tooltip key={item.id} content={item.name} delay={200}>
-                  {buttonContent}
-                </Tooltip>
-              ) : (
-                buttonContent
-              )
-            );
-          })}
-        </div>
-      </GlassCard>
-
-      {/* Featured Tags */}
-      {featuredTags.length > 0 && (
-        <GlassCard className="p-3 xl:p-4">
-          {showText && (
-            <div className={`flex items-center gap-2 mb-3 px-2 ${isMobileSidebar ? 'flex' : 'hidden xl:flex'}`}>
-              <div className="w-1 h-4 bg-gradient-to-b from-pink-500 to-purple-500 rounded-full"></div>
-              <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Star size={12} className="text-yellow-500 fill-yellow-500" />
-                Featured
-              </h3>
+          {featuredTags.length > 0 && showText && !forceIconOnly && (
+            <div className="w-full">
+              {(isMobileSidebar || isLgUp) && <p className={sectionLabelClass}>Featured</p>}
+              {isNavRail && collapsedRailDivider}
+              <div className={isNavRail || isIconRail ? panelRailClass : panelExpandedClass}>
+                <ul className={menuListClass} role="list">
+                  {featuredTags.map((tag) => {
+                    const tagBtn = isNavRail ? (
+                      renderTagIconButton(tag)
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleTagClick(tag)}
+                        className={
+                          isIconRail
+                            ? tagIconBtnClass
+                            : 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100'
+                        }
+                      >
+                        {tag.logoUrl ? (
+                          <img
+                            src={tag.logoUrl}
+                            alt=""
+                            className="h-7 w-7 shrink-0 rounded-md border border-zinc-200/80 object-cover dark:border-white/10"
+                          />
+                        ) : (
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-200 dark:bg-zinc-700">
+                            <Hash size={14} className="text-zinc-600 dark:text-zinc-300" />
+                          </span>
+                        )}
+                        {(isMobileSidebar || isLgUp) && (
+                          <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                        )}
+                      </button>
+                    );
+                    return (
+                      <li key={tag.id} className={menuListItemClass}>
+                        {useTagTooltips ? wrapWithTooltip(tag.name, tagBtn) : tagBtn}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
           )}
-          <div className="space-y-2">
-            {featuredTags.map((tag) => {
-              const tagButton = (
-                <button
-                  key={tag.id}
-                  onClick={() => handleTagClick(tag)}
-                  className={`w-full group flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center xl:justify-start'} gap-3 px-2 ${showText ? 'xl:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-white/5 active:scale-[0.98]`}
-                >
-                  {tag.logoUrl ? (
-                    <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-700">
-                      <img
-                        src={tag.logoUrl}
-                        alt={tag.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                      <Hash size={16} className="text-white" strokeWidth={2.5} />
-                    </div>
-                  )}
-                  {showText && (
-                    <span className={`${isMobileSidebar ? 'block' : 'hidden xl:block'} font-medium text-sm text-gray-700 dark:text-gray-300 truncate`}>
-                      {tag.name}
-                    </span>
-                  )}
-                </button>
-              );
 
-              return (
-                !showText ? (
-                  <Tooltip key={tag.id} content={tag.name} delay={200}>
-                    {tagButton}
-                  </Tooltip>
-                ) : (
-                  tagButton
-                )
-              );
-            })}
-          </div>
-        </GlassCard>
-      )}
-
-      {/* Trending Tags */}
-      {trendingTags.length > 0 && showText && (
-        <GlassCard className={`p-3 xl:p-4 ${isMobileSidebar ? 'block' : 'hidden xl:block'}`}>
-          <div className="flex items-center gap-2 mb-3 px-2">
-            <div className="w-1 h-4 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
-            <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-              Trending
-            </h3>
-          </div>
-          <div className="flex flex-wrap gap-2 px-2">
-            {trendingTags.slice(0, 6).map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => handleTagClick(tag)}
-                className="group px-3 py-1.5 text-xs font-semibold bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 hover:from-blue-50 hover:to-cyan-50 dark:hover:from-blue-900/30 dark:hover:to-cyan-900/30 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all duration-300 hover:shadow-md hover:scale-105 active:scale-95 flex items-center gap-1"
-              >
-                {tag.logoUrl ? (
-                  <img src={tag.logoUrl} alt={tag.name} className="w-3 h-3 object-cover rounded" />
-                ) : (
-                  <Hash size={10} className="inline-block group-hover:rotate-12 transition-transform duration-300" />
-                )}
-                {tag.name}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 px-2">
-            <button
-              onClick={() => navigate('/tags')}
-              className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Hash size={16} strokeWidth={2.5} />
-              See All Tags
-            </button>
-          </div>
-        </GlassCard>
-      )}
-
-      <GlassCard className="p-2 xl:p-3">
-        {showText && (
-          <div className={`flex items-center gap-2 mb-2 px-2 ${isMobileSidebar ? 'flex' : 'hidden xl:flex'}`}>
-            <div className="w-1 h-4 bg-gradient-to-b from-gray-400 to-gray-500 rounded-full"></div>
-            <h3 className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-              Resources
-            </h3>
-          </div>
-        )}
-        <div className="space-y-2">
-          {otherMenuItems.map((item) => {
-            const Icon = item.icon;
-            const isExternal = (item as any).external && item.id === 'contribute';
-            const externalUrl = item.id === 'contribute' ? githubContributeUrl : null;
-
-            const otherButton = (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (isExternal && externalUrl) {
-                    window.open(externalUrl, '_blank', 'noopener noreferrer');
-                  } else {
-                    // Map page IDs to routes
-                    const routeMap: Record<string, string> = {
-                      'about': '/about',
-                      'contact': '/contact',
-                      'conduct': '/code-of-conduct',
-                      'privacy': '/privacy-policy',
-                      'terms': '/terms-of-use',
-                      'reputation-system': '/reputation-system',
-                    };
-                    const route = routeMap[item.id];
-                    if (route) {
-                      navigate(route);
-                    } else {
-                      onCategoryChange(item.id);
-                    }
-                  }
-                }}
-                disabled={isExternal && !externalUrl}
-                className={`w-full flex items-center ${isMobileSidebar ? 'justify-start' : 'justify-center xl:justify-start'} gap-2.5 px-2 ${showText ? 'xl:px-3' : ''} ${isMobileSidebar ? 'px-3' : ''} py-2.5 rounded-lg hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-50 dark:hover:from-white/10 dark:hover:to-white/5 transition-all duration-300 group relative active:scale-95 ${isExternal && !externalUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <Icon
-                  size={16}
-                  className="flex-shrink-0 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-all duration-300 group-hover:scale-110"
-                  strokeWidth={2}
-                />
-                {showText && (
-                  <span className={`${isMobileSidebar ? 'block' : 'hidden xl:block'} text-xs font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors`}>
-                    {item.name}
-                  </span>
-                )}
-              </button>
-            );
-
-            return (
-              !showText ? (
-                <Tooltip key={item.id} content={item.name} delay={200}>
-                  {otherButton}
-                </Tooltip>
-              ) : (
-                otherButton
-              )
-            );
-          })}
-        </div>
-      </GlassCard>
-
-      {/* Copyright and Version */}
-      {showText && (
-        <GlassCard className={`p-3 xl:p-4 ${isMobileSidebar ? 'block' : 'hidden xl:block'}`}>
-          {siteSettings.emailFooterHtml ? (
-            // Use custom HTML footer from email footer settings
-            <div 
-              className="space-y-2 text-center text-[10px] text-gray-500 dark:text-gray-400"
-              dangerouslySetInnerHTML={{ 
-                __html: siteSettings.emailFooterHtml
-                  .replace(/\{\{siteName\}\}/g, siteSettings.siteName || 'DevCommunity')
-                  .replace(/\{\{year\}\}/g, new Date().getFullYear().toString())
-                  .replace(/\{\{version\}\}/g, (() => {
-                    const tag = getGitTag();
-                    const commit = getCommitHash();
-                    if (tag) {
-                      return `${tag} (${commit.substring(0, 7)})`;
-                    }
-                    return `${getVersion()} (${commit.substring(0, 7)})`;
-                  })())
-                  .replace(/\{\{madeWithText\}\}/g, siteSettings.emailFooterMadeWithText || 'by developers')
-                  .replace(/\{\{copyright\}\}/g, siteSettings.emailFooterCopyright || `© ${new Date().getFullYear()} ${siteSettings.siteName || 'DevCommunity'}. All rights reserved.`)
-              }} 
-            />
-          ) : (
-            // Default footer layout
-            <div className="space-y-2 text-center">
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
-                <p className="font-semibold">{siteSettings.siteName || 'DevCommunity Platform'}</p>
-                <p>
-                  {(() => {
-                    const tag = getGitTag();
-                    const commit = getCommitHash();
-                    if (tag) {
-                      return `Version ${tag} (${commit.substring(0, 7)})`;
-                    }
-                    return `Version ${getVersion()} (${commit.substring(0, 7)})`;
-                  })()}
-                </p>
-              </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent"></div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400 space-y-1">
-                {siteSettings.emailFooterCopyright ? (
-                  <p dangerouslySetInnerHTML={{ __html: siteSettings.emailFooterCopyright.replace(/\{year\}/g, new Date().getFullYear().toString()) }} />
-                ) : (
-                  <>
-                    <p>&copy; {new Date().getFullYear()} {siteSettings.siteName || 'DevCommunity'}</p>
-                    <p>All rights reserved</p>
-                  </>
-                )}
-              </div>
-              {siteSettings.emailFooterTagline ? (
-                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
-                  <span dangerouslySetInnerHTML={{ __html: siteSettings.emailFooterTagline }} />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
-                  <span>Made with</span>
-                  <span className="text-red-500 animate-pulse">♥</span>
-                  <span>{siteSettings.emailFooterMadeWithText || 'by developers'}</span>
+          {trendingTags.length > 0 && showText && !forceIconOnly && (
+            <>
+              {isNavRail && (
+                <div>
+                  <p className="sr-only">Trending</p>
+                  {collapsedRailDivider}
+                  <div className={panelRailClass}>
+                    <ul className={menuListClass} role="list">
+                    {trendingTags.slice(0, 5).map((tag) => (
+                      <li key={tag.id} className={menuListItemClass}>
+                        {wrapWithTooltip(tag.name, renderTagIconButton(tag))}
+                      </li>
+                    ))}
+                    <li className={menuListItemClass}>
+                      {wrapWithTooltip(
+                        'Browse all tags',
+                        <button
+                          type="button"
+                          onClick={() => navigate('/tags')}
+                          className={tagIconBtnClass}
+                          aria-label="Browse all tags"
+                        >
+                          <Hash size={16} strokeWidth={2} className="text-zinc-500 dark:text-zinc-400" />
+                        </button>
+                      )}
+                    </li>
+                    </ul>
+                  </div>
                 </div>
               )}
-              {/* Social Media Links - Dynamically rendered from database URLs */}
+
+              {(isMobileSidebar || isLgUp) && (
+                <div className="w-full">
+                  <p className={sectionLabelClass}>Trending</p>
+                <div className={`${panelClass} p-2`}>
+                  <div className="flex flex-wrap gap-1">
+                    {trendingTags.slice(0, 5).map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => handleTagClick(tag)}
+                        className="inline-flex max-w-full items-center gap-1 rounded-md border border-zinc-200/70 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:bg-white/[0.08] dark:hover:text-zinc-200"
+                      >
+                        {tag.logoUrl ? (
+                          <img src={tag.logoUrl} alt="" className="h-3.5 w-3.5 rounded object-cover" />
+                        ) : (
+                          <Hash size={10} className="shrink-0 opacity-60" />
+                        )}
+                        <span className="truncate">{tag.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tags')}
+                    className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[11px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200"
+                  >
+                    Browse all tags →
+                  </button>
+                </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {showText && !forceIconOnly && (
+            <div className="w-full">
+              {(isMobileSidebar || isLgUp) && <p className={sectionLabelClass}>Resources</p>}
+              {isNavRail && collapsedRailDivider}
+              <div className={`${panelInnerClass} w-full`}>
+                <ul className={menuListClass} role="list">
+                  {otherMenuItems.map((item) => {
+                    const Icon = item.icon;
+                    const isExternal = (item as any).external && item.id === 'contribute';
+                    const externalUrl = item.id === 'contribute' ? githubContributeUrl : null;
+                    const resourceBtn = (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isExternal && externalUrl) {
+                            window.open(externalUrl, '_blank', 'noopener noreferrer');
+                          } else {
+                            const routeMap: Record<string, string> = {
+                              about: '/about',
+                              contact: '/contact',
+                              conduct: '/code-of-conduct',
+                              privacy: '/privacy-policy',
+                              terms: '/terms-of-use',
+                              'reputation-system': '/reputation-system',
+                            };
+                            const route = routeMap[item.id];
+                            if (route) navigate(route);
+                            else onCategoryChange(item.id);
+                          }
+                        }}
+                        disabled={isExternal && !externalUrl}
+                        className={`${navItemClass(false)} ${isNavRail ? '' : 'text-xs'} ${isExternal && !externalUrl ? 'cursor-not-allowed opacity-40' : ''}`}
+                      >
+                        <Icon size={17} strokeWidth={2} className="shrink-0 opacity-90" />
+                        {showText && !forceIconOnly && (isMobileSidebar || isLgUp) && (
+                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                        )}
+                      </button>
+                    );
+                    return (
+                      <li key={item.id} className={menuListItemClass}>
+                        {showNavTooltips ? wrapWithTooltip(item.name, resourceBtn) : resourceBtn}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {showText && !forceIconOnly && isNavRail && socialLinks.length > 0 && (
+            <div className="w-full">
+              {collapsedRailDivider}
+              <div className={`${panelRailClass} gap-1`}>
+                {socialLinks.map((link, index) => {
+                  const IconComponent = link.icon;
+                  const socialBtn = (
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`${tagIconBtnClass} text-zinc-600 dark:text-zinc-400`}
+                      aria-label={link.label}
+                    >
+                      {link.platform === 'discord' ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
+                        </svg>
+                      ) : IconComponent ? (
+                        <IconComponent size={16} />
+                      ) : null}
+                    </a>
+                  );
+                  return (
+                    <div key={`${link.platform}-${index}`} className={menuListItemClass}>
+                      {wrapWithTooltip(link.label, socialBtn)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {showText && !forceIconOnly && (
+            <footer className={`mt-1 w-full space-y-2 px-1 ${isMobileSidebar || isLgUp ? '' : 'hidden'}`}>
+              {siteSettings.emailFooterHtml ? (
+                <div
+                  className="text-center text-[10px] leading-relaxed text-zinc-400 dark:text-zinc-500"
+                  dangerouslySetInnerHTML={{
+                    __html: siteSettings.emailFooterHtml
+                      .replace(/\{\{siteName\}\}/g, siteSettings.siteName || 'DevCommunity')
+                      .replace(/\{\{year\}\}/g, new Date().getFullYear().toString())
+                      .replace(/\{\{version\}\}/g, (() => {
+                        const tag = getGitTag();
+                        const commit = getCommitHash();
+                        return tag ? `${tag} (${commit.substring(0, 7)})` : `${getVersion()} (${commit.substring(0, 7)})`;
+                      })())
+                      .replace(/\{\{madeWithText\}\}/g, siteSettings.emailFooterMadeWithText || 'by developers')
+                      .replace(
+                        /\{\{copyright\}\}/g,
+                        siteSettings.emailFooterCopyright ||
+                          `© ${new Date().getFullYear()} ${siteSettings.siteName || 'DevCommunity'}`
+                      ),
+                  }}
+                />
+              ) : (
+                <>
+                  <p className="text-center text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                    {siteSettings.siteName || 'DevCommunity'}
+                  </p>
+                  <p className="text-center text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                    {(() => {
+                      const tag = getGitTag();
+                      const commit = getCommitHash();
+                      return tag ? `v${tag} · ${commit.substring(0, 7)}` : `v${getVersion()} · ${commit.substring(0, 7)}`;
+                    })()}
+                  </p>
+                  <p className="text-center text-[10px] text-zinc-400 dark:text-zinc-500">
+                    © {new Date().getFullYear()}{' '}
+                    {siteSettings.siteName || 'DevCommunity'}
+                  </p>
+                </>
+              )}
               {socialLinks.length > 0 && (
-                <div className="flex items-center justify-center gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
                   {socialLinks.map((link, index) => {
                     const IconComponent = link.icon;
                     return (
@@ -604,22 +698,21 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                         title={link.label}
                       >
                         {link.platform === 'discord' ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C2.451 6.018 1.732 7.713 1.378 9.48a.082.082 0 0 0 .031.084a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.083c-.38-1.827-1.13-3.506-2.069-5.084a.059.059 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z" />
                           </svg>
                         ) : IconComponent ? (
-                          <IconComponent size={14} />
+                          <IconComponent size={13} />
                         ) : null}
                       </a>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </footer>
           )}
-        </GlassCard>
-      )}
-      </div>
+        </nav>
+      </StickyAsidePanel>
     </aside>
   );
 }

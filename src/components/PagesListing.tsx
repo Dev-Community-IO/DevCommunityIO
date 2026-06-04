@@ -1,28 +1,364 @@
-import { Users, TrendingUp, ArrowLeft, Search, Filter, FileText, Loader2, Building2, ChevronRight } from 'lucide-react';
-import { GlassCard } from './GlassCard';
-import { Badge } from './Badge';
+import {
+  Users,
+  TrendingUp,
+  ArrowLeft,
+  Search,
+  FileText,
+  Loader2,
+  Building2,
+  ChevronRight,
+  UserCheck,
+  X,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from './Button';
+import { VerifiedBadge } from './VerifiedBadge';
+import { TabPills } from './TabPills';
 import { useState, useEffect, useMemo } from 'react';
 import { pagesService, Page } from '../services/api/pages.service';
 import { useNavigate } from 'react-router-dom';
 import { PageCardSkeletonList } from './skeletons';
+import {
+  asidePanelClass,
+  asideStatChipClass,
+  postCardSurfaceClass,
+  postTagClass,
+} from './postCardSurface';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
+const statChipClass =
+  'flex min-w-0 flex-1 flex-col items-center rounded-lg border border-zinc-200/70 bg-zinc-50/90 px-2 py-1.5 dark:border-white/10 dark:bg-white/[0.04]';
 
 interface PagesListingProps {
   onPageClick?: (pageId: string) => void;
   onBack?: () => void;
 }
 
-// Utility function to shuffle array
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
+function formatCategoryLabel(category: string): string {
+  return category
+    .split(/[\s,_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function CommunitiesPageHeader({
+  onBack,
+  total,
+  categoryCount,
+}: {
+  onBack?: () => void;
+  total: number;
+  categoryCount: number;
+}) {
+  return (
+    <div className={`${asidePanelClass} p-3 sm:p-4`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={16} strokeWidth={2} />
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+                aria-hidden
+              >
+                <Building2 size={16} strokeWidth={2} />
+              </span>
+              <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-xl">
+                Communities
+              </h1>
+            </div>
+            <p className="mt-1 max-w-xl text-sm leading-snug text-zinc-500 dark:text-zinc-400">
+              Discover and join communities that match your interests
+            </p>
+          </div>
+        </div>
+
+        {(total > 0 || categoryCount > 0) && (
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+            {total > 0 && (
+              <span className={`${asideStatChipClass} gap-1.5 text-xs text-zinc-600 dark:text-zinc-400`}>
+                <Users size={12} strokeWidth={2} className="shrink-0 text-zinc-400" aria-hidden />
+                <span className="font-semibold tabular-nums text-zinc-800 dark:text-zinc-200">
+                  {total.toLocaleString()}
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-500">communities</span>
+              </span>
+            )}
+            {categoryCount > 0 && (
+              <span className={`${asideStatChipClass} text-xs text-zinc-600 dark:text-zinc-400`}>
+                <span className="font-semibold tabular-nums text-zinc-800 dark:text-zinc-200">
+                  {categoryCount}
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-500">
+                  {categoryCount === 1 ? 'category' : 'categories'}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CommunitiesFilterToolbar({
+  searchQuery,
+  onSearchChange,
+  filterTabs,
+  selectedFilter,
+  onFilterChange,
+  total,
+  resultCount,
+  loading,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  filterTabs: { id: string; label: string; icon?: typeof TrendingUp }[];
+  selectedFilter: string;
+  onFilterChange: (id: string) => void;
+  total: number;
+  resultCount: number;
+  loading: boolean;
+}) {
+  const hasActiveFilters = Boolean(searchQuery.trim()) || selectedFilter !== 'all';
+
+  const activeFilterLabel =
+    selectedFilter === 'all'
+      ? null
+      : selectedFilter === 'trending'
+        ? 'Trending'
+        : formatCategoryLabel(selectedFilter);
+
+  return (
+    <div className={`${asidePanelClass} overflow-hidden`}>
+      <div className="flex flex-col gap-4 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-5">
+          <div className="min-w-0 flex-1 lg:max-w-sm xl:max-w-md">
+            <label
+              htmlFor="communities-search"
+              className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500"
+            >
+              <Search size={11} strokeWidth={2} />
+              Search
+            </label>
+            <div className="relative">
+              <input
+                id="communities-search"
+                type="search"
+                placeholder="Name or description…"
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="h-9 w-full rounded-lg border border-zinc-200/80 bg-white py-0 pl-3 pr-9 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 dark:border-white/10 dark:bg-[#0a1020]/90 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => onSearchChange('')}
+                  className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200"
+                  aria-label="Clear search"
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filterTabs.length > 1 && (
+            <div className="min-w-0 flex-1 lg:border-l lg:border-zinc-100 lg:pl-5 dark:lg:border-white/[0.06]">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                <SlidersHorizontal size={11} strokeWidth={2} />
+                Filter
+              </p>
+              <TabPills
+                tabs={filterTabs}
+                activeTab={selectedFilter}
+                onChange={onFilterChange}
+                ariaLabel="Filter communities"
+                scrollable
+                className="w-full"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3 text-xs dark:border-white/[0.06]">
+          <p className="text-zinc-500 dark:text-zinc-400">
+            {loading ? (
+              'Loading communities…'
+            ) : (
+              <>
+                <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+                  {resultCount.toLocaleString()}
+                </span>
+                {total > 0 ? (
+                  <span> of {total.toLocaleString()} shown</span>
+                ) : (
+                  <span> communities</span>
+                )}
+              </>
+            )}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                onSearchChange('');
+                onFilterChange('all');
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-200/70 bg-zinc-50 px-2 py-1 font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:bg-white/[0.08] dark:hover:text-zinc-200"
+            >
+              {activeFilterLabel && searchQuery.trim() ? (
+                <>Clear filters</>
+              ) : activeFilterLabel ? (
+                <>Clear “{activeFilterLabel}”</>
+              ) : (
+                <>Clear search</>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageListCard({ page, onClick }: { page: Page; onClick: () => void }) {
+  const logoUrl = page.logoUrl || page.logo || DEFAULT_PAGE_LOGO;
+  const coverUrl = page.coverImageUrl || page.coverImage;
+  const bio = page.shortBio || page.description;
+  const handle = page.username || page.slug;
+  const followers = page.followerCount ?? page.follower_count ?? 0;
+  const posts = page.postCount ?? 0;
+  const members = page.memberCount ?? 0;
+
+  return (
+    <article
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`${postCardSurfaceClass} h-full`}
+    >
+      <div className="relative h-24 shrink-0 overflow-hidden bg-zinc-100 dark:bg-[#0a1020]">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : null}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+
+        <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+          {page.isTrending && (
+            <span className="inline-flex items-center gap-0.5 rounded-md border border-orange-200/80 bg-orange-50/95 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800 backdrop-blur-sm dark:border-orange-500/30 dark:bg-orange-950/80 dark:text-orange-200">
+              <TrendingUp size={10} strokeWidth={2.5} />
+              Trending
+            </span>
+          )}
+          {page.isFollowing && (
+            <span className="inline-flex items-center gap-0.5 rounded-md border border-zinc-200/80 bg-white/95 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 backdrop-blur-sm dark:border-white/15 dark:bg-zinc-900/90 dark:text-zinc-300">
+              <UserCheck size={10} strokeWidth={2.5} />
+              Following
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="relative flex flex-1 flex-col px-4 pb-3.5 pt-9">
+        <div className="absolute -top-7 left-4 z-10">
+          <div className="relative h-14 w-14 overflow-hidden rounded-xl border-2 border-white bg-zinc-100 shadow-md ring-1 ring-zinc-200/80 dark:border-zinc-900 dark:bg-zinc-800 dark:ring-white/10">
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src !== DEFAULT_PAGE_LOGO) target.src = DEFAULT_PAGE_LOGO;
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="mb-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-1">
+            <h3 className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
+              {page.name}
+            </h3>
+            {page.isVerified && (
+              <VerifiedBadge variant="page" size={14} className="shrink-0" />
+            )}
+          </div>
+          {handle && (
+            <p className="mt-0.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">@{handle}</p>
+          )}
+        </div>
+
+        <p className="mb-3 line-clamp-2 flex-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+          {bio || 'No description yet.'}
+        </p>
+
+        {page.category && (
+          <div className="mb-3">
+            <span className={postTagClass}>{page.category}</span>
+          </div>
+        )}
+
+        <div className="mb-3 flex gap-1.5">
+          <div className={statChipClass}>
+            <Users size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
+            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {followers.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Followers</span>
+          </div>
+          <div className={statChipClass}>
+            <FileText size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
+            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {posts.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Posts</span>
+          </div>
+          <div className={statChipClass}>
+            <Building2 size={12} className="mb-0.5 text-zinc-500 dark:text-zinc-400" strokeWidth={2} />
+            <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {members.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Members</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-zinc-100 pt-2.5 dark:border-white/[0.06]">
+          <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">View community</span>
+          <ChevronRight
+            size={14}
+            className="text-zinc-400 transition-transform group-hover:translate-x-0.5 dark:text-zinc-500"
+            strokeWidth={2}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
   const navigate = useNavigate();
@@ -35,12 +371,52 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const PAGES_PER_PAGE = 9;
 
-  // Shuffle pages randomly when they change
-  const shuffledPages = useMemo(() => {
-    return shuffleArray(pages);
-  }, [pages]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCategoryOptions = async () => {
+      try {
+        const response = await pagesService.getPages({ page: 1, limit: 100 });
+        const cats = Array.from(
+          new Set(
+            (response.data || [])
+              .map((p: Page) => p.category?.trim())
+              .filter((c): c is string => Boolean(c))
+          )
+        ).sort((a, b) => a.localeCompare(b));
+
+        if (!cancelled) setCategoryOptions(cats);
+      } catch {
+        /* non-blocking */
+      }
+    };
+
+    loadCategoryOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filterTabs = useMemo(() => {
+    const merged = Array.from(
+      new Set([
+        ...categoryOptions,
+        ...pages.map((p) => p.category?.trim()).filter((c): c is string => Boolean(c)),
+      ])
+    ).sort((a, b) => a.localeCompare(b));
+
+    return [
+      { id: 'all', label: 'All' },
+      { id: 'trending', label: 'Trending', icon: TrendingUp },
+      ...merged.map((cat) => ({
+        id: cat,
+        label: formatCategoryLabel(cat),
+      })),
+    ];
+  }, [categoryOptions, pages]);
 
   useEffect(() => {
     const fetchPages = async () => {
@@ -48,8 +424,8 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         setLoading(true);
         setError(null);
         setCurrentPage(1);
-        
-        const params: any = {
+
+        const params: Record<string, unknown> = {
           page: 1,
           limit: PAGES_PER_PAGE,
         };
@@ -59,22 +435,23 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
         } else if (selectedFilter !== 'all') {
           params.category = selectedFilter;
         }
-        
+
         const response = await pagesService.getPages(params);
         const pagesData = response.data || [];
         const meta = response.meta || {};
-        
-        // REBUILT: Ensure isFollowing is properly extracted - MUST be boolean
-        const pagesWithFollowing = pagesData.map((page: any) => ({
-          ...page,
-          isFollowing: page?.isFollowing === true // Explicitly check for true
-        }));
-        
-        setPages(pagesWithFollowing);
+
+        setPages(
+          pagesData.map((page: Page) => ({
+            ...page,
+            isFollowing: page?.isFollowing === true,
+            postCount: Number(page.postCount ?? 0),
+          }))
+        );
         setHasMore(meta.currentPage < meta.lastPage);
         setTotal(meta.total || 0);
-      } catch (err: any) {
-        setError(err?.message || 'Failed to load pages');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load pages';
+        setError(message);
         console.error('Error fetching pages:', err);
         setPages([]);
       } finally {
@@ -91,8 +468,8 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
     try {
       setLoadingMore(true);
       const nextPage = currentPage + 1;
-      
-      const params: any = {
+
+      const params: Record<string, unknown> = {
         page: nextPage,
         limit: PAGES_PER_PAGE,
       };
@@ -102,29 +479,29 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
       } else if (selectedFilter !== 'all') {
         params.category = selectedFilter;
       }
-      
+
       const response = await pagesService.getPages(params);
       const pagesData = response.data || [];
       const meta = response.meta || {};
-      
-      // REBUILT: Ensure isFollowing is properly extracted - MUST be boolean
-      const pagesWithFollowing = pagesData.map((page: any) => ({
-        ...page,
-        isFollowing: page?.isFollowing === true // Explicitly check for true
-      }));
-      
-      setPages(prev => [...prev, ...pagesWithFollowing]);
+
+      setPages((prev) => [
+        ...prev,
+        ...pagesData.map((page: Page) => ({
+          ...page,
+          isFollowing: page?.isFollowing === true,
+          postCount: Number(page.postCount ?? 0),
+        })),
+      ]);
       setCurrentPage(nextPage);
       setHasMore(meta.currentPage < meta.lastPage);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load more pages';
       console.error('Error loading more pages:', err);
-      setError(err?.message || 'Failed to load more pages');
+      setError(message);
     } finally {
       setLoadingMore(false);
     }
   };
-
-  const categories = ['all', 'trending', ...Array.from(new Set(pages.map(page => page.category).filter(Boolean)))];
 
   const handlePageClick = (page: Page) => {
     if (page.slug) {
@@ -134,260 +511,109 @@ export function PagesListing({ onPageClick, onBack }: PagesListingProps) {
     }
   };
 
-  const getDefaultCover = () => {
-    const gradients = [
-      'from-blue-500 via-purple-500 to-pink-500',
-      'from-cyan-500 via-blue-500 to-indigo-500',
-      'from-emerald-500 via-teal-500 to-cyan-500',
-      'from-orange-500 via-red-500 to-pink-500',
-      'from-violet-500 via-purple-500 to-fuchsia-500',
-    ];
-    return gradients[Math.floor(Math.random() * gradients.length)];
-  };
-
   if (loading && pages.length === 0) {
     return (
-      <div className="space-y-6">
-        {/* Header Skeleton */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
-            <div>
-              <div className="h-8 w-48 bg-gray-300 dark:bg-gray-600 rounded-lg mb-2 animate-pulse" />
-              <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+      <div className="space-y-4">
+        <div className={`${asidePanelClass} animate-pulse p-4`}>
+          <div className="flex gap-3">
+            <div className="h-8 w-8 shrink-0 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+            <div className="flex-1 space-y-2">
+              <div className="h-5 w-36 rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-3.5 w-full max-w-sm rounded bg-zinc-100 dark:bg-zinc-800/80" />
             </div>
           </div>
         </div>
-
-        {/* Search and Filters Skeleton */}
-        <GlassCard className="p-5 animate-pulse">
-          <div className="h-12 w-full bg-gray-200 dark:bg-gray-700 rounded-xl mb-4" />
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg" />
-            ))}
-          </div>
-        </GlassCard>
-
-        {/* Pages Grid Skeleton */}
+        <div className={`${asidePanelClass} animate-pulse p-4`}>
+          <div className="mb-3 h-9 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-8 w-full rounded-lg bg-zinc-100 dark:bg-zinc-800/80" />
+        </div>
         <PageCardSkeletonList count={9} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-all duration-200 group"
-            >
-              <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-            </button>
-          )}
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-xl shadow-lg">
-                <Building2 size={24} className="text-white" strokeWidth={2.5} />
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 dark:from-purple-400 dark:via-pink-400 dark:to-orange-400 bg-clip-text text-transparent">
-                Communities
-              </h1>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 ml-14">
-              Discover and join communities that match your interests
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <CommunitiesPageHeader
+        onBack={onBack}
+        total={total}
+        categoryCount={categoryOptions.length}
+      />
 
-      {/* Search and Filters */}
-      <GlassCard className="p-5">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search communities by name or description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
-            />
-          </div>
+      <CommunitiesFilterToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        filterTabs={filterTabs}
+        selectedFilter={selectedFilter}
+        onFilterChange={setSelectedFilter}
+        total={total}
+        resultCount={pages.length}
+        loading={loading}
+      />
 
-          {/* Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter size={20} className="text-gray-400 flex-shrink-0" />
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all capitalize text-sm min-w-[140px]"
-            >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat === 'trending' ? '🔥 Trending' : (cat || '').charAt(0).toUpperCase() + (cat || '').slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* Error State */}
       {error && !loading && (
-        <GlassCard className="p-8 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
-            <FileText size={32} className="text-red-500" />
-          </div>
-          <p className="text-red-500 dark:text-red-400 mb-2 font-semibold">Failed to load communities</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{error}</p>
-          <Button 
-            variant="primary" 
-            onClick={() => window.location.reload()}
-          >
+        <div className={`${asidePanelClass} p-8 text-center`}>
+          <p className="mb-1 font-medium text-red-600 dark:text-red-400">Failed to load communities</p>
+          <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">{error}</p>
+          <Button variant="primary" onClick={() => window.location.reload()}>
             Retry
           </Button>
-        </GlassCard>
+        </div>
       )}
 
-      {/* Pages Grid */}
       {!loading && !error && (
         <>
-          {shuffledPages.length > 0 ? (
+          {pages.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {shuffledPages.map((page) => {
-                  const coverGradient = getDefaultCover();
-                  const logoUrl = page.logoUrl || DEFAULT_PAGE_LOGO;
-                  const coverUrl = page.coverImageUrl || '';
-                  
-                  return (
-                    <div
-                      key={page.id}
-                      onClick={() => handlePageClick(page)}
-                      className="group cursor-pointer"
-                    >
-                      <GlassCard className="relative overflow-hidden hover:shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300 h-full flex flex-col border border-gray-200 dark:border-gray-800">
-                        {/* Cover Image */}
-                        <div className={`relative h-28 bg-gradient-to-br ${coverGradient} overflow-hidden rounded-t-xl`}>
-                          {coverUrl ? (
-                            <img
-                              src={coverUrl}
-                              alt={page.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
-                          ) : null}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-                          
-                          {/* Trending Badge */}
-                          {page.isTrending && (
-                            <div className="absolute top-2 right-2 z-10">
-                              <Badge className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-semibold backdrop-blur-sm flex items-center gap-1 shadow-md px-2 py-0.5">
-                                <TrendingUp size={10} />
-                                Trending
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Logo Overlay - positioned outside cover image to avoid clipping */}
-                        <div className="relative -mt-8 ml-4 z-10">
-                          <div className="w-16 h-16 rounded-xl overflow-hidden border-[3px] border-white dark:border-gray-900 bg-white dark:bg-gray-800 shadow-lg group-hover:scale-105 transition-transform duration-300">
-                            <img
-                              src={logoUrl}
-                              alt={page.name}
-                              className="w-full h-full object-cover"
-                              onError={(event) => {
-                                const target = event.target as HTMLImageElement;
-                                if (target.src !== DEFAULT_PAGE_LOGO) {
-                                  target.src = DEFAULT_PAGE_LOGO;
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4 pt-10 flex-1 flex flex-col">
-                          <h3 className="font-bold text-base text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-1 mb-2">
-                            {page.name}
-                          </h3>
-                          
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2 flex-1 leading-relaxed">
-                            {page.description || 'No description available'}
-                          </p>
-
-                          <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100 dark:border-gray-800">
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                              <Users size={13} className="flex-shrink-0" />
-                              <span className="font-medium">{(page.followerCount || page.follower_count || 0).toLocaleString()}</span>
-                              <span className="hidden sm:inline">followers</span>
-                            </div>
-                            {page.category && (
-                              <Badge className="bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 text-xs capitalize px-2 py-0.5 border border-gray-200 dark:border-gray-700">
-                                {page.category}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </GlassCard>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">
+                {pages.map((page) => (
+                  <PageListCard
+                    key={page.id}
+                    page={page}
+                    onClick={() => handlePageClick(page)}
+                  />
+                ))}
               </div>
 
-              {/* Load More Button */}
               {hasMore && (
-                <div className="flex justify-center mt-8">
-                  <Button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    variant="primary"
-                    className="px-6 py-3 rounded-xl font-medium shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 transition-all duration-300"
-                  >
+                <div className="flex justify-center pt-2">
+                  <Button onClick={loadMore} disabled={loadingMore} variant="secondary" size="md">
                     {loadingMore ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Loading...
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading…
                       </>
                     ) : (
                       <>
-                        Load More
-                        <ChevronRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                        Load more
+                        <ChevronRight size={16} />
                       </>
                     )}
                   </Button>
                 </div>
               )}
 
-              {/* Pagination Info */}
-              {total > 0 && shuffledPages.length > 0 && (
-                <div className="text-center mt-4 text-sm text-gray-500 dark:text-gray-400">
-                  Showing {shuffledPages.length} of {total} communit{total !== 1 ? 'ies' : 'y'}
-                  {hasMore && ` • ${total - shuffledPages.length} more available`}
-                </div>
+              {total > 0 && (
+                <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+                  Showing {pages.length.toLocaleString()} of {total.toLocaleString()} communit
+                  {total !== 1 ? 'ies' : 'y'}
+                </p>
               )}
             </>
           ) : (
-            <GlassCard className="p-12 text-center">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                <Building2 size={40} className="text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No communities found</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {searchQuery 
-                  ? `No communities match "${searchQuery}"`
-                  : 'Be the first to create a community!'}
+            <div className={`${asidePanelClass} px-6 py-12 text-center`}>
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 dark:border-white/10 dark:bg-white/[0.04]">
+                <Building2 size={24} className="text-zinc-400" strokeWidth={1.5} />
+              </span>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                No communities found
+              </h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {searchQuery
+                  ? `Nothing matches "${searchQuery}". Try another search.`
+                  : 'Be the first to create a community.'}
               </p>
-            </GlassCard>
+            </div>
           )}
         </>
       )}

@@ -1,20 +1,43 @@
 import { useEffect, useState } from 'react';
-import { Users, ExternalLink, Building2 } from 'lucide-react';
+import { ExternalLink, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { GlassCard } from './GlassCard';
-import { Badge } from './Badge';
 import { Button } from './Button';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Page } from '../types';
 import pagesService from '../services/api/pages.service';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  asidePanelClass,
+  asidePanelPadding,
+  asideStatChipClass,
+  asideGhostBtnClass,
+  postCardDividerClass,
+} from './postCardSurface';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
+
+const categoryChipClass =
+  'inline-flex items-center gap-1 rounded-md border border-zinc-200/70 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400';
 
 interface PageSidebarProps {
   page: Page | { id: string; slug?: string };
   onLoginRequired?: () => void;
-  onFollowChange?: (isFollowing: boolean, followerCount: number) => void; // Callback when follow status changes
+  onFollowChange?: (isFollowing: boolean, followerCount: number) => void;
+}
+
+function SidebarSkeleton() {
+  return (
+    <div className={`${asidePanelClass} ${asidePanelPadding} animate-pulse`}>
+      <div className="flex gap-3">
+        <div className="h-12 w-12 shrink-0 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+        <div className="flex-1 space-y-2 pt-1">
+          <div className="h-3.5 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-3 w-1/2 rounded bg-zinc-200 dark:bg-zinc-800" />
+        </div>
+      </div>
+      <div className="mt-3 h-8 rounded bg-zinc-200 dark:bg-zinc-800" />
+    </div>
+  );
 }
 
 export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }: PageSidebarProps) {
@@ -24,63 +47,42 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // REBUILT FROM SCRATCH: Always fetch from API to get correct isFollowing status (like PageView)
   useEffect(() => {
     const fetchPageData = async () => {
       try {
         setLoading(true);
-        
-        // Get identifier - use slug or id
-        const identifier = (pageProp as any).slug || (pageProp as any).id;
+
+        const identifier = (pageProp as Page).slug || (pageProp as Page).id;
         if (!identifier) {
-          // If no identifier, try to use page data from prop
-        if ('name' in pageProp && pageProp.name) {
-          const page = pageProp as Page;
+          if ('name' in pageProp && pageProp.name) {
+            const page = pageProp as Page;
             const isFollowingFromProp = page?.isFollowing === true;
             setIsFollowing(isFollowingFromProp);
-            setPageData({ 
-              ...page, 
-              isFollowing: isFollowingFromProp
-            });
+            setPageData({ ...page, isFollowing: isFollowingFromProp });
             setLoading(false);
           }
           return;
         }
-        
-        // IMPORTANT: Always fetch from API to get correct isFollowing status
-        // The API checks authentication and returns proper follow status
-            const pageResponse = await pagesService.getPage(identifier);
+
+        const pageResponse = await pagesService.getPage(identifier);
         const pageDataFromApi = pageResponse.page || pageResponse;
-        
-        // Extract isFollowing - MUST be boolean, default to false
-        // API returns correct isFollowing based on authenticated user
         const isFollowingFromApi = pageDataFromApi?.isFollowing === true;
-        
-        // Set state immediately
+
         setIsFollowing(isFollowingFromApi);
-        
-        // Store complete page data with isFollowing explicitly set
-        const completePageData = {
+        setPageData({
           ...pageDataFromApi,
-          isFollowing: isFollowingFromApi, // Explicitly set to ensure it's always boolean
-          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0
-        };
-        
-        setPageData(completePageData);
-        
+          isFollowing: isFollowingFromApi,
+          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0,
+        });
       } catch (error) {
         console.error('Error fetching page data:', error);
-        // Fallback: use page data from prop if available
         if ('name' in pageProp && pageProp.name) {
           const page = pageProp as Page;
           const isFollowingFromProp = page?.isFollowing === true;
           setIsFollowing(isFollowingFromProp);
-          setPageData({ 
-            ...page, 
-            isFollowing: isFollowingFromProp
-          });
+          setPageData({ ...page, isFollowing: isFollowingFromProp });
         } else {
-        setPageData(null);
+          setPageData(null);
         }
       } finally {
         setLoading(false);
@@ -90,30 +92,29 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
     if (pageProp) {
       fetchPageData();
     }
-  }, [pageProp, user?.id, isAuthenticated]); // Re-fetch when user changes (login/logout) or auth state changes
+  }, [pageProp, user?.id, isAuthenticated]);
 
-  // Sync isFollowing state when pageProp.isFollowing changes (from parent updates)
   useEffect(() => {
     if ('name' in pageProp && pageProp.name && (pageProp as Page).isFollowing !== undefined) {
       const page = pageProp as Page;
       const isFollowingFromProp = page?.isFollowing === true;
       if (isFollowingFromProp !== isFollowing) {
         setIsFollowing(isFollowingFromProp);
-        setPageData(prev => prev ? { ...prev, isFollowing: isFollowingFromProp } : null);
+        setPageData((prev) => (prev ? { ...prev, isFollowing: isFollowingFromProp } : null));
       }
     }
   }, [(pageProp as Page)?.isFollowing]);
 
-  // Check if current user owns or can manage the page
-  const isOwnerOrAdmin = isAuthenticated && user && pageData && (
-    pageData.ownerId === user.id ||
-    pageData.owner?.id === user.id ||
-    pageData.userRole === 'owner' ||
-    pageData.userRole === 'admin' ||
-    ['owner', 'admin'].includes(pageData.userRole || '')
-  );
+  const isOwnerOrAdmin =
+    isAuthenticated &&
+    user &&
+    pageData &&
+    (pageData.ownerId === user.id ||
+      pageData.owner?.id === user.id ||
+      pageData.userRole === 'owner' ||
+      pageData.userRole === 'admin' ||
+      ['owner', 'admin'].includes(pageData.userRole || ''));
 
-  // REBUILT: Handle follow toggle
   const handleFollow = async () => {
     if (!isAuthenticated) {
       onLoginRequired?.();
@@ -125,140 +126,115 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
     const currentFollowing = isFollowing;
 
     try {
-      let response;
-      
-      if (currentFollowing) {
-        response = await pagesService.leavePage(pageData.id);
-      } else {
-        response = await pagesService.joinPage(pageData.id);
-      }
-      
-      // API response: { message: "...", isFollowing: boolean, followerCount: number }
+      const response = currentFollowing
+        ? await pagesService.leavePage(pageData.id)
+        : await pagesService.joinPage(pageData.id);
+
       const newIsFollowing = response?.isFollowing === true;
       const newFollowerCount = response?.followerCount ?? pageData.followerCount;
-      
-      // Update state immediately
+
       setIsFollowing(newIsFollowing);
-      
-      // Update pageData
-        if (pageData) {
-          setPageData({ 
-            ...pageData, 
+      if (pageData) {
+        setPageData({
+          ...pageData,
           isFollowing: newIsFollowing,
-          followerCount: newFollowerCount
-          });
+          followerCount: newFollowerCount,
+        });
       }
-      
-      // Notify parent component of follow status change
+
       onFollowChange?.(newIsFollowing, newFollowerCount);
     } catch (error) {
       console.error('Error following/unfollowing page:', error);
-      // Revert on error
       setIsFollowing(currentFollowing);
     }
   };
 
-  if (loading) {
-    return (
-      <GlassCard className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-16 w-16 bg-gray-700 rounded-xl mx-auto"></div>
-          <div className="h-4 bg-gray-700 rounded w-3/4 mx-auto"></div>
-          <div className="h-3 bg-gray-700 rounded w-full"></div>
-        </div>
-      </GlassCard>
-    );
-  }
+  if (loading) return <SidebarSkeleton />;
+  if (!pageData) return null;
 
-  if (!pageData) {
-    return null;
-  }
+  const followerCount = pageData.followerCount || pageData.follower_count || 0;
+  const postCount = pageData.postCount || 0;
 
   return (
-    <GlassCard className="p-6">
-      <div className="space-y-4">
-        {/* Page Header */}
-        <div className="flex items-center gap-3">
-          <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0 shadow-lg relative`}>
-            <img 
+    <section className={`${asidePanelClass} ${asidePanelPadding}`} aria-label="Page">
+      <div className="space-y-2.5">
+        <div className="flex items-start gap-2.5">
+          <button
+            type="button"
+            onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
+            className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-zinc-200/80 bg-zinc-50 transition-opacity hover:opacity-90 dark:border-white/10 dark:bg-zinc-900/80"
+          >
+            <img
               src={pageData.logo || pageData.logoUrl || DEFAULT_PAGE_LOGO}
-              alt={pageData.name}
-              className="w-full h-full object-cover"
+              alt=""
+              className="h-full w-full object-cover"
               onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = DEFAULT_PAGE_LOGO;
+                (e.target as HTMLImageElement).src = DEFAULT_PAGE_LOGO;
               }}
             />
-            {pageData.isVerified && (
-              <div className="absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                <VerifiedBadge size={14} />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
+              className="inline-flex max-w-full items-center gap-1 text-left"
+            >
+              <span className="truncate text-sm font-semibold text-zinc-900 transition-colors hover:text-zinc-700 dark:text-zinc-100 dark:hover:text-zinc-300">
+                {pageData.name}
+              </span>
+              {pageData.isVerified && <VerifiedBadge variant="page" size={14} className="shrink-0" />}
+            </button>
+
+            {pageData.category && (
+              <div className="mt-1">
+                <span className={categoryChipClass}>
+                  <Building2 size={10} className="shrink-0 opacity-70" />
+                  {pageData.category}
+                </span>
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 
-              className="font-bold text-lg truncate hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-              onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
-            >
-              {pageData.name}
-            </h3>
-            {pageData.category && (
-              <Badge className="text-xs mt-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                {pageData.category}
-              </Badge>
-            )}
-          </div>
         </div>
 
-        {/* Page Description */}
         {pageData.description && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+          <p className="line-clamp-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
             {pageData.description}
           </p>
         )}
 
-        {/* Page Stats */}
-        <div className="flex items-center gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-1.5">
-            <Users size={16} className="text-gray-400" />
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">
-              {(pageData.followerCount || pageData.follower_count || 0).toLocaleString()}
+        <div className={`flex flex-wrap gap-1.5 pt-0.5 ${postCardDividerClass}`}>
+          <span className={asideStatChipClass}>
+            <span className="text-xs font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {followerCount.toLocaleString()}
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">followers</span>
-          </div>
-          <div className="w-px h-4 bg-gray-300 dark:bg-gray-700"></div>
-          <div className="flex items-center gap-1.5">
-            <Building2 size={16} className="text-gray-400" />
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">
-              {(pageData.postCount || 0).toLocaleString()}
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">followers</span>
+          </span>
+          <span className={asideStatChipClass}>
+            <span className="text-xs font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {postCount.toLocaleString()}
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">posts</span>
-          </div>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">posts</span>
+          </span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col gap-2 pt-2">
-          {/* Follow Button - Only show if user is not owner/admin */}
+        <div className="flex flex-col gap-1.5">
           {!isOwnerOrAdmin && (
             <Button
               variant={isFollowing ? 'secondary' : 'primary'}
               onClick={handleFollow}
-              className="w-full"
+              className="h-8 w-full text-xs"
             >
               {isFollowing ? 'Following' : 'Follow'}
             </Button>
           )}
-          
-          <button
-            onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all shadow-md text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <ExternalLink size={16} />
-            View Page
+
+          <button type="button" onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)} className={asideGhostBtnClass}>
+            <ExternalLink size={14} strokeWidth={2} />
+            View page
           </button>
         </div>
       </div>
-    </GlassCard>
+    </section>
   );
 }
-

@@ -1992,7 +1992,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
 
             {/* Sticky Right Sidebar - Desktop Only */}
             <div className="hidden lg:block lg:absolute lg:right-0 lg:top-0 lg:w-72">
-              <div className="sticky top-24 space-y-4">
+              <div className="sticky-aside-panel sticky top-[calc(var(--layout-header-offset)+0.5rem)] z-30 max-h-[calc(100dvh-var(--layout-header-offset)-var(--layout-bottom-safe)-0.75rem)] overflow-y-auto overscroll-y-contain space-y-4">
                 {/* Post Type Toggle - Right Sidebar - Only for regular posts */}
                 {contentType === 'post' && (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">

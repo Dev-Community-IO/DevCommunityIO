@@ -1,9 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, Eye, AlertTriangle, Shield, Share2, Loader2, Twitter, Linkedin, Github, Facebook, Instagram, Youtube, Send, MessageCircle, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, AlertTriangle, Shield, Share2, Loader2, Twitter, Linkedin, Github, Facebook, Instagram, Youtube, Send, MessageCircle, Gamepad2, ChevronRight, Award } from 'lucide-react';
+import { TabPills } from './TabPills';
+import { BioText } from './BioText';
+import { SocialLinks } from './SocialLinks';
 import { GlassCard } from './GlassCard';
 import { Badge } from './Badge';
 import { CompactPostCard } from './CompactPostCard';
+import {
+  asidePanelClass,
+  asideStatChipClass,
+  compactPostGridClass,
+  postCardSurfaceClass,
+  postCardDividerClass,
+  postTagClass,
+} from './postCardSurface';
+import { formatListingLabel } from './listingPageChrome';
 import { VerifiedBadge } from './VerifiedBadge';
+import { Avatar } from './Avatar';
 import { ShareDropdown } from './ShareDropdown';
 import { Post } from '../types';
 import pagesService from '../services/api/pages.service';
@@ -271,6 +284,15 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
      });
    }
 
+  const pageSocialLinks = useMemo(() => {
+    if (!pageData) return {};
+    const links = { ...(pageData.socialLinks || {}) } as Record<string, string>;
+    if (pageData.url && !links.website) {
+      links.website = pageData.url;
+    }
+    return links;
+  }, [pageData]);
+
   const socialLinkEntries = useMemo<SocialLinkEntry[]>(() => {
     if (!pageData) return [];
 
@@ -496,7 +518,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
 
   if (error || !pageData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="min-h-[50vh] flex items-center justify-center bg-gray-50 dark:bg-transparent">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
             <AlertTriangle className="w-8 h-8 text-red-500" />
@@ -531,301 +553,217 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           type="website"
         />
       )}
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Hero Section with Cover */}
+      <div className="min-h-screen pb-20 sm:pb-24">
       <div className="relative">
-        {/* Cover Image */}
-        <div className="relative h-72 md:h-96 overflow-hidden">
+        <div className="relative h-28 sm:h-36 md:h-44 lg:h-52 overflow-hidden">
           {pageData.coverImageUrl ? (
             <>
-            <img
-              src={pageData.coverImageUrl}
-              alt={`${pageData.name} cover`}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+              <img
+                src={pageData.coverImageUrl}
+                alt={`${pageData.name} cover`}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-black/20" />
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"></div>
+            <div className="h-full w-full bg-gray-200 dark:bg-gray-800" />
           )}
-          
-          {/* Back Button - with consistent margin */}
-          <div className="absolute top-4 left-0 right-0 z-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
-            <div className="max-w-7xl mx-auto">
-              <button
-                onClick={onBack}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-white dark:hover:bg-gray-800 transition-all shadow-lg"
-              >
-                <ArrowLeft size={18} />
-                <span className="hidden sm:inline">Back</span>
-              </button>
-            </div>
-          </div>
 
-          {/* Action Buttons - Top Right - with consistent margin */}
-          <div className="absolute top-4 right-0 z-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
-            <div className="max-w-7xl mx-auto flex justify-end">
+          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 sm:top-4 sm:left-4 sm:right-4">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-700 backdrop-blur-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:bg-gray-800 sm:text-sm"
+            >
+              <ArrowLeft size={16} />
+              <span className="hidden sm:inline">Pages</span>
+            </button>
+            <div className="flex items-center gap-1.5">
               {user && !canManage && (
                 <button
+                  type="button"
                   onClick={handleNotificationToggle}
-                  className={`p-2.5 rounded-xl backdrop-blur-xl border transition-all ${
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
                     notificationsEnabled
-                      ? 'bg-blue-500/90 text-white border-blue-400/50 shadow-lg shadow-blue-500/25'
-                      : 'bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800'
+                      ? 'border-blue-400/50 bg-blue-500 text-white'
+                      : 'border-gray-200 bg-white/95 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:bg-gray-800'
                   }`}
                   title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
                 >
-                  {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
+                  {notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}
                 </button>
               )}
+              <ShareDropdown
+                url={window.location.href}
+                title={pageData.name}
+                hashtags={pageData.category ? [pageData.category] : []}
+                description={pageData.description?.substring(0, 150)}
+                trigger={
+                  <button
+                    type="button"
+                    aria-label="Share page"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white/95 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        </div>
 
-                  <ShareDropdown
-                    url={window.location.href}
-                    title={pageData.name}
-                    hashtags={pageData.category ? [pageData.category] : []}
-                    description={pageData.description?.substring(0, 150)}
-                    trigger={
-                      <button
-                        className="p-2.5 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all"
-                        title="Share page"
-                      >
-                        <Share2 size={20} />
-                      </button>
-                    }
+        <div className="relative z-10 -mt-8 px-4 sm:-mt-9 sm:px-6 md:-mt-10 md:px-8">
+          <GlassCard className="p-3 sm:p-4 md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+              <div className="mx-auto shrink-0 sm:mx-0">
+                <div className="h-14 w-14 overflow-hidden rounded-xl bg-white ring-2 ring-white dark:bg-gray-800 dark:ring-zinc-900 sm:h-16 sm:w-16">
+                  <img
+                    src={pageData.logoUrl || DEFAULT_PAGE_LOGO}
+                    alt={`${pageData.name} logo`}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = DEFAULT_PAGE_LOGO;
+                    }}
                   />
-            </div>
-          </div>
-        </div>
-            
-        {/* Profile Section - with consistent margin */}
-        <div className="relative px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 -mt-20 z-10">
-          <div className="max-w-7xl mx-auto">
-            <GlassCard className="p-6 sm:p-8 shadow-2xl border-2 border-gray-200/50 dark:border-gray-700/50">
-              <div className="flex flex-col md:flex-row md:items-end gap-6">
-                {/* Logo */}
-                <div className="relative flex-shrink-0">
-                  <div className={`w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden border-4 border-white dark:border-gray-900 shadow-2xl bg-white dark:bg-gray-800`}>
-                    <img
-                      src={pageData.logoUrl || DEFAULT_PAGE_LOGO}
-                      alt={`${pageData.name} logo`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = DEFAULT_PAGE_LOGO;
-                      }}
-                    />
-                    {pageData.isVerified && (
-                      <div className="absolute bottom-0 right-0 bg-white dark:bg-gray-900 rounded-full p-1 shadow-lg border-2 border-white dark:border-gray-900">
-                        <VerifiedBadge size={20} />
-                      </div>
-                    )}
-                  </div>
-          </div>
-
-                {/* Info Section */}
-                <div className="flex-1 min-w-0 pt-4 md:pt-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-                          {pageData.name}
-                        </h1>
-                        {pageData.isVerified && (
-                          <Badge variant="gradient" className="text-xs px-2 py-1">
-                            {/* <Sparkles size={12} className="mr-1" /> */}
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {pageData.category && (
-                          <Badge variant="default" className="text-xs">
-                            <Building2 size={12} className="mr-1" />
-                            {pageData.category}
-                          </Badge>
-                        )}
-                        {pageData.createdAt && (
-                          <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                            <Calendar size={14} />
-                            Created {new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                          </span>
-                        )}
-        </div>
-      </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {user ? (
-                        <>
-                          {/* Show Follow button if user cannot manage the page */}
-                          {!canManage && pageData ? (
-                            <button
-                              onClick={handleFollowToggle}
-                              disabled={isFollowingLoading}
-                              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isFollowing
-                                  ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white border-2 border-gray-300 dark:border-gray-600'
-                                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105'
-                              }`}
-                            >
-                              {isFollowingLoading ? (
-                                <>
-                                  <Loader2 size={18} className="animate-spin" />
-                                  <span>Loading...</span>
-                                </>
-                              ) : (
-                                <>
-                              <UserPlus size={18} />
-                              {isFollowing ? 'Following' : 'Follow'}
-                                </>
-                          )}
-                            </button>
-                          ) : null}
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (onLoginRequired) {
-                      onLoginRequired();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-blue-500/30 hover:scale-105"
-                >
-                  <UserPlus size={18} />
-                  Follow to Join
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex items-center gap-6 mb-4 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
-                        <Users size={18} className="text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {(pageData.followerCount || pageData.follower_count || 0).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Followers</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
-                        <MessageSquare size={18} className="text-purple-600 dark:text-purple-400" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {pageData.postCount || pageData.posts || 0}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Posts</p>
-                      </div>
-                    </div>
-                    {pageData.viewCount && (
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/20">
-                          <Eye size={18} className="text-green-600 dark:text-green-400" />
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {pageData.viewCount.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Views</p>
-                        </div>
-                </div>
-              )}
-            </div>
-            
-                  {/* Description */}
-                  {pageData.description && (
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-                      {pageData.description}
-                    </p>
-                  )}
-                  
-                  {/* Social Links - Display in top card */}
-                  {socialLinkEntries.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {socialLinkEntries.map((entry: SocialLinkEntry, index: number) => {
-                          return (
-                            <a
-                              key={`${entry.key}-${index}`}
-                              href={entry.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all group hover:scale-105 ${entry.cardClass}`}
-                              title={entry.label}
-                            >
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${entry.iconBgClass}`}>
-                                {React.cloneElement(entry.icon as React.ReactElement, { size: 16 })}
-                              </div>
-                              <span className="font-medium text-xs hidden sm:inline">{entry.label}</span>
-                              <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
-            </GlassCard>
-          </div>
-        </div>
-      </div>
 
-      {/* Tabs Navigation - with consistent margin */}
-      <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24">
-          <div className="flex items-center justify-between gap-4 overflow-x-auto hide-scrollbar">
-            <div className="flex gap-1 min-w-0">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabType)}
-                    className={`flex items-center gap-2 px-4 py-4 font-semibold text-sm whitespace-nowrap transition-all relative group ${
-                      isActive
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    }`}
-                  >
-                    <Icon size={18} className={isActive ? 'text-blue-600 dark:text-blue-400' : ''} />
-                  <span>{tab.label}</span>
-                    {tab.count !== undefined && (
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${
-                        isActive 
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {tab.count}
-                      </span>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="mb-2 flex w-full flex-row items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
+                    <h1 className="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50 sm:text-xl">
+                      {pageData.name}
+                    </h1>
+                    {pageData.isVerified && (
+                      <VerifiedBadge variant="page" size={16} className="h-4 w-4 shrink-0" />
                     )}
-                    {isActive && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-t-full"></span>
+                  </div>
+
+                  <div className="flex shrink-0 items-center justify-end gap-1.5">
+                    {!user ? (
+                      <button
+                        type="button"
+                        onClick={() => onLoginRequired?.()}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white transition-all hover:bg-zinc-800 active:scale-[0.98] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                      >
+                        <UserPlus size={14} strokeWidth={2.25} />
+                        <span>Follow</span>
+                      </button>
+                    ) : !canManage ? (
+                      <button
+                        type="button"
+                        onClick={handleFollowToggle}
+                        disabled={isFollowingLoading}
+                        className={`inline-flex h-8 min-w-[5.25rem] items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isFollowing
+                            ? 'border border-zinc-200/90 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-white/15 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10'
+                            : 'bg-zinc-900 text-white shadow-sm ring-1 ring-zinc-900/10 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-white/20 dark:hover:bg-white'
+                        }`}
+                      >
+                        {isFollowingLoading ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <UserPlus size={14} strokeWidth={2.25} />
+                        )}
+                        <span>{isFollowingLoading ? '…' : isFollowing ? 'Following' : 'Follow'}</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400 sm:text-xs">
+                  {pageData.category && (
+                    <span className="inline-flex items-center gap-1">
+                      <Building2 size={12} className="shrink-0" />
+                      {pageData.category}
+                    </span>
                   )}
-                </button>
-              );
-            })}
-          </div>
-          </div>
+                  {pageData.createdAt && (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                      <Calendar size={12} className="shrink-0" />
+                      Created{' '}
+                      {new Date(pageData.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mb-2 flex flex-wrap items-center gap-x-0.5 gap-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('followers')}
+                    className="inline-flex items-baseline gap-0.5 rounded-md px-1 py-0.5 -mx-0.5 text-blue-600 transition-colors hover:bg-blue-500/10 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-500/15 dark:hover:text-blue-300"
+                  >
+                    <span className="text-xs font-semibold tabular-nums">
+                      {(pageData.followerCount || pageData.follower_count || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[11px] font-medium opacity-90">Followers</span>
+                  </button>
+                  <span className="mx-1.5 text-zinc-300 dark:text-zinc-600" aria-hidden>
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('posts')}
+                    className="inline-flex items-baseline gap-0.5 rounded-md px-1 py-0.5 -mx-0.5 text-zinc-900 transition-colors hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-white/10"
+                  >
+                    <span className="text-xs font-semibold tabular-nums">
+                      {(pageData.postCount || pagePosts.length || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Posts</span>
+                  </button>
+                  {pageData.viewCount ? (
+                    <>
+                      <span className="mx-1.5 text-zinc-300 dark:text-zinc-600" aria-hidden>
+                        ·
+                      </span>
+                      <span className="inline-flex items-baseline gap-0.5">
+                        <span className="text-xs font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                          {pageData.viewCount.toLocaleString()}
+                        </span>
+                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Views</span>
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+
+                {pageData.description && (
+                  <BioText text={pageData.description} className="mb-2 max-w-2xl" />
+                )}
+
+                <SocialLinks links={pageSocialLinks} />
+              </div>
+            </div>
+          </GlassCard>
         </div>
       </div>
 
-      {/* Content - with consistent margin */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 py-8">
+      <div className="sticky top-16 sm:top-20 z-30 border-b border-zinc-200/80 bg-gray-50/95 backdrop-blur-md dark:border-white/10 dark:bg-[#060b14]/90">
+        <div className="px-2 sm:px-4 md:px-6 lg:px-8 py-2">
+          <TabPills
+            ariaLabel="Page sections"
+            activeTab={activeTab}
+            onChange={(id) => setActiveTab(id as TabType)}
+            tabs={tabs.map((tab) => ({
+              id: tab.id,
+              label: tab.label,
+              icon: tab.icon,
+              count: tab.count,
+            }))}
+          />
+        </div>
+      </div>
+
+      <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 lg:py-10">
         {activeTab === 'posts' && (
           <div>
             {pagePosts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={compactPostGridClass}>
                 {pagePosts.map(post => {
                   const handlePostClick = () => {
                     // Check if post is linked to a hackathon, event, or opportunity
@@ -867,13 +805,15 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                 })}
               </div>
             ) : (
-              <GlassCard className="p-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
-                  <MessageSquare size={32} className="text-gray-400" />
-                </div>
-                <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">No posts yet</h3>
-                <p className="text-gray-500 dark:text-gray-400">Be the first to create a post for this page!</p>
-              </GlassCard>
+              <div className={`${asidePanelClass} px-6 py-12 text-center`}>
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+                  <MessageSquare size={22} strokeWidth={1.75} />
+                </span>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">No posts yet</h3>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Be the first to create a post for this page.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -894,17 +834,93 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   );
 }
 
+const aboutMetaGridClass =
+  'grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3';
+
+function AboutSectionHeader({
+  icon: Icon,
+  title,
+  subtitle,
+  count,
+}: {
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  title: string;
+  subtitle?: string;
+  count?: number;
+}) {
+  return (
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+          aria-hidden
+        >
+          <Icon size={15} strokeWidth={2} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
+          {subtitle && (
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+          )}
+        </div>
+      </div>
+      {count !== undefined && count > 0 && (
+        <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs`}>
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+            {count.toLocaleString()}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AboutMetaTile({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`${asidePanelClass} p-3 sm:p-3.5`}>
+      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        <Icon size={11} strokeWidth={2} className="shrink-0" aria-hidden />
+        {label}
+      </p>
+      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{children}</div>
+    </div>
+  );
+}
+
+const teamRoleLabel: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  moderator: 'Moderator',
+};
+
 // About Tab Component
-const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries, pagePosts }: { pageData: any; pageTeamMembers: any[]; socialLinkEntries: SocialLinkEntry[]; pagePosts: Post[] }) => {
+const AboutTab = ({
+  pageData,
+  pageTeamMembers,
+  socialLinkEntries,
+  pagePosts,
+}: {
+  pageData: any;
+  pageTeamMembers: any[];
+  socialLinkEntries: SocialLinkEntry[];
+  pagePosts: Post[];
+}) => {
   const navigate = useNavigate();
-  
-  // Collect unique tags from all page posts
+
   const allTags = new Map<string, any>();
   pagePosts.forEach((post: Post) => {
     if (post.tags && Array.isArray(post.tags)) {
       post.tags.forEach((tag: any) => {
-        const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
-        const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
+        const tagName = typeof tag === 'string' ? tag : tag?.name || tag?.slug || '';
+        const tagKey = typeof tag === 'string' ? tag : tag?.id || tag?.slug || tagName;
         if (!allTags.has(tagKey)) {
           allTags.set(tagKey, typeof tag === 'string' ? { name: tag, slug: tag } : tag);
         }
@@ -912,255 +928,335 @@ const AboutTab = ({ pageData, pageTeamMembers, socialLinkEntries, pagePosts }: {
     }
   });
   const uniqueTags = Array.from(allTags.values());
-  
+
+  const description = pageData.description || pageData.shortBio || 'No description available.';
+  const teamMembers = (pageTeamMembers || []).filter((m: any) =>
+    ['owner', 'admin', 'moderator'].includes(m.role)
+  );
+  const createdLabel = pageData.createdAt
+    ? new Date(pageData.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null;
+  const websiteDisplay = pageData.url
+    ? String(pageData.url)
+        .replace(/^https?:\/\//i, '')
+        .replace(/\/$/, '')
+    : null;
+
   return (
-    <div className="space-y-6">
-      <GlassCard className="p-6 md:p-8">
-        <div className="flex items-start justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <FileText size={24} className="text-blue-500" />
-            About
-          </h2>
-        </div>
-        <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-lg">
-          {pageData.description || pageData.shortBio || 'No description available.'}
-        </p>
-        
-        {/* Tags */}
+    <div className="space-y-4">
+      <section className={`${asidePanelClass} p-3 sm:p-4`}>
+        <AboutSectionHeader icon={FileText} title="About" subtitle="Community overview" />
+        <BioText text={description} className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400" />
+
         {uniqueTags.length > 0 && (
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Tags</h3>
-            <div className="flex flex-wrap gap-2">
+          <div className={`mt-4 pt-4 ${postCardDividerClass}`}>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+              Topics from posts
+            </p>
+            <div className="flex flex-wrap gap-1.5">
               {uniqueTags.map((tag: any) => {
-                const tagName = typeof tag === 'string' ? tag : (tag?.name || tag?.slug || '');
-                const tagKey = typeof tag === 'string' ? tag : (tag?.id || tag?.slug || tagName);
-                const tagLogoUrl = typeof tag === 'string' ? null : (tag?.logoUrl || tag?.logo_url);
+                const tagName = typeof tag === 'string' ? tag : tag?.name || tag?.slug || '';
+                const tagKey = typeof tag === 'string' ? tag : tag?.id || tag?.slug || tagName;
+                const tagSlug = typeof tag === 'string' ? tag : tag?.slug || tagName;
+                const tagLogoUrl = typeof tag === 'string' ? null : tag?.logoUrl || tag?.logo_url;
                 return (
-                  <span
+                  <button
                     key={tagKey}
-                    onClick={() => navigate(`/tags/${typeof tag === 'string' ? tag : (tag?.slug || tagName)}`)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => navigate(`/tags/${tagSlug}`)}
+                    className={`${postTagClass} cursor-pointer transition-colors hover:border-zinc-300 hover:bg-zinc-100 dark:hover:border-white/15 dark:hover:bg-white/[0.08]`}
                   >
                     {tagLogoUrl ? (
-                      <>
-                        <img src={tagLogoUrl} alt={tagName} className="w-4 h-4 rounded" />
-                        <span>{tagName}</span>
-                      </>
+                      <span className="inline-flex max-w-[8rem] items-center gap-1 truncate">
+                        <img src={tagLogoUrl} alt="" className="h-3.5 w-3.5 rounded object-cover" />
+                        {tagName}
+                      </span>
                     ) : (
-                      <span>#{tagName}</span>
+                      <span className="truncate">#{tagName}</span>
                     )}
-                  </span>
+                  </button>
                 );
               })}
             </div>
           </div>
         )}
-      </GlassCard>
+      </section>
 
-      {/* Page Details Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <GlassCard className="p-6 hover:shadow-xl transition-all">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/20">
-              <Building2 size={20} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</p>
-          </div>
-          <p className="font-bold text-xl text-gray-900 dark:text-white">
-            {pageData.category || 'General'}
-          </p>
-        </GlassCard>
-
-        <GlassCard className="p-6 hover:shadow-xl transition-all">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/20">
-              <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
-          </div>
-          <p className="font-bold text-xl text-gray-900 dark:text-white">
-            {pageData.createdAt ? new Date(pageData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
-          </p>
-        </GlassCard>
-
-        {pageData.url && (
-          <GlassCard className="p-6 hover:shadow-xl transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/20">
-                <Globe size={20} className="text-green-600 dark:text-green-400" />
-              </div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Website</p>
-            </div>
-            <a 
-              href={pageData.url} 
-              target="_blank" 
+      <div className={aboutMetaGridClass}>
+        <AboutMetaTile icon={Building2} label="Category">
+          <span className="capitalize">{formatListingLabel(pageData.category || 'general')}</span>
+        </AboutMetaTile>
+        <AboutMetaTile icon={Calendar} label="Created">
+          {createdLabel || '—'}
+        </AboutMetaTile>
+        {websiteDisplay && (
+          <AboutMetaTile icon={Globe} label="Website">
+            <a
+              href={pageData.url}
+              target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline break-all flex items-center gap-1 group"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex max-w-full items-center gap-1 text-zinc-800 transition-colors hover:text-zinc-600 dark:text-zinc-200 dark:hover:text-white"
             >
-              <span className="truncate">{pageData.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
-              <ExternalLink size={14} className="flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              <span className="truncate">{websiteDisplay}</span>
+              <ExternalLink size={12} strokeWidth={2} className="shrink-0 opacity-60" />
             </a>
-          </GlassCard>
+          </AboutMetaTile>
         )}
       </div>
 
-      {/* Team Members - Only visible to admins */}
-      {pageTeamMembers && pageTeamMembers.filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role)).length > 0 && (
-        <GlassCard className="p-6 md:p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Shield size={24} className="text-blue-500" />
-              Team
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pageTeamMembers
-              .filter((m: any) => ['owner', 'admin', 'moderator'].includes(m.role))
-              .map((member: any) => (
-                <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 hover:shadow-lg transition-all border border-gray-200 dark:border-gray-700">
-                  <img
-                    src={member.avatarUrl || member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.username}`}
+      {teamMembers.length > 0 && (
+        <section className={`${asidePanelClass} p-3 sm:p-4`}>
+          <AboutSectionHeader
+            icon={Shield}
+            title="Team"
+            subtitle="Owners and moderators"
+            count={teamMembers.length}
+          />
+          <div className={memberGridClass}>
+            {teamMembers.map((member: any) => (
+              <article
+                key={member.id}
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(`/profile/${member.username}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(`/profile/${member.username}`);
+                  }
+                }}
+                className={`${postCardSurfaceClass} h-full`}
+              >
+                <div className="flex h-full items-center gap-3 p-3">
+                  <Avatar
+                    src={
+                      member.avatarUrl ||
+                      member.avatar_url ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(member.username)}`
+                    }
                     alt={member.username}
-                    className="w-14 h-14 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700"
+                    size="sm"
+                    className="h-10 w-10 shrink-0 ring-2 ring-white dark:ring-zinc-900"
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-bold text-gray-900 dark:text-white truncate">{member.username}</p>
-                      {member.is_verified && (
-                        <Badge variant="gradient" className="text-xs px-1.5 py-0.5">
-                          ✓
-                        </Badge>
-                      )}
-                    </div>
-                    <Badge 
-                      variant={member.role === 'owner' ? 'gradient' : 'default'}
-                      className="text-xs"
-                    >
-                      {member.role === 'owner' ? 'Owner' : member.role === 'admin' ? 'Admin' : 'Moderator'}
-                    </Badge>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex min-w-0 items-center gap-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      {member.username}
+                      {member.is_verified && <VerifiedBadge size={11} className="shrink-0" />}
+                    </p>
+                    <span className={`${postTagClass} mt-1 capitalize`}>
+                      {teamRoleLabel[member.role] || member.role}
+                    </span>
                   </div>
+                  <ChevronRight size={14} strokeWidth={2} className="shrink-0 text-zinc-400" aria-hidden />
                 </div>
-              ))}
+              </article>
+            ))}
           </div>
-        </GlassCard>
+        </section>
       )}
 
-      {/* Social Links */}
       {socialLinkEntries.length > 0 && (
-        <GlassCard className="p-6 md:p-8">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
-            <Globe size={24} className="text-blue-500" />
-            Social Links
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <section className={`${asidePanelClass} p-3 sm:p-4`}>
+          <AboutSectionHeader icon={Globe} title="Links" subtitle="Official channels" />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {socialLinkEntries.map((entry: SocialLinkEntry, index: number) => {
               const displayUrl = getDisplayUrl(entry.href);
               return (
-              <a
+                <a
                   key={`${entry.key}-${index}`}
                   href={entry.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                  className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all group ${entry.cardClass}`}
-              >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${entry.iconBgClass}`}>
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-2.5 rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3 py-2.5 transition-colors hover:border-zinc-300 hover:bg-zinc-100/90 dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.06]"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200/80 bg-white text-zinc-600 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-400 [&_svg]:h-4 [&_svg]:w-4">
                     {entry.icon}
-                </div>
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-semibold">{entry.label}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{displayUrl}</span>
-                </div>
-                <ExternalLink size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-              </a>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                      {entry.label}
+                    </span>
+                    <span className="block truncate text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {displayUrl}
+                    </span>
+                  </span>
+                  <ExternalLink
+                    size={12}
+                    strokeWidth={2}
+                    className="shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100"
+                    aria-hidden
+                  />
+                </a>
               );
             })}
           </div>
-        </GlassCard>
+        </section>
       )}
     </div>
   );
 };
 
-// Followers Tab Component - Shows followers (not team members)
-// Team members are only visible in About tab or Manage section for admins
-const FollowersTab = ({ pageFollowers }: any) => {
-  const navigate = useNavigate();
-  const followers = pageFollowers || [];
+const memberGridClass =
+  'grid items-stretch gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr))]';
+
+function formatMemberJoined(date: string | undefined): string | null {
+  if (!date) return null;
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function FollowerMemberCard({
+  follower,
+  onClick,
+}: {
+  follower: {
+    id: string;
+    username: string;
+    avatar_url?: string;
+    avatarUrl?: string;
+    is_verified?: boolean;
+    isVerified?: boolean;
+    reputation?: number;
+    created_at?: string;
+    createdAt?: string;
+    bio?: string;
+  };
+  onClick: () => void;
+}) {
+  const joined = formatMemberJoined(follower.created_at || follower.createdAt);
+  const verified = follower.is_verified || follower.isVerified;
+  const reputation =
+    follower.reputation !== undefined && follower.reputation !== null
+      ? Number(follower.reputation)
+      : null;
 
   return (
-    <div className="space-y-6">
-      {/* Followers Section */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <Users size={24} className="text-purple-600 dark:text-purple-400" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Followers</h2>
-          <Badge variant="default" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-            {followers.length}
-          </Badge>
+    <article
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`${postCardSurfaceClass} h-full`}
+    >
+      <div className="flex h-full items-center gap-3 p-3 sm:p-3.5">
+        <Avatar
+          src={
+            follower.avatar_url ||
+            follower.avatarUrl ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(follower.username)}`
+          }
+          alt={follower.username}
+          size="sm"
+          className="h-10 w-10 shrink-0 ring-2 ring-white dark:ring-zinc-900"
+        />
+
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-1 text-sm font-semibold text-zinc-900 transition-colors group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-white">
+            <span className="truncate">{follower.username}</span>
+            {verified && <VerifiedBadge size={11} className="shrink-0" />}
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[11px] text-zinc-500 dark:text-zinc-400">
+            {reputation !== null && (
+              <span className="inline-flex items-center gap-0.5 tabular-nums">
+                <Award size={10} strokeWidth={2} className="shrink-0 opacity-70" />
+                {reputation.toLocaleString()}
+              </span>
+            )}
+            {reputation !== null && joined && (
+              <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
+                ·
+              </span>
+            )}
+            {joined && <span>Joined {joined}</span>}
+          </p>
+          {follower.bio && (
+            <p className="mt-1 line-clamp-1 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+              {follower.bio}
+            </p>
+          )}
         </div>
-        {followers.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {followers.map((follower: any) => (
-              <GlassCard 
-                key={follower.id} 
-                className="p-5 hover:shadow-xl transition-all cursor-pointer group"
-                onClick={() => navigate(`/profile/${follower.username}`)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={follower.avatar_url || follower.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${follower.username}`}
-                      alt={follower.username}
-                      className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-gray-200 dark:border-gray-700 group-hover:border-purple-500 dark:group-hover:border-purple-400 transition-all"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${follower.username}`;
-                      }}
-                    />
-                    {follower.is_verified && (
-                      <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-900 rounded-full p-0.5 shadow-md border border-white dark:border-gray-800">
-                        <VerifiedBadge size={14} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="font-bold text-gray-900 dark:text-white truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                        {follower.username}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {follower.reputation !== undefined && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {follower.reputation} reputation
-                        </span>
-                      )}
-                      {follower.created_at && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          • Joined {new Date(follower.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                        </span>
-                      )}
-                    </div>
-                    {follower.bio && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
-                        {follower.bio}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        ) : (
-          <GlassCard className="p-12 text-center">
-            <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
-              <Users size={40} className="text-gray-400" />
-            </div>
-            <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">No followers yet</h3>
-            <p className="text-gray-500 dark:text-gray-400">Be the first to follow this page!</p>
-          </GlassCard>
-        )}
+
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          className="shrink-0 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+          aria-hidden
+        />
       </div>
+    </article>
+  );
+}
+
+// Followers Tab — page followers (team members live under About / manage)
+const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
+  const navigate = useNavigate();
+  const followers = (pageFollowers || []) as Array<{
+    id: string;
+    username: string;
+    avatar_url?: string;
+    avatarUrl?: string;
+    is_verified?: boolean;
+    isVerified?: boolean;
+    reputation?: number;
+    created_at?: string;
+    createdAt?: string;
+    bio?: string;
+  }>;
+
+  return (
+    <div className="space-y-4">
+      <div className={`${asidePanelClass} flex items-center justify-between gap-3 p-3 sm:p-4`}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400"
+            aria-hidden
+          >
+            <Users size={15} strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Followers</h2>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Members following this community</p>
+          </div>
+        </div>
+        <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs text-zinc-600 dark:text-zinc-400`}>
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+            {followers.length.toLocaleString()}
+          </span>
+        </span>
+      </div>
+
+      {followers.length > 0 ? (
+        <div className={memberGridClass}>
+          {followers.map((follower) => (
+            <FollowerMemberCard
+              key={follower.id}
+              follower={follower}
+              onClick={() => navigate(`/profile/${follower.username}`)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+          <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+            <Users size={20} strokeWidth={1.75} />
+          </span>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">No followers yet</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Be the first to follow this community.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

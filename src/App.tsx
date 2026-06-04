@@ -34,6 +34,7 @@ import { ReputationSystemPage } from './components/ReputationSystemPage';
 import { FloatingCreateButton } from './components/FloatingCreateButton';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { MobileSidebar } from './components/MobileSidebar';
+import { SidebarColumn, StickyAsidePanel } from './components/layout/StickyAsidePanel';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { useAuth } from './contexts/AuthContext';
 import postsService from './services/api/posts.service';
@@ -216,12 +217,13 @@ function FeedLayout({ category }: { category?: string }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   
-  // Determine default category: 'trending' for all users (changed from 'for-you')
-  // If guest user tries to access 'for-you', redirect to 'trending'
+  // Home (/) defaults to Trending; signed-in users can open For You via /for-you.
   let defaultCategory = category || 'trending';
   if (defaultCategory === 'for-you' && !isAuthenticated) {
     defaultCategory = 'trending';
   }
+  const sidebarActiveCategory =
+    defaultCategory === 'trending' || defaultCategory === 'for-you' ? 'home' : defaultCategory;
 
     return (
       <>
@@ -236,13 +238,13 @@ function FeedLayout({ category }: { category?: string }) {
         <MobileSidebar
           isOpen={isMobileSidebarOpen}
           onClose={() => setIsMobileSidebarOpen(false)}
-        activeCategory={defaultCategory}
+        activeCategory={sidebarActiveCategory}
         onCategoryChange={(cat) => {
           const routes: Record<string, string> = {
-            'for-you': '/',
+            'for-you': '/for-you',
             'following': '/following',
             'latest': '/latest',
-            'trending': '/trending',
+            'trending': '/',
             'pages': '/pages',
             'bookmarks': '/bookmarks',
             'tags': '/tags',
@@ -256,18 +258,17 @@ function FeedLayout({ category }: { category?: string }) {
       />
       <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
         <div className="mx-auto max-w-7xl">
-          <div className="flex gap-4 sm:gap-6 lg:gap-8">
-            {/* Left Sidebar */}
-            <div className="hidden lg:block w-16 xl:w-64 2xl:w-72 flex-shrink-0">
+          <div className="flex items-stretch gap-4 sm:gap-6 lg:gap-8">
+            <SidebarColumn width="nav" showFrom="md">
               <Sidebar
-                activeCategory={defaultCategory}
+                activeCategory={sidebarActiveCategory}
                 onCategoryChange={(cat) => {
                   const routes: Record<string, string> = {
                     'home': '/',
-                    'for-you': '/',
+                    'for-you': '/for-you',
                     'following': '/following',
                     'latest': '/latest',
-                    'trending': '/trending',
+                    'trending': '/',
                     'pages': '/pages',
                     'bookmarks': '/bookmarks',
                     'tags': '/tags',
@@ -279,23 +280,20 @@ function FeedLayout({ category }: { category?: string }) {
                   navigate(routes[cat] || '/');
                 }}
               />
-            </div>
-            
-            {/* Main content area */}
-            <div className="flex-1 flex gap-4 sm:gap-6 lg:gap-8">
-              {/* Main content - Optimized for mobile/tablet */}
-              <main className="flex-1 w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-3xl mx-auto">
+            </SidebarColumn>
+
+            <div className="flex min-w-0 flex-1 items-stretch gap-4 sm:gap-6 lg:gap-8">
+              <main className="mx-auto w-full max-w-full flex-1 sm:max-w-2xl md:max-w-3xl lg:max-w-3xl">
                 <PostFeedWithData category={defaultCategory} onLoginRequired={() => setIsLoginModalOpen(true)} />
               </main>
-              
-              {/* Right sidebar */}
-              <aside className="hidden xl:block w-80 flex-shrink-0">
+
+              <SidebarColumn width="right" showFrom="md">
                 <RightSidebar
                   onHackathonClick={(id: string) => navigate(`/hackathons/${id}`)}
                   onEventClick={(id: string) => navigate(`/events/${id}`)}
                   onOpportunityClick={(id: string) => navigate(`/opportunities/${id}`)}
                 />
-              </aside>
+              </SidebarColumn>
             </div>
           </div>
         </div>
@@ -314,7 +312,27 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeSort, setActiveSort] = useState<'hot' | 'new' | 'top'>('hot');
+  // Sort is backed by the URL (?sort=) so it is shareable and survives feed navigation.
+  // Each feed has a natural default when no explicit ?sort is present: "Latest"
+  // starts on Newest, everything else (incl. For You / Trending) starts on Hot.
+  const feedDefaultSort: 'hot' | 'new' | 'top' = category === 'latest' ? 'new' : 'hot';
+  const sortFromUrl = (searchParams.get('sort') as 'hot' | 'new' | 'top' | null) || feedDefaultSort;
+  const [activeSort, setActiveSort] = useState<'hot' | 'new' | 'top'>(sortFromUrl);
+  const handleSortChange = (sort: 'hot' | 'new' | 'top') => {
+    setActiveSort(sort);
+    const next = new URLSearchParams(searchParams);
+    if (sort === 'hot') {
+      next.delete('sort');
+    } else {
+      next.set('sort', sort);
+    }
+    setSearchParams(next, { replace: true });
+  };
+  // Keep sort in sync with the URL on back/forward navigation or shared ?sort= links.
+  useEffect(() => {
+    if (sortFromUrl !== activeSort) setActiveSort(sortFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortFromUrl]);
   const [activeTagInfo, setActiveTagInfo] = useState<{ name: string; logoUrl?: string } | null>(null);
   
   // Pagination state
@@ -333,39 +351,29 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
       postParams.excludeIds = excludeIds.join(',');
     }
     
-    // Only add sort parameter if not using "for-you" (which uses recommendations)
-    if (category !== 'for-you') {
-      postParams.sort = activeSort;
-    } else {
-      // For "for-you", use recommendations (default strategy)
-      postParams.recommendations = 'true';
-    }
-    
+    // The Sort control (Hot / New / Top) always applies. Personalized
+    // recommendations are used ONLY for the "For You" feed on its default "Hot"
+    // sort; choosing Newest/Top (or any other feed tab) uses the global sorted
+    // path so the sort is honored across the whole feed, not just one page.
+    postParams.sort = activeSort;
+    const useRecommendations = category === 'for-you' && activeSort === 'hot';
+    postParams.recommendations = useRecommendations ? 'true' : 'false';
+
     // Check for tag filter in URL params
     const tagsParam = searchParams.get('tags');
     if (tagsParam) {
       const tagSlug = tagsParam.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       postParams.tags = tagSlug;
     }
-    
-    // Feed categories are for sorting/filtering, not post categories
-    if (category === 'latest') {
-      // Latest: Sort by newest first, disable recommendations
-      postParams = { ...postParams, sort: 'new', recommendations: 'false' };
-    } else if (category === 'trending') {
-      // Trending: Sort by hot (most engagement), disable recommendations
-      postParams = { ...postParams, sort: 'hot', recommendations: 'false' };
-    } else if (category === 'following') {
-      // Following: Filter by followed users, sort by user preference, disable recommendations
-      postParams = { ...postParams, following: 'true', sort: activeSort, recommendations: 'false' };
-    } else if (category === 'for-you') {
-      // For You: Use recommendations (personalized feed)
-      postParams = { ...postParams, recommendations: 'true' };
-    } else {
-      // If it's an actual post category (article, tutorial, etc.)
-      postParams = { ...postParams, category, sort: activeSort, recommendations: 'false' };
+
+    if (category === 'following') {
+      // Following: restrict to authors the viewer follows
+      postParams.following = 'true';
+    } else if (!['for-you', 'latest', 'trending'].includes(category)) {
+      // An actual post category (article, tutorial, etc.), not a feed tab
+      postParams.category = category;
     }
-    
+
     return postParams;
   };
 
@@ -835,7 +843,7 @@ function PostFeedWithData({ category, onLoginRequired }: { category: string; onL
       activeTagLogo={activeTagInfo?.logoUrl || undefined}
       onClearTagFilter={activeTagFilter ? handleClearTagFilter : undefined}
       activeSort={activeSort}
-      onSortChange={setActiveSort}
+      onSortChange={handleSortChange}
       activeCategory={category}
     />
   );
@@ -900,35 +908,35 @@ function PostDetailPage() {
     fetchPost();
   }, [slug]);
 
+  const postSidebarNav = (cat: string) => {
+    const routes: Record<string, string> = {
+      home: '/',
+      'for-you': '/for-you',
+      following: '/following',
+      latest: '/latest',
+      trending: '/',
+      pages: '/pages',
+      bookmarks: '/bookmarks',
+      tags: '/tags',
+      podcast: '/podcast',
+      hackathons: '/hackathons',
+      events: '/events',
+      opportunities: '/opportunities',
+    };
+    navigate(routes[cat] || '/');
+  };
+
   if (loading) {
     return (
       <>
         <NavbarWrapper />
-        <Sidebar
-          activeCategory="home"
-          forceIconOnly={true}
-          onCategoryChange={(cat) => {
-            const routes: Record<string, string> = {
-              'home': '/',
-              'for-you': '/',
-              'following': '/following',
-              'latest': '/latest',
-              'trending': '/trending',
-              'pages': '/pages',
-              'tags': '/tags',
-              'podcast': '/podcast',
-              'hackathons': '/hackathons',
-              'events': '/events',
-              'opportunities': '/opportunities'
-            };
-            navigate(routes[cat] || '/');
-          }}
-        />
-        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48">
-          <div className="mx-auto">
-            <div className="flex gap-3 sm:gap-4 md:gap-6">
-              <div className="hidden lg:block w-16 flex-shrink-0"></div>
-              <div className="flex-1 max-w-4xl mx-auto">
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 pb-20 sm:pb-24">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-stretch gap-3 sm:gap-4 md:gap-6">
+              <SidebarColumn width="navCompact" showFrom="md">
+                <Sidebar activeCategory="home" forceIconOnly onCategoryChange={postSidebarNav} />
+              </SidebarColumn>
+              <div className="min-w-0 flex-1 max-w-4xl">
                 <PostDetailSkeleton />
               </div>
             </div>
@@ -942,31 +950,13 @@ function PostDetailPage() {
     return (
       <>
         <NavbarWrapper />
-        <Sidebar
-          activeCategory="home"
-          forceIconOnly={true}
-          onCategoryChange={(cat) => {
-            const routes: Record<string, string> = {
-              'home': '/',
-              'for-you': '/',
-              'following': '/following',
-              'latest': '/latest',
-              'trending': '/trending',
-              'pages': '/pages',
-              'tags': '/tags',
-              'podcast': '/podcast',
-              'hackathons': '/hackathons',
-              'events': '/events',
-              'opportunities': '/opportunities'
-            };
-            navigate(routes[cat] || '/');
-          }}
-        />
-        <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-12 xl:px-24 2xl:px-48">
-          <div className="mx-auto">
-            <div className="flex gap-6">
-              <div className="hidden lg:block w-16 flex-shrink-0"></div>
-              <div className="flex-1 max-w-4xl mx-auto p-6 text-center">
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 pb-20 sm:pb-24">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-stretch gap-3 sm:gap-4 md:gap-6">
+              <SidebarColumn width="navCompact" showFrom="md">
+                <Sidebar activeCategory="home" forceIconOnly onCategoryChange={postSidebarNav} />
+              </SidebarColumn>
+              <div className="min-w-0 flex-1 max-w-4xl p-6 text-center">
                 <p className="text-red-500 mb-4">{error || 'Post not found'}</p>
                 <button
                   onClick={() => navigate(-1)}
@@ -997,97 +987,70 @@ function PostDetailPage() {
         />
       )}
       <NavbarWrapper />
-        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
-        <div className="mx-auto">
-          <div className="flex gap-3 sm:gap-4 md:gap-6 max-w-7xl mx-auto">
-            {/* Left Sidebar - Icon only mode */}
-            <div className="hidden lg:block w-16 flex-shrink-0">
-              <Sidebar
-                activeCategory="home"
-                forceIconOnly={true}
-                onCategoryChange={(cat) => {
-                  const routes: Record<string, string> = {
-                    'home': '/',
-                    'for-you': '/',
-                    'following': '/following',
-                    'latest': '/latest',
-                    'trending': '/trending',
-                    'pages': '/pages',
-                    'bookmarks': '/bookmarks',
-                    'tags': '/tags',
-                    'podcast': '/podcast',
-                    'hackathons': '/hackathons',
-                    'events': '/events',
-                    'opportunities': '/opportunities'
-                  };
-                  navigate(routes[cat] || '/');
-                }}
-              />
-            </div>
-            
-            {/* Main content area */}
-            <div className="flex-1 flex gap-3 sm:gap-4 md:gap-6">
-              <div className="flex-1 max-w-4xl">
-                <PostDetail 
-                  post={post} 
+        <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in pb-20 sm:pb-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-stretch gap-3 sm:gap-4 md:gap-6">
+            <SidebarColumn width="navCompact" showFrom="md">
+              <Sidebar activeCategory="home" forceIconOnly onCategoryChange={postSidebarNav} />
+            </SidebarColumn>
+
+            <div className="flex min-w-0 flex-1 items-stretch gap-3 sm:gap-4 md:gap-6">
+              <div className="min-w-0 flex-1 max-w-4xl">
+                <PostDetail
+                  post={post}
                   onClose={() => {
-                    // If there's history, go back, otherwise go to home
                     if (window.history.length > 1) {
                       navigate(-1);
                     } else {
                       navigate('/');
                     }
-                  }} 
+                  }}
                   onLoginRequired={() => setIsLoginModalOpen(true)}
                 />
               </div>
-              
-              {/* Right sidebar - Page card (if post belongs to page) and Author info */}
+
               {(post?.page || post?.pageId || post?.author) && (
-                <aside className="hidden xl:block w-80 flex-shrink-0">
-                  <div className="sticky top-24 space-y-4">
-                    {/* Page Card - Show first if post belongs to a page */}
-                    {(post?.page || post?.pageId) && (
-                      <PageSidebar
-                        page={post.page || { id: post.pageId, slug: post.pageSlug }}
-                        onLoginRequired={() => setIsLoginModalOpen(true)}
-                        onFollowChange={(isFollowing, followerCount) => {
-                          // Update post.page with new follow status
-                          if (post.page) {
-                            setPost({
-                              ...post,
-                              page: {
-                                ...post.page,
-                                isFollowing,
-                                followerCount
-                              }
-                            });
-                          } else if (post.pageId) {
-                            // If page data is not in post, we need to add it
-                            setPost({
-                              ...post,
-                              page: {
-                                id: post.pageId,
-                                slug: post.pageSlug,
-                                isFollowing,
-                                followerCount
-                              }
-                            });
-                          }
-                        }}
-                      />
-                    )}
-                    
-                    {/* Author Card - Show below page card */}
-                    {post?.author && (
-                      <AuthorSidebarPost
-                        author={post.author}
-                        onPostClick={(slug) => navigate(`/post/${slug}`)}
-                        onLoginRequired={() => setIsLoginModalOpen(true)}
-                      />
-                    )}
-                  </div>
-                </aside>
+                <SidebarColumn width="right" showFrom="md">
+                  <aside className="flex h-full min-h-0 w-full flex-1 shrink-0 flex-col">
+                    <StickyAsidePanel className="space-y-3">
+                      {(post?.page || post?.pageId) && (
+                        <PageSidebar
+                          page={post.page || { id: post.pageId, slug: post.pageSlug }}
+                          onLoginRequired={() => setIsLoginModalOpen(true)}
+                          onFollowChange={(isFollowing, followerCount) => {
+                            if (post.page) {
+                              setPost({
+                                ...post,
+                                page: {
+                                  ...post.page,
+                                  isFollowing,
+                                  followerCount,
+                                },
+                              });
+                            } else if (post.pageId) {
+                              setPost({
+                                ...post,
+                                page: {
+                                  id: post.pageId,
+                                  slug: post.pageSlug,
+                                  isFollowing,
+                                  followerCount,
+                                },
+                              });
+                            }
+                          }}
+                        />
+                      )}
+                      {post?.author && (
+                        <AuthorSidebarPost
+                          author={post.author}
+                          onPostClick={(slug) => navigate(`/post/${slug}`)}
+                          onLoginRequired={() => setIsLoginModalOpen(true)}
+                        />
+                      )}
+                    </StickyAsidePanel>
+                  </aside>
+                </SidebarColumn>
               )}
             </div>
           </div>
@@ -1132,24 +1095,51 @@ function ProfilePage() {
 
   const tab = searchParams.get('tab') || 'posts';
 
-    return (
-      <>
+  const sidebarRoutes: Record<string, string> = {
+    home: '/',
+    'for-you': '/for-you',
+    following: '/following',
+    latest: '/latest',
+    trending: '/',
+    pages: '/pages',
+    bookmarks: '/bookmarks',
+    tags: '/tags',
+    podcast: '/podcast',
+    hackathons: '/hackathons',
+    events: '/events',
+    opportunities: '/opportunities',
+  };
+
+  return (
+    <>
       <NavbarWrapper />
-        <div className="min-h-screen pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
-          <div className="max-w-[1400px] mx-auto">
-          <UserProfile 
-            username={username === 'me' ? undefined : username}
-            onBack={() => navigate('/')}
-            onOpenLoginModal={() => setIsLoginModalOpen(true)}
-            activeTab={tab as any}
-            onTabChange={(newTab) => navigate(`/profile/${username}?tab=${newTab}`)}
-          />
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-stretch gap-4 sm:gap-6 lg:gap-8">
+            <SidebarColumn width="nav">
+              <Sidebar
+                activeCategory=""
+                forceIconOnly={false}
+                onCategoryChange={(cat) => navigate(sidebarRoutes[cat] || '/')}
+              />
+            </SidebarColumn>
+            <div className="min-w-0 flex-1">
+              <UserProfile
+                username={username === 'me' ? undefined : username}
+                onBack={() => navigate('/')}
+                onOpenLoginModal={() => setIsLoginModalOpen(true)}
+                activeTab={tab as any}
+                onTabChange={(newTab) => navigate(`/profile/${username}?tab=${newTab}`)}
+              />
+            </div>
+          </div>
         </div>
       </div>
+      <ScrollToTopButton />
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
-      </>
-    );
-  }
+    </>
+  );
+}
 
 // Pages List Page
 function PagesListPage() {
@@ -1170,18 +1160,50 @@ function PagesListPage() {
 function PageDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-    return (
-      <>
+  const sidebarRoutes: Record<string, string> = {
+    home: '/',
+    'for-you': '/for-you',
+    following: '/following',
+    latest: '/latest',
+    trending: '/',
+    pages: '/pages',
+    bookmarks: '/bookmarks',
+    tags: '/tags',
+    podcast: '/podcast',
+    hackathons: '/hackathons',
+    events: '/events',
+    opportunities: '/opportunities',
+  };
+
+  return (
+    <>
       <NavbarWrapper />
-        <div className="min-h-screen pt-20 px-3 sm:px-4 md:px-6 lg:px-12 xl:px-24 2xl:px-48 animate-fade-in">
-          <div className="max-w-[1400px] mx-auto">
-          <PageView pageSlug={slug!} onBack={() => navigate('/pages')} />
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-stretch gap-4 sm:gap-6 lg:gap-8">
+            <SidebarColumn width="nav" showFrom="md">
+              <Sidebar
+                activeCategory="pages"
+                onCategoryChange={(cat) => navigate(sidebarRoutes[cat] || '/')}
+              />
+            </SidebarColumn>
+            <div className="min-w-0 flex-1">
+              <PageView
+                pageSlug={slug!}
+                onBack={() => navigate('/pages')}
+                onLoginRequired={() => setIsLoginModalOpen(true)}
+              />
+            </div>
+          </div>
         </div>
       </div>
-      </>
-    );
-  }
+      <ScrollToTopButton />
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+    </>
+  );
+}
 
 // Tags Page Layout
 function TagsPageLayout() {
@@ -1359,10 +1381,10 @@ function ReputationSystemPageLayout() {
         activeCategory=""
         onCategoryChange={(cat) => {
           const routes: Record<string, string> = {
-            'for-you': '/',
+            'for-you': '/for-you',
             'following': '/following',
             'latest': '/latest',
-            'trending': '/trending',
+            'trending': '/',
             'pages': '/pages',
             'bookmarks': '/bookmarks',
             'tags': '/tags',
@@ -1382,19 +1404,18 @@ function ReputationSystemPageLayout() {
       />
       <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
         <div className="mx-auto max-w-7xl">
-          <div className="flex gap-4 sm:gap-6 lg:gap-8">
-            {/* Left Sidebar */}
-            <div className="hidden lg:block w-16 xl:w-64 2xl:w-72 flex-shrink-0">
+          <div className="flex items-stretch gap-4 sm:gap-6 lg:gap-8">
+            <SidebarColumn width="nav">
               <Sidebar
                 activeCategory=""
                 forceIconOnly={false}
                 onCategoryChange={(cat) => {
                   const routes: Record<string, string> = {
                     'home': '/',
-                    'for-you': '/',
+                    'for-you': '/for-you',
                     'following': '/following',
                     'latest': '/latest',
-                    'trending': '/trending',
+                    'trending': '/',
                     'pages': '/pages',
                     'bookmarks': '/bookmarks',
                     'tags': '/tags',
@@ -1412,10 +1433,9 @@ function ReputationSystemPageLayout() {
                   navigate(routes[cat] || '/');
                 }}
               />
-            </div>
+            </SidebarColumn>
 
-            {/* Main content */}
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <ReputationSystemPage onBack={handleBack} />
             </div>
           </div>
@@ -1466,10 +1486,10 @@ function StaticPageLayout({ slug }: { slug: string }) {
         activeCategory=""
         onCategoryChange={(cat) => {
           const routes: Record<string, string> = {
-            'for-you': '/',
+            'for-you': '/for-you',
             'following': '/following',
             'latest': '/latest',
-            'trending': '/trending',
+            'trending': '/',
             'pages': '/pages',
             'bookmarks': '/bookmarks',
             'tags': '/tags',
@@ -1488,19 +1508,18 @@ function StaticPageLayout({ slug }: { slug: string }) {
       />
       <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 2xl:px-24 animate-fade-in pb-20 sm:pb-24">
         <div className="mx-auto max-w-7xl">
-          <div className="flex gap-4 sm:gap-6 lg:gap-8">
-            {/* Left Sidebar */}
-            <div className="hidden lg:block w-16 xl:w-64 2xl:w-72 flex-shrink-0">
+          <div className="flex items-stretch gap-4 sm:gap-6 lg:gap-8">
+            <SidebarColumn width="nav">
               <Sidebar
                 activeCategory=""
                 forceIconOnly={false}
                 onCategoryChange={(cat) => {
                   const routes: Record<string, string> = {
                     'home': '/',
-                    'for-you': '/',
+                    'for-you': '/for-you',
                     'following': '/following',
                     'latest': '/latest',
-                    'trending': '/trending',
+                    'trending': '/',
                     'pages': '/pages',
                     'bookmarks': '/bookmarks',
                     'tags': '/tags',
@@ -1517,10 +1536,9 @@ function StaticPageLayout({ slug }: { slug: string }) {
                   navigate(routes[cat] || '/');
                 }}
               />
-            </div>
+            </SidebarColumn>
 
-            {/* Main content */}
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <PageComponent onBack={handleBack} />
             </div>
           </div>
@@ -1579,10 +1597,10 @@ function NavbarWrapper() {
         activeCategory={''}
         onCategoryChange={(cat) => {
           const routes: Record<string, string> = {
-            'for-you': '/',
+            'for-you': '/for-you',
             'following': '/following',
             'latest': '/latest',
-            'trending': '/trending',
+            'trending': '/',
             'pages': '/pages',
             'bookmarks': '/bookmarks',
             'tags': '/tags',
