@@ -57,6 +57,15 @@ function SidebarSkeleton() {
   );
 }
 
+const normalizeCount = (value: unknown): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as { total?: number; count?: number };
+    return Number(obj.total ?? obj.count ?? 0);
+  }
+  return Number(value || 0);
+};
+
 export function AuthorSidebarPost({
   author: authorProp,
   onPostClick: _onPostClick,
@@ -78,13 +87,13 @@ export function AuthorSidebarPost({
       try {
         setLoading(true);
 
-        const statsResponse = await usersService.getUserStats(authorProp.username);
+        const statsResponse = await usersService.getUserStats(authorProp.username, { period: 'all' });
 
         setAuthor({
           ...authorProp,
           stats: {
-            posts: statsResponse.posts,
-            followers: statsResponse.followers,
+            posts: normalizeCount(statsResponse.posts),
+            followers: normalizeCount(statsResponse.followers),
           },
         });
 

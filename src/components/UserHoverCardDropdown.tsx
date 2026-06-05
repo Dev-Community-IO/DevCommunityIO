@@ -55,6 +55,7 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
   const [position, setPosition] = useState<'top' | 'bottom'>('bottom');
   const [isFollowing, setIsFollowing] = useState(false);
   const [isCheckingFollow, setIsCheckingFollow] = useState(false);
+  const [followerCount, setFollowerCount] = useState<number | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout>();
   const cardRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -63,10 +64,24 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
   
   const isOwnProfile = isAuthenticated && authUser && (authUser.id === user.id || authUser.username === user.username);
 
-  // Check follow status when card opens
+  // Check follow status and load stats when card opens
   useEffect(() => {
-    if (isOpen && isAuthenticated && !isOwnProfile) {
-      const checkFollowStatus = async () => {
+    if (!isOpen) return;
+
+    const loadCardData = async () => {
+      try {
+        const stats = await usersService.getUserStats(user.username, { period: 'all' });
+        const followers =
+          typeof stats.followers === 'object' && stats.followers !== null
+            ? Number((stats.followers as { total?: number }).total ?? 0)
+            : Number(stats.followers ?? 0);
+        setFollowerCount(followers);
+      } catch (error) {
+        console.error('Failed to load user stats:', error);
+        setFollowerCount(null);
+      }
+
+      if (isAuthenticated && !isOwnProfile) {
         try {
           setIsCheckingFollow(true);
           const following = await usersService.isFollowing(user.id);
@@ -76,10 +91,11 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
         } finally {
           setIsCheckingFollow(false);
         }
-      };
-      checkFollowStatus();
-    }
-  }, [isOpen, user.id, isAuthenticated, isOwnProfile]);
+      }
+    };
+
+    loadCardData();
+  }, [isOpen, user.id, user.username, isAuthenticated, isOwnProfile]);
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -157,9 +173,11 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
       if (isFollowing) {
         await usersService.unfollowUser(user.id);
         setIsFollowing(false);
+        setFollowerCount((prev) => (prev !== null ? Math.max(0, prev - 1) : prev));
       } else {
         await usersService.followUser(user.id);
         setIsFollowing(true);
+        setFollowerCount((prev) => (prev !== null ? prev + 1 : prev));
       }
     } catch (error: any) {
       console.error('Failed to toggle follow:', error);
@@ -274,13 +292,21 @@ export function UserHoverCardDropdown({ user, page, trigger, onFollow, onViewPro
             )}
 
             {/* Compact Stats - Inline */}
-            <div className="flex items-center gap-3 mb-3 text-xs">
+            <div className="mb-3 flex items-center gap-3 text-xs">
               <div className="flex items-center gap-1">
                 <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {user.reputation}
+                  {Number(user.reputation || 0).toLocaleString()}
                 </span>
                 <span className="text-zinc-500 dark:text-zinc-400">Rep</span>
               </div>
+              {followerCount !== null && (
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                    {followerCount.toLocaleString()}
+                  </span>
+                  <span className="text-zinc-500 dark:text-zinc-400">Followers</span>
+                </div>
+              )}
             </div>
 
             {/* Location & Website - Compact */}

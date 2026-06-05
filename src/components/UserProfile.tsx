@@ -108,7 +108,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     if (usernameToFetch) {
       usersService.getUserByUsername(usernameToFetch).then(userData => {
         setProfileUser(userData);
-        usersService.getUserStats(usernameToFetch).then(stats => {
+        usersService.getUserStats(usernameToFetch, { period: 'all' }).then(stats => {
           const normalizedStats = {
             posts: typeof stats.posts === 'object' ? (stats.posts as any).total || 0 : Number(stats.posts || 0),
             replies: typeof stats.replies === 'object' ? (stats.replies as any).total || 0 : Number(stats.replies || 0),
@@ -184,7 +184,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
         
         let stats: Awaited<ReturnType<typeof usersService.getUserStats>> | null = null;
         try {
-          stats = await usersService.getUserStats(viewingUsername);
+          stats = await usersService.getUserStats(viewingUsername, { period: 'all' });
         } catch (statsError) {
           console.error('Failed to fetch user stats:', statsError);
         }

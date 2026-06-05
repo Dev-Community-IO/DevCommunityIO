@@ -72,7 +72,9 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
         setPageData({
           ...pageDataFromApi,
           isFollowing: isFollowingFromApi,
-          followerCount: pageDataFromApi?.followerCount || pageDataFromApi?.follower_count || 0,
+          followerCount:
+            pageDataFromApi?.followerCount ?? pageDataFromApi?.follower_count ?? 0,
+          postCount: pageDataFromApi?.postCount ?? pageDataFromApi?.post_count ?? 0,
         });
       } catch (error) {
         console.error('Error fetching page data:', error);
@@ -152,8 +154,8 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
   if (loading) return <SidebarSkeleton />;
   if (!pageData) return null;
 
-  const followerCount = pageData.followerCount || pageData.follower_count || 0;
-  const postCount = pageData.postCount || 0;
+  const followerCount = pageData.followerCount ?? pageData.follower_count ?? 0;
+  const postCount = pageData.postCount ?? pageData.post_count ?? 0;
 
   return (
     <section className={`${asidePanelClass} ${asidePanelPadding}`} aria-label="Page">
