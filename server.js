@@ -55,23 +55,35 @@ app.set('trust proxy', true);
 
 const SITE_NAME = process.env.SITE_NAME || process.env.VITE_SITE_NAME || 'DevCommunity';
 
+/** Public site hostname — prefer proxy headers over internal bind address. */
+function getPublicHost(req) {
+    const forwarded = req.get('x-forwarded-host');
+    if (forwarded) return forwarded.split(',')[0].trim();
+    return req.get('host') || '';
+}
+
 /** Base URL of the public site, from the incoming request. */
 function getBaseUrl(req) {
-    const protocol = req.protocol || (req.secure ? 'https' : 'http');
-    const host = req.get('host') || `localhost:${PORT}`;
+    const host = getPublicHost(req) || `localhost:${PORT}`;
+    const protocol =
+        req.get('x-forwarded-proto') ||
+        req.protocol ||
+        (req.secure ? 'https' : 'http');
     return `${protocol}://${host}`;
 }
 
 /** Headers forwarded to the API so it builds URLs with the public host. */
 function apiForwardHeaders(req) {
-    const headers = {};
-    const host = req.get('host');
-    const proto = req.protocol || (req.secure ? 'https' : 'http');
-    if (host) {
-        headers['x-forwarded-host'] = host;
-        headers['x-forwarded-proto'] = proto;
-    }
-    return headers;
+    const host = getPublicHost(req);
+    const proto =
+        req.get('x-forwarded-proto') ||
+        req.protocol ||
+        (req.secure ? 'https' : 'http');
+    if (!host) return {};
+    return {
+        'x-forwarded-host': host,
+        'x-forwarded-proto': proto,
+    };
 }
 
 function readDistIndex() {
@@ -102,12 +114,13 @@ async function handleSeoRoute(req, res, type) {
     }
 
     try {
-        const apiBaseUrl = resolveApiBaseUrl(process.env, req.get('host')) || DEFAULT_API_BASE_URL;
+        const publicHost = getPublicHost(req);
+        const apiBaseUrl = resolveApiBaseUrl(process.env, publicHost) || DEFAULT_API_BASE_URL;
         const metadata = await fetchSeoMetadata({
             apiBaseUrl, type, identifier, headers: apiForwardHeaders(req),
         });
 
-        const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: req.get('host') };
+        const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: publicHost };
         html = injectMetaTags(
             html,
             metadata || getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME, currentPath: ctx.currentPath }),
@@ -119,7 +132,7 @@ async function handleSeoRoute(req, res, type) {
         res.setHeader('X-Content-Type-Options', 'nosniff');
         return res.send(html);
     } catch {
-        const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || '', host: req.get('host') };
+        const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || '', host: getPublicHost(req) };
         const fallback = getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME, currentPath: ctx.currentPath });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'public, max-age=300');

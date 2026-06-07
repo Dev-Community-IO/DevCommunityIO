@@ -26,18 +26,23 @@ export function seoDevPlugin(env = {}) {
             const apiBaseUrl = resolveApiBaseUrl(env);
             const siteName = env.VITE_SITE_NAME || env.SITE_NAME || 'DevCommunity';
 
+            const publicHostOf = (req) => {
+                const forwarded = req.headers['x-forwarded-host'];
+                if (forwarded) return String(forwarded).split(',')[0].trim();
+                return req.headers.host || 'localhost';
+            };
             const baseUrlOf = (req) => {
-                const host = req.headers.host || 'localhost';
+                const host = publicHostOf(req);
                 const proto = req.headers['x-forwarded-proto'] || 'http';
                 return `${proto}://${host}`;
             };
             const fwd = (req) => {
-                const h = {};
-                if (req.headers.host) {
-                    h['x-forwarded-host'] = req.headers.host;
-                    h['x-forwarded-proto'] = req.headers['x-forwarded-proto'] || 'http';
-                }
-                return h;
+                const host = publicHostOf(req);
+                if (!host) return {};
+                return {
+                    'x-forwarded-host': host,
+                    'x-forwarded-proto': req.headers['x-forwarded-proto'] || 'http',
+                };
             };
 
             server.middlewares.use(async (req, res, next) => {
@@ -69,12 +74,18 @@ export function seoDevPlugin(env = {}) {
                         // Apply Vite's HTML transforms so the SPA still boots (HMR, @vite/client …)
                         template = await server.transformIndexHtml(req.url, template, req.originalUrl);
 
-                        const metadata = await fetchSeoMetadata({ apiBaseUrl, type, identifier, headers: fwd(req) });
+                        const publicHost = publicHostOf(req);
+                        const metadata = await fetchSeoMetadata({
+                            apiBaseUrl: resolveApiBaseUrl(env, publicHost) || apiBaseUrl,
+                            type,
+                            identifier,
+                            headers: fwd(req),
+                        });
                         const baseUrl = baseUrlOf(req);
                         const html = injectMetaTags(
                             template,
                             metadata || getFallbackMetadata({ baseUrl, siteName, currentPath: pathname }),
-                            { baseUrl, currentPath: pathname, host: req.headers.host }
+                            { baseUrl, currentPath: pathname, host: publicHost }
                         );
                         res.setHeader('Content-Type', 'text/html; charset=utf-8');
                         return res.end(html);

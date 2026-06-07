@@ -70,12 +70,23 @@ function isLocalApiUrl(url) {
     return /localhost|127\.0\.0\.1/i.test(String(url || ''));
 }
 
+function hostFromAppUrl(env = {}) {
+    const candidate = env.SEO_PUBLIC_HOST || env.VITE_APP_URL || env.FRONTEND_URL || '';
+    if (!candidate) return '';
+    try {
+        const parsed = candidate.includes('://') ? new URL(candidate) : new URL(`https://${candidate}`);
+        return parsed.hostname;
+    } catch {
+        return String(candidate).split('/')[0].split(':')[0];
+    }
+}
+
 /**
  * Resolve the API base URL from env (and optionally the request host).
  * When the public site is served on a production domain, always use the
  * matching api.<domain> host — even if VITE_API_BASE_URL points at localhost.
  * @param {object} env  process.env
- * @param {string} [host]  request host header
+ * @param {string} [host]  public site host (x-forwarded-host preferred)
  */
 export function resolveApiBaseUrl(env = {}, host = '') {
     const hostOnly = host ? host.split(':')[0].toLowerCase() : '';
@@ -84,11 +95,22 @@ export function resolveApiBaseUrl(env = {}, host = '') {
         return `https://api.${baseDomain}/api`;
     }
 
+    const appHost = hostFromAppUrl(env);
+    if (isProductionPublicHost(appHost)) {
+        const baseDomain = appHost.replace(/^www\./, '');
+        return `https://api.${baseDomain}/api`;
+    }
+
     const order = [env.SEO_API_URL, env.SEO_API_BASE_URL, env.VITE_API_BASE_URL, env.VITE_API_URL];
     for (const candidate of order) {
         const normalized = normalizeApiBase(candidate);
         if (normalized && !isLocalApiUrl(normalized)) return normalized;
     }
+
+    if (env.NODE_ENV === 'production') {
+        return 'https://api.devcommunity.io/api';
+    }
+
     for (const candidate of order) {
         const normalized = normalizeApiBase(candidate);
         if (normalized) return normalized;
