@@ -133,7 +133,18 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle errors globally
 apiClient.interceptors.response.use(
     (response: AxiosResponse) => {
-        // Reset network error flag on successful response
+        // validateStatus treats 4xx as success — reject them here so callers can catch properly
+        if (response.status < 200 || response.status >= 300) {
+            const error = new AxiosError(
+                `Request failed with status code ${response.status}`,
+                AxiosError.ERR_BAD_REQUEST,
+                response.config,
+                response.request,
+                response
+            );
+            return Promise.reject(error);
+        }
+
         networkErrorLogged = false;
         return response;
     },
@@ -176,14 +187,13 @@ apiClient.interceptors.response.use(
             });
         }
 
-        // Handle 401 Unauthorized - don't log as error for expected endpoints
-        // Some endpoints are expected to return 401 when user is not authenticated
+        // Handle 401 Unauthorized
         if (status === 401) {
-            // List of endpoints where 401 is expected and shouldn't be logged
-            // Note: /reactions/emoji is now public, but we keep this list for other endpoints
-            const isExpected401Endpoint = url.includes('/auth/me');
+            const isExpected401Endpoint =
+                url.includes('/auth/me') ||
+                url.includes('/bookmarks') ||
+                url.includes('/onboarding/');
 
-            // Don't log errors for expected 401 endpoints
             if (!isExpected401Endpoint) {
                 console.error('❌ API Error:', {
                     url,
@@ -194,16 +204,12 @@ apiClient.interceptors.response.use(
                 });
             }
 
-            // Only clear auth state and dispatch logout for protected endpoints
-            // Don't do this for public endpoints
-            if (!originalRequest._retry) {
+            // Only clear auth once per session — avoid logout storms from parallel 401s
+            const alreadyLoggedOut = !localStorage.getItem('auth_token');
+            if (!alreadyLoggedOut && !originalRequest._retry) {
                 originalRequest._retry = true;
-
-                // Clear auth state for protected endpoints
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('user');
-
-                // Redirect to login or emit event
                 window.dispatchEvent(new CustomEvent('auth:logout'));
             }
 

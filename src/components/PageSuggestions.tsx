@@ -45,7 +45,7 @@ export function PageSuggestions({ selectedPages, onPagesChange }: PageSuggestion
   const loadSuggestedPages = async () => {
     try {
       const data = await onboardingService.getSuggestedPages();
-      setPages(data);
+      setPages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load pages:', error);
       setPages([]);
@@ -54,7 +54,8 @@ export function PageSuggestions({ selectedPages, onPagesChange }: PageSuggestion
     }
   };
 
-  const filteredPages = pages.filter(
+  const safePages = Array.isArray(pages) ? pages : [];
+  const filteredPages = safePages.filter(
     (page) =>
       page.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       page.description.toLowerCase().includes(searchQuery.toLowerCase()) ||

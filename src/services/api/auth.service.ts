@@ -70,11 +70,18 @@ class AuthService {
 
     // Get current user session (null = not logged in — expected for guests)
     async getCurrentUser(): Promise<any | null> {
-        const response = await apiClient.get('/auth/me');
-        if (response.status === 401 || !response.data?.user) {
-            return null;
+        try {
+            const response = await apiClient.get('/auth/me');
+            if (!response.data?.user) {
+                return null;
+            }
+            return response.data.user;
+        } catch (error: any) {
+            if (error.response?.status === 401) {
+                return null;
+            }
+            throw error;
         }
-        return response.data.user;
     }
 
     // Logout

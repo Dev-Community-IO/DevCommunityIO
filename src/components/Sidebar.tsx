@@ -178,34 +178,34 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   
   // Fetch bookmark count when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      const fetchBookmarkCount = async () => {
-        try {
-          const response = await bookmarksService.getBookmarks(1);
-          if (response && response.meta && typeof response.meta.total === 'number') {
-            setBookmarkCount(response.meta.total);
-          } else {
-            setBookmarkCount(0);
-          }
-        } catch (error: any) {
-          // Don't log network errors (server offline) - already handled by interceptor
-          if (!isNetworkError(error)) {
-            // If 401, just set count to 0 (user not authenticated)
-            if (error.response?.status === 401) {
-              setBookmarkCount(0);
-            } else {
-              console.error('Failed to fetch bookmark count:', error);
-              setBookmarkCount(0);
-            }
-          } else {
-            setBookmarkCount(0);
-          }
-        }
-      };
-      fetchBookmarkCount();
-    } else {
+    if (!isAuthenticated) {
       setBookmarkCount(null);
+      return;
     }
+
+    const fetchBookmarkCount = async () => {
+      try {
+        const response = await bookmarksService.getBookmarks(1);
+        if (response?.meta && typeof response.meta.total === 'number') {
+          setBookmarkCount(response.meta.total);
+        } else {
+          setBookmarkCount(0);
+        }
+      } catch (error: any) {
+        if (!isNetworkError(error)) {
+          if (error.response?.status === 401) {
+            setBookmarkCount(0);
+          } else {
+            console.error('Failed to fetch bookmark count:', error);
+            setBookmarkCount(0);
+          }
+        } else {
+          setBookmarkCount(0);
+        }
+      }
+    };
+
+    fetchBookmarkCount();
   }, [isAuthenticated]);
 
   // Fetch featured and trending tags

@@ -1,7 +1,7 @@
 /** Shared zinc styling for onboarding wizard steps */
 
 export const onboardingShellClass =
-  'flex max-h-[min(90vh,720px)] w-full flex-col overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl dark:border-white/[0.08] dark:bg-zinc-900';
+  'flex max-h-[min(calc(100dvh-6rem),720px)] w-full flex-col overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl dark:border-white/[0.08] dark:bg-zinc-900';
 
 export const onboardingLabelClass =
   'mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400';

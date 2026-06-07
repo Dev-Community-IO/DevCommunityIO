@@ -39,6 +39,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
@@ -46,6 +47,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   useEffect(() => {
     if (isOpen && user) {
+      setAuthError(null);
       loadCurrentData();
     }
   }, [isOpen, user?.id]);
@@ -97,6 +99,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   const handleNext = async () => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       if (currentStep === 'profile') {
         setCurrentStep('interests');
@@ -125,8 +128,15 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         onComplete();
         onClose();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Onboarding error:', error);
+      const status = error?.response?.status ?? error?.status;
+      if (status === 401) {
+        setAuthError('Your session expired. Please sign in again to continue setup.');
+        setShowOnboarding(false);
+        await checkAuth().catch(() => undefined);
+        return;
+      }
       if (currentStep === 'complete') {
         updateUser({ onboardingCompleted: true, ...profileData });
         setShowOnboarding(false);
@@ -168,14 +178,15 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 z-[100] overflow-y-auto overscroll-contain animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" aria-hidden />
 
-      <div className={`relative w-full max-w-lg ${onboardingShellClass}`}>
+      <div className="relative flex min-h-full items-start justify-center p-3 pb-6 pt-16 sm:items-center sm:p-4 sm:py-8">
+        <div className={`w-full max-w-lg ${onboardingShellClass}`}>
         {/* Header */}
         <div className="shrink-0 border-b border-zinc-100 px-4 py-3 dark:border-white/[0.06] sm:px-5">
           <div className="flex items-start justify-between gap-3">
@@ -251,7 +262,11 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
         {/* Content */}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-          {isLoadingData ? (
+          {authError ? (
+            <p className="rounded-lg border border-red-200/80 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-300">
+              {authError}
+            </p>
+          ) : isLoadingData ? (
             <div className="flex flex-col items-center justify-center gap-2 py-10">
               <Loader2 size={22} className="animate-spin text-zinc-400" strokeWidth={2} />
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Loading your profile…</p>
@@ -341,7 +356,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
             )}
           </button>
         </div>
-
+        </div>
       </div>
     </div>
   );
