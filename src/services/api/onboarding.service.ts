@@ -11,6 +11,29 @@ function asArray<T>(value: unknown, keys: string[] = []): T[] {
     return [];
 }
 
+export interface SuggestedPage {
+    id: string;
+    name: string;
+    slug?: string;
+    logo?: string | null;
+    logoUrl?: string | null;
+    description: string;
+    category: string;
+    members: number;
+    postsCount: number;
+    isVerified?: boolean;
+    isTrending?: boolean;
+    isRecommended?: boolean;
+    matchingTags?: string[];
+    reason?: string;
+}
+
+export interface SuggestedPageResult {
+    pages: SuggestedPage[];
+    recommendedIds: string[];
+    basedOnInterests: boolean;
+}
+
 class OnboardingService {
     async getStatus(): Promise<any> {
         const response = await apiClient.get('/onboarding/status');
@@ -35,16 +58,22 @@ class OnboardingService {
         }
     }
 
-    async getSuggestedPages(): Promise<any[]> {
+    async getSuggestedPages(tagIds: string[] = []): Promise<SuggestedPageResult> {
         try {
-            const response = await apiClient.get('/onboarding/suggested-pages');
-            return asArray(response.data, ['pages']);
+            const params = tagIds.length > 0 ? { tagIds: tagIds.join(',') } : undefined;
+            const response = await apiClient.get('/onboarding/suggested-pages', { params });
+            const data = response.data ?? {};
+            return {
+                pages: asArray<SuggestedPage>(data.pages),
+                recommendedIds: asArray<string>(data.recommendedIds),
+                basedOnInterests: Boolean(data.basedOnInterests),
+            };
         } catch (error: any) {
             if (error.response?.status === 401 || error.response?.status === 403) {
-                return [];
+                return { pages: [], recommendedIds: [], basedOnInterests: false };
             }
             console.error('Failed to get suggested pages:', error);
-            return [];
+            return { pages: [], recommendedIds: [], basedOnInterests: false };
         }
     }
 

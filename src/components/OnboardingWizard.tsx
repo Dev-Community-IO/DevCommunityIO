@@ -23,7 +23,7 @@ type Step = 'profile' | 'interests' | 'pages' | 'complete';
 const steps: { id: Step; label: string; hint: string }[] = [
   { id: 'profile', label: 'Profile', hint: 'Username, bio & skills' },
   { id: 'interests', label: 'Interests', hint: 'Pick 3+ topics' },
-  { id: 'pages', label: 'Communities', hint: 'Join 1+ page' },
+  { id: 'pages', label: 'Communities', hint: 'Follow recommended pages' },
   { id: 'complete', label: 'Done', hint: 'You\'re all set' },
 ];
 
@@ -286,7 +286,11 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                 <InterestSelection selectedTags={selectedTags} onTagsChange={setSelectedTags} />
               )}
               {currentStep === 'pages' && (
-                <PageSuggestions selectedPages={selectedPages} onPagesChange={setSelectedPages} />
+                <PageSuggestions
+                  selectedPages={selectedPages}
+                  selectedTagIds={selectedTags}
+                  onPagesChange={setSelectedPages}
+                />
               )}
               {currentStep === 'complete' && (
                 <div className="py-4 text-center">
