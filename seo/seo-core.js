@@ -178,24 +178,39 @@ export async function fetchSeoMetadata({ apiBaseUrl, type, identifier, headers =
     const cached = getCached(metaCache, cacheKey);
     if (cached !== undefined) return cached;
 
-    const apiUrl = `${apiBaseUrl}/seo/${type}/${identifier}`;
+    const encodedId = encodeURIComponent(identifier);
+    const apiUrl = `${apiBaseUrl.replace(/\/+$/, '')}/seo/${type}/${encodedId}`;
     try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
         const res = await fetch(apiUrl, {
-            headers: { 'User-Agent': 'DevCommunity-SEO-Server/1.0', ...headers },
+            headers: {
+                'User-Agent': 'DevCommunity-SEO-Server/1.0',
+                Accept: 'application/json',
+                ...headers,
+            },
             signal: controller.signal,
         });
         clearTimeout(timer);
         const contentType = res.headers.get('content-type') || '';
-        if (!res.ok || !contentType.includes('application/json')) return staleOr(metaCache, cacheKey, null);
+        if (!res.ok || !contentType.includes('application/json')) {
+            if (process.env.SEO_DEBUG === '1') {
+                const body = await res.text().catch(() => '');
+                console.warn(`[SEO] fetch failed ${res.status} ${apiUrl}: ${body.slice(0, 200)}`);
+            }
+            return staleOr(metaCache, cacheKey, null);
+        }
         const data = await res.json();
-        if (data && typeof data === 'object') {
+        const title = data?.title || data?.openGraph?.['og:title'];
+        if (data && typeof data === 'object' && title) {
             setCached(metaCache, cacheKey, data);
             return data;
         }
         return staleOr(metaCache, cacheKey, null);
-    } catch {
+    } catch (error) {
+        if (process.env.SEO_DEBUG === '1') {
+            console.warn(`[SEO] fetch error ${apiUrl}:`, error?.message || error);
+        }
         return staleOr(metaCache, cacheKey, null);
     }
 }

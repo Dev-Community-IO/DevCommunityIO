@@ -13,11 +13,11 @@ import {
     buildRobotsTxt,
 } from './seo/seo-core.js';
 
-// Load environment variables from .env file
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Always load .env from the app directory (PM2 cwd may differ)
+dotenv.config({ path: join(__dirname, '.env') });
 
 const app = express();
 
@@ -116,11 +116,13 @@ async function handleSeoRoute(req, res, type) {
     try {
         const publicHost = getPublicHost(req);
         const apiBaseUrl = resolveApiBaseUrl(process.env, publicHost) || DEFAULT_API_BASE_URL;
+        const fwdHeaders = apiForwardHeaders(req);
         const metadata = await fetchSeoMetadata({
-            apiBaseUrl, type, identifier, headers: apiForwardHeaders(req),
+            apiBaseUrl, type, identifier, headers: fwdHeaders,
         });
 
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: publicHost };
+        const usingFallback = !metadata;
         html = injectMetaTags(
             html,
             metadata || getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME, currentPath: ctx.currentPath }),
@@ -128,8 +130,13 @@ async function handleSeoRoute(req, res, type) {
         );
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+        res.setHeader('Cache-Control', usingFallback ? 'public, max-age=300' : 'public, max-age=3600, s-maxage=3600');
         res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-SEO-Status', usingFallback ? 'fallback' : 'ok');
+        res.setHeader('X-SEO-API', apiBaseUrl);
+        if (usingFallback) {
+            console.warn(`[SEO Server] fallback for ${type}/${identifier} via ${apiBaseUrl} host=${publicHost || '(none)'}`);
+        }
         return res.send(html);
     } catch {
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || '', host: getPublicHost(req) };
@@ -150,7 +157,7 @@ app.get('/robots.txt', (req, res) => {
 });
 
 app.get('/sitemap.xml', async (req, res) => {
-    const apiBaseUrl = resolveApiBaseUrl(process.env, req.get('host')) || DEFAULT_API_BASE_URL;
+    const apiBaseUrl = resolveApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
     const xml = await fetchText({ url: `${apiBaseUrl}/seo/sitemap.xml`, headers: apiForwardHeaders(req) });
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
@@ -161,7 +168,7 @@ app.get('/sitemap.xml', async (req, res) => {
 });
 
 app.get('/llms.txt', async (req, res) => {
-    const apiBaseUrl = resolveApiBaseUrl(process.env, req.get('host')) || DEFAULT_API_BASE_URL;
+    const apiBaseUrl = resolveApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
     const txt = await fetchText({ url: `${apiBaseUrl}/seo/llms.txt`, headers: apiForwardHeaders(req) });
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
@@ -193,4 +200,6 @@ app.listen(PORT, () => {
     console.log(`[SEO Server] ✓ Started on port ${PORT}`);
     console.log(`[SEO Server] API base: ${DEFAULT_API_BASE_URL}`);
     console.log(`[SEO Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[SEO Server] App URL: ${process.env.VITE_APP_URL || '(not set)'}`);
+    console.log(`[SEO Server] SEO routes: ${Object.keys(SEO_ROUTE_TYPES).join(', ')}`);
 });
