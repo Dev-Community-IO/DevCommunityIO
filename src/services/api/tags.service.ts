@@ -7,6 +7,8 @@ export interface GetTagsParams {
     search?: string;
     page?: number;
     limit?: number;
+    /** Include role-restricted tags (for /tags browse page) */
+    includeRestricted?: boolean;
 }
 
 export interface Tag {

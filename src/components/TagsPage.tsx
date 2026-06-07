@@ -221,7 +221,10 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
       setLoading(true);
       setError(null);
 
-      const params: Record<string, unknown> = {};
+      const params: Record<string, unknown> = {
+        includeRestricted: true,
+        limit: 500,
+      };
       if (searchQuery.trim()) params.search = searchQuery.trim();
       if (selectedFilter === 'trending') {
         params.trending = true;
@@ -267,7 +270,7 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
         trending: t.trending,
         featured: t.featured,
         logoUrl: t.logoUrl,
-        restrictedToRoles: t.restrictedToRoles,
+        restrictedToRoles: t.restrictedToRoles ?? (t as APITag & { restricted_to_roles?: string[] }).restricted_to_roles,
       })),
     [tags]
   );

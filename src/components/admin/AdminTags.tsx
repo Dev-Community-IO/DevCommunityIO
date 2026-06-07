@@ -40,7 +40,12 @@ export function AdminTags() {
     try {
       setIsLoading(true);
       const [tagsResponse, trendingResponse] = await Promise.all([
-        tagsService.getTags({ search: searchQuery, featured: filterFeatured === 'featured' ? true : undefined }),
+        tagsService.getTags({
+          search: searchQuery,
+          featured: filterFeatured === 'featured' ? true : undefined,
+          includeRestricted: true,
+          limit: 500,
+        }),
         tagsService.getTrendingTags('7d', 20),
       ]);
 
