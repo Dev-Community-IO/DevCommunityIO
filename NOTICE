@@ -1,0 +1,12 @@
+DevCommunity Frontend (devcommunityIO)
+Copyright 2026 Dev-Community-IO and the DevCommunity contributors
+
+This product includes software developed at Dev-Community-IO
+(https://devcommunity.io).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file for
+the full license text.
+
+This software depends on third-party open-source packages, each distributed
+under its own license. See package.json and the licenses of the respective
+dependencies for details.

@@ -1,8 +1,31 @@
 {
-  "name": "vite-react-typescript-starter",
-  "private": true,
-  "version": "0.0.0",
+  "name": "devcommunity-io",
+  "private": false,
+  "version": "0.1.0",
+  "description": "DevCommunity frontend — React/Vite SPA with SEO server for the Web3 developer community platform",
   "type": "module",
+  "author": "Dev-Community-IO",
+  "license": "Apache-2.0",
+  "homepage": "https://devcommunity.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dev-Community-IO/devcommunityIO.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Dev-Community-IO/devcommunityIO/issues"
+  },
+  "keywords": [
+    "devcommunity",
+    "web3",
+    "react",
+    "vite",
+    "typescript",
+    "community",
+    "blockchain"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently -n \"VITE,SERVER\" -c \"cyan,magenta\" \"npm run dev:vite\" \"npm run dev:server\"",
     "dev:vite": "vite",
@@ -13,6 +36,8 @@
     "preview:vite": "vite preview",
     "preview:server": "NODE_ENV=production node server.js",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "start": "node server.js",
     "serve": "npm run build && npm run start"
   },
@@ -52,6 +77,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
+    "prettier": "^3.5.3",
     "vite": "^6.4.3",
     "vite-plugin-node-polyfills": "^0.28.0"
   }
