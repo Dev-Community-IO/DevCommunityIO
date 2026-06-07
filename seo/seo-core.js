@@ -120,6 +120,16 @@ export function resolveApiBaseUrl(env = {}, host = '') {
     return `${protocol}://localhost:${apiPort}/api`;
 }
 
+/**
+ * API base URL for the SEO server (server.js). Prefers SEO_API_INTERNAL_URL
+ * so same-host deployments bypass Cloudflare when fetching metadata.
+ */
+export function resolveSeoServerApiBaseUrl(env = {}, host = '') {
+    const internal = normalizeApiBase(env.SEO_API_INTERNAL_URL);
+    if (internal) return internal;
+    return resolveApiBaseUrl(env, host);
+}
+
 export function escapeHtml(text) {
     if (!text) return '';
     return String(text)
@@ -173,16 +183,12 @@ function isFixedSizeOgImage(url) {
  * Fetch SEO metadata JSON from the API (cached, graceful degradation).
  * @returns {Promise<object|null>}
  */
-export async function fetchSeoMetadata({ apiBaseUrl, type, identifier, headers = {}, timeout = 10000 }) {
-    const cacheKey = `${type}:${identifier}`;
-    const cached = getCached(metaCache, cacheKey);
-    if (cached !== undefined) return cached;
-
+async function fetchSeoMetadataOnce({ apiBaseUrl, type, identifier, headers, timeout }) {
     const encodedId = encodeURIComponent(identifier);
     const apiUrl = `${apiBaseUrl.replace(/\/+$/, '')}/seo/${type}/${encodedId}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
     try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeout);
         const res = await fetch(apiUrl, {
             headers: {
                 'User-Agent': 'DevCommunity-SEO-Server/1.0',
@@ -194,25 +200,59 @@ export async function fetchSeoMetadata({ apiBaseUrl, type, identifier, headers =
         clearTimeout(timer);
         const contentType = res.headers.get('content-type') || '';
         if (!res.ok || !contentType.includes('application/json')) {
-            if (process.env.SEO_DEBUG === '1') {
-                const body = await res.text().catch(() => '');
-                console.warn(`[SEO] fetch failed ${res.status} ${apiUrl}: ${body.slice(0, 200)}`);
-            }
-            return staleOr(metaCache, cacheKey, null);
+            const body = await res.text().catch(() => '');
+            console.warn(
+                `[SEO] fetch failed ${res.status} ${contentType.trim()} ${apiUrl}: ${body.slice(0, 160)}`
+            );
+            return null;
         }
         const data = await res.json();
         const title = data?.title || data?.openGraph?.['og:title'];
         if (data && typeof data === 'object' && title) {
+            return data;
+        }
+        console.warn(`[SEO] fetch missing title ${apiUrl}`);
+        return null;
+    } catch (error) {
+        clearTimeout(timer);
+        console.warn(`[SEO] fetch error ${apiUrl}:`, error?.message || error);
+        return null;
+    }
+}
+
+export async function fetchSeoMetadata({
+    apiBaseUrl,
+    type,
+    identifier,
+    headers = {},
+    timeout = 10000,
+    env = {},
+}) {
+    const cacheKey = `${type}:${identifier}`;
+    const cached = getCached(metaCache, cacheKey);
+    if (cached !== undefined) return cached;
+
+    const bases = [apiBaseUrl];
+    const internal = normalizeApiBase(env.SEO_API_INTERNAL_URL);
+    if (internal && internal !== apiBaseUrl) {
+        bases.push(internal);
+    }
+
+    for (const base of bases) {
+        const data = await fetchSeoMetadataOnce({
+            apiBaseUrl: base,
+            type,
+            identifier,
+            headers,
+            timeout,
+        });
+        if (data) {
             setCached(metaCache, cacheKey, data);
             return data;
         }
-        return staleOr(metaCache, cacheKey, null);
-    } catch (error) {
-        if (process.env.SEO_DEBUG === '1') {
-            console.warn(`[SEO] fetch error ${apiUrl}:`, error?.message || error);
-        }
-        return staleOr(metaCache, cacheKey, null);
     }
+
+    return staleOr(metaCache, cacheKey, null);
 }
 
 /** Fetch arbitrary text (sitemap/llms) from the API, cached with stale fallback. */

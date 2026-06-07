@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import {
     SEO_ROUTE_TYPES,
     resolveApiBaseUrl,
+    resolveSeoServerApiBaseUrl,
     fetchSeoMetadata,
     fetchText,
     getFallbackMetadata,
@@ -34,7 +35,7 @@ if (process.env.PORT) {
     console.warn(`[SEO Server] ⚠ No PORT found in .env, using default: ${PORT}`);
 }
 
-const DEFAULT_API_BASE_URL = resolveApiBaseUrl(process.env);
+const DEFAULT_API_BASE_URL = resolveSeoServerApiBaseUrl(process.env);
 
 // Check dist (important for preview/production)
 const distPath = join(__dirname, 'dist');
@@ -115,10 +116,14 @@ async function handleSeoRoute(req, res, type) {
 
     try {
         const publicHost = getPublicHost(req);
-        const apiBaseUrl = resolveApiBaseUrl(process.env, publicHost) || DEFAULT_API_BASE_URL;
+        const apiBaseUrl = resolveSeoServerApiBaseUrl(process.env, publicHost) || DEFAULT_API_BASE_URL;
         const fwdHeaders = apiForwardHeaders(req);
         const metadata = await fetchSeoMetadata({
-            apiBaseUrl, type, identifier, headers: fwdHeaders,
+            apiBaseUrl,
+            type,
+            identifier,
+            headers: fwdHeaders,
+            env: process.env,
         });
 
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: publicHost };
@@ -157,7 +162,7 @@ app.get('/robots.txt', (req, res) => {
 });
 
 app.get('/sitemap.xml', async (req, res) => {
-    const apiBaseUrl = resolveApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
+    const apiBaseUrl = resolveSeoServerApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
     const xml = await fetchText({ url: `${apiBaseUrl}/seo/sitemap.xml`, headers: apiForwardHeaders(req) });
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
@@ -168,7 +173,7 @@ app.get('/sitemap.xml', async (req, res) => {
 });
 
 app.get('/llms.txt', async (req, res) => {
-    const apiBaseUrl = resolveApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
+    const apiBaseUrl = resolveSeoServerApiBaseUrl(process.env, getPublicHost(req)) || DEFAULT_API_BASE_URL;
     const txt = await fetchText({ url: `${apiBaseUrl}/seo/llms.txt`, headers: apiForwardHeaders(req) });
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
@@ -201,5 +206,6 @@ app.listen(PORT, () => {
     console.log(`[SEO Server] API base: ${DEFAULT_API_BASE_URL}`);
     console.log(`[SEO Server] Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`[SEO Server] App URL: ${process.env.VITE_APP_URL || '(not set)'}`);
+    console.log(`[SEO Server] Internal API: ${process.env.SEO_API_INTERNAL_URL || '(not set)'}`);
     console.log(`[SEO Server] SEO routes: ${Object.keys(SEO_ROUTE_TYPES).join(', ')}`);
 });
