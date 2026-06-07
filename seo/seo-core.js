@@ -18,6 +18,7 @@ const PRODUCTION_DOMAINS = new Set([
 export const SEO_ROUTE_TYPES = {
     post: 'posts',
     pages: 'pages',
+    profile: 'profiles',
     hackathons: 'hackathons',
     events: 'events',
     opportunities: 'opportunities',

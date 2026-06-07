@@ -9,6 +9,7 @@ import siteSettingsService from '../services/api/siteSettings.service';
 import { isNetworkError } from '../services/api/config';
 import { getVersion, getGitTag, getCommitHash } from '../utils/version';
 import { StickyAsidePanel } from './layout/StickyAsidePanel';
+import { GitHubSponsorsButton } from './GitHubSponsors';
 
 // Helper function to determine platform and icon from URL
 interface SocialLinkInfo {
@@ -645,6 +646,15 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {showText && !forceIconOnly && (isMobileSidebar || isLgUp) && (
+            <div className="mt-1 w-full px-1">
+              <p className={sectionLabelClass}>Sponsor</p>
+              <div className={`${panelClass} flex items-center justify-center p-2.5`}>
+                <GitHubSponsorsButton />
               </div>
             </div>
           )}

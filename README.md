@@ -8,6 +8,8 @@ The official frontend for [DevCommunity](https://devcommunity.io) — a Web3 dev
 
 **Backend API:** [devcommunityV2-api](https://github.com/Dev-Community-IO/devcommunityV2-api)
 
+**Documentation:** [docs.devcommunity.io](https://docs.devcommunity.io)
+
 ## Features
 
 - Fast SPA powered by Vite and React 18

@@ -1,4 +1,6 @@
 import { StaticPageContent } from './StaticPageContent';
+import { GitHubSponsorsCard } from './GitHubSponsors';
+import { GlassCard } from './GlassCard';
 
 interface AboutPageProps {
   onBack: () => void;
@@ -16,11 +18,23 @@ Founded in 2024, we've grown from a small community of passionate developers to 
 
 export function AboutPage({ onBack }: AboutPageProps) {
   return (
-    <StaticPageContent
-      slug="about"
-      title="About"
-      onBack={onBack}
-      defaultContent={defaultContent}
-    />
+    <>
+      <StaticPageContent
+        slug="about"
+        title="About"
+        onBack={onBack}
+        defaultContent={defaultContent}
+      />
+      <div className="mx-auto mt-4 max-w-4xl">
+        <GlassCard className="p-6 md:p-8">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Support DevCommunity
+          </h2>
+          <div className="overflow-hidden rounded-lg">
+            <GitHubSponsorsCard />
+          </div>
+        </GlassCard>
+      </div>
+    </>
   );
 }

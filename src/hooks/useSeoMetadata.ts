@@ -92,6 +92,8 @@ export function useSeoMetadata(pathname: string) {
         endpoint = `/seo/opportunities/${pathSegments[1]}`;
       } else if (pathSegments[0] === 'pages' && pathSegments[1]) {
         endpoint = `/seo/pages/${pathSegments[1]}`;
+      } else if (pathSegments[0] === 'profile' && pathSegments[1] && pathSegments[1] !== 'me') {
+        endpoint = `/seo/profiles/${pathSegments[1]}`;
       }
 
       if (!endpoint) {

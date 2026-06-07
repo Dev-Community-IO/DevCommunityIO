@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import usersService from '../services/api/users.service';
 import { BioText } from './BioText';
 import { TabPills } from './TabPills';
+import { SEOHead } from './SEOHead';
 
 interface UserProfileProps {
   username?: string;
@@ -360,7 +361,24 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
     );
   }
 
+  const profileTitle = mockUser.pseudo
+    ? `${mockUser.pseudo} (@${mockUser.username})`
+    : `@${mockUser.username}`;
+  const profileDescription =
+    mockUser.bio && mockUser.bio !== 'No bio yet.'
+      ? mockUser.bio.replace(/[#*`_~\[\]()]/g, '').replace(/\n+/g, ' ').trim().substring(0, 160)
+      : `${profileTitle} on DevCommunity — Web3 developer profile`;
+
   return (
+    <>
+      <SEOHead
+        title={profileTitle}
+        description={profileDescription}
+        image={mockUser.coverImage || mockUser.avatar}
+        url={`${window.location.origin}/profile/${mockUser.username}`}
+        type="profile"
+        author={mockUser.username}
+      />
     <div className="min-h-screen bg-gray-50 dark:bg-transparent pb-20 sm:pb-24">
       {/* Hero Section - Mobile Optimized */}
       <div className="relative">
@@ -664,5 +682,6 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
         />
       )}
     </div>
+    </>
   );
 }
