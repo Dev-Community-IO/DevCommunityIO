@@ -50,7 +50,7 @@
     "@emoji-mart/react": "^1.1.1",
     "@lineiconshq/free-icons": "^1.0.6",
     "@lineiconshq/react-lineicons": "^1.0.5",
-    "@supabase/supabase-js": "^2.57.4",
+    "@supabase/supabase-js": "^2.107.0",
     "axios": "^1.17.0",
     "concurrently": "^9.1.2",
     "dotenv": "^16.4.7",
