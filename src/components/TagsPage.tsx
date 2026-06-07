@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { tagsService, Tag as APITag, UpdateTagParams } from '../services/api/tags.service';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { canManageTagRestrictions } from '../utils/tagAccess';
 import type { TabPillItem } from './TabPills';
 import {
   ListingPageHeader,
@@ -187,7 +188,8 @@ function TagsPageSkeleton() {
 
 export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin: checkIsAdmin } = useAuth();
+  const canManageTags = checkIsAdmin() || canManageTagRestrictions(user);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [followedTags, setFollowedTags] = useState<Set<string>>(new Set());
@@ -416,7 +418,7 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
               tag={tag}
               apiTag={apiTag}
               isFollowing={followedTags.has(tag.name)}
-              isAdmin={isAdmin()}
+              isAdmin={canManageTags}
               onView={() => handleTagClick(tag.slug, tag.name)}
               onFollow={() => handleFollow(tag.slug, tag.name)}
               onEdit={() => apiTag && handleEditTag(apiTag)}
@@ -591,6 +593,41 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
                 />
               </label>
 
+              {canManageTags && (
+                <div className="space-y-2">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                    Restricted to roles
+                  </span>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Only admins, verified users, or verified pages can use restricted tags.
+                  </p>
+                  {(['verified_user', 'verified_page'] as const).map((role) => (
+                    <label
+                      key={role}
+                      className="flex items-center gap-2 rounded-lg border border-zinc-200/80 p-3 dark:border-white/10"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(editForm.restrictedToRoles || []).includes(role)}
+                        onChange={(e) => {
+                          const roles = editForm.restrictedToRoles || [];
+                          setEditForm({
+                            ...editForm,
+                            restrictedToRoles: e.target.checked
+                              ? [...roles, role]
+                              : roles.filter((r) => r !== role),
+                          });
+                        }}
+                        className="rounded border-zinc-300"
+                      />
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                        {formatListingLabel(role)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
               {isSuperAdmin && (
                 <div>
                   <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -633,38 +670,6 @@ export function TagsPage({ onTagClick, onBack }: TagsPageProps) {
                   />
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">Featured in sidebar</span>
                 </label>
-              )}
-
-              {isAdmin() && (
-                <div className="space-y-2">
-                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                    Restricted to roles
-                  </span>
-                  {(['verified_user', 'verified_page'] as const).map((role) => (
-                    <label
-                      key={role}
-                      className="flex items-center gap-2 rounded-lg border border-zinc-200/80 p-3 dark:border-white/10"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={(editForm.restrictedToRoles || []).includes(role)}
-                        onChange={(e) => {
-                          const roles = editForm.restrictedToRoles || [];
-                          setEditForm({
-                            ...editForm,
-                            restrictedToRoles: e.target.checked
-                              ? [...roles, role]
-                              : roles.filter((r) => r !== role),
-                          });
-                        }}
-                        className="rounded border-zinc-300"
-                      />
-                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formatListingLabel(role)}
-                      </span>
-                    </label>
-                  ))}
-                </div>
               )}
 
               <div className={`flex gap-2 pt-2 ${postCardDividerClass}`}>

@@ -5,9 +5,10 @@ import { Badge } from '../Badge';
 import tagsService, { Tag, UpdateTagParams } from '../../services/api/tags.service';
 import { useAuth } from '../../contexts/AuthContext';
 import adminService from '../../services/api/admin.service';
+import { canManageTagRestrictions } from '../../utils/tagAccess';
 
 export function AdminTags() {
-  const { user } = useAuth();
+  const { user, isAdmin: checkIsAdmin } = useAuth();
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [trendingTags, setTrendingTags] = useState<Tag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +30,7 @@ export function AdminTags() {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
-  const isAdmin = () => user?.role === 'admin' || user?.role === 'super_admin';
+  const canManageTags = checkIsAdmin() || canManageTagRestrictions(user);
 
   useEffect(() => {
     loadTags();
@@ -202,7 +203,7 @@ export function AdminTags() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">{tag.usageCount || 0} uses</span>
-                  {isAdmin() && (
+                  {canManageTags && (
                     <button
                       onClick={() => handleEditTag(tag)}
                       className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
@@ -254,7 +255,7 @@ export function AdminTags() {
                     </Badge>
                   )}
                 </div>
-                {isAdmin() && (
+                {canManageTags && (
                   <div className="flex items-center gap-1 mt-2">
                     <button
                       onClick={() => handleEditTag(tag)}
@@ -327,6 +328,50 @@ export function AdminTags() {
                   />
                 </div>
 
+                {/* Role Restrictions - Admin */}
+                {canManageTags && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Restricted to roles</label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Only admins, verified users, or verified pages can use restricted tags.
+                    </p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={editForm.restrictedToRoles?.includes('verified_user') || false}
+                          onChange={(e) => {
+                            const roles = editForm.restrictedToRoles || [];
+                            if (e.target.checked) {
+                              setEditForm({ ...editForm, restrictedToRoles: [...roles, 'verified_user'] });
+                            } else {
+                              setEditForm({ ...editForm, restrictedToRoles: roles.filter(r => r !== 'verified_user') });
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span>Verified users</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={editForm.restrictedToRoles?.includes('verified_page') || false}
+                          onChange={(e) => {
+                            const roles = editForm.restrictedToRoles || [];
+                            if (e.target.checked) {
+                              setEditForm({ ...editForm, restrictedToRoles: [...roles, 'verified_page'] });
+                            } else {
+                              setEditForm({ ...editForm, restrictedToRoles: roles.filter(r => r !== 'verified_page') });
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span>Verified pages</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {/* Logo Upload - Super Admin Only */}
                 {isSuperAdmin && (
                   <div>
@@ -380,47 +425,6 @@ export function AdminTags() {
                       <Star size={16} className="text-yellow-500" />
                       <span className="font-medium">Featured Tag</span>
                     </label>
-                  </div>
-                )}
-
-                {/* Role Restrictions */}
-                {isAdmin() && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Role Restrictions</label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editForm.restrictedToRoles?.includes('verified_user') || false}
-                          onChange={(e) => {
-                            const roles = editForm.restrictedToRoles || [];
-                            if (e.target.checked) {
-                              setEditForm({ ...editForm, restrictedToRoles: [...roles, 'verified_user'] });
-                            } else {
-                              setEditForm({ ...editForm, restrictedToRoles: roles.filter(r => r !== 'verified_user') });
-                            }
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <span>Verified Users Only</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editForm.restrictedToRoles?.includes('verified_page') || false}
-                          onChange={(e) => {
-                            const roles = editForm.restrictedToRoles || [];
-                            if (e.target.checked) {
-                              setEditForm({ ...editForm, restrictedToRoles: [...roles, 'verified_page'] });
-                            } else {
-                              setEditForm({ ...editForm, restrictedToRoles: roles.filter(r => r !== 'verified_page') });
-                            }
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <span>Verified Pages Only</span>
-                      </label>
-                    </div>
                   </div>
                 )}
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Check, FileText, Trophy, Calendar, Briefcase, Upload, X, Plus, Trash2, Award, AlertCircle, TrendingUp, Star, Hash, UserPlus } from 'lucide-react';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Avatar } from './Avatar';
@@ -11,6 +11,7 @@ import eventsService from '../services/api/events.service';
 import opportunitiesService from '../services/api/opportunities.service';
 import reputationSystemService from '../services/api/reputationSystem.service';
 import tagsService, { Tag } from '../services/api/tags.service';
+import { canUseRestrictedTag, filterUsableTags } from '../utils/tagAccess';
 
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
@@ -97,6 +98,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
   const [trendingTags, setTrendingTags] = useState<Tag[]>([]);
   const [featuredTags, setFeaturedTags] = useState<Tag[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
+  const [tagRestrictionError, setTagRestrictionError] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(pageId || null);
   const [postOrigin, setPostOrigin] = useState('');
   const [originSource, setOriginSource] = useState('');
@@ -407,41 +409,6 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     loadPostData();
   }, [editPostId]);
 
-  // Get filtered tags from suggestions or fallback to available tags
-  const getFilteredTags = () => {
-    if (tagInput.trim()) {
-      // Use API suggestions if available, otherwise fallback to local filtering
-      if (tagSuggestions.length > 0) {
-        return tagSuggestions
-          .map((t: Tag) => t.name)
-          .filter(tag => !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase()));
-      }
-      // Fallback to local filtering
-      return availableTags.filter(tag =>
-        tag.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase())
-      );
-    }
-    return [];
-  };
-
-  const filteredTags = getFilteredTags();
-  
-  // Get popular tags to show when input is empty
-  const getPopularTags = () => {
-    const allPopular = [...trendingTags, ...featuredTags]
-      .filter((tag, index, self) => 
-        index === self.findIndex((t) => t.slug === tag.slug)
-      )
-      .slice(0, 12);
-    
-    return allPopular
-      .map((t: Tag) => t.name)
-      .filter(tag => !tagsList.some(t => t.tag.toLowerCase() === tag.toLowerCase()));
-  };
-
-  const popularTags = !tagInput.trim() ? getPopularTags() : [];
-
   // Hackathon fields
   const [prize, setPrize] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -500,6 +467,50 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
         logo: logoUrl, // Also set logo field for backward compatibility
       };
     });
+
+  const selectedPostingPage = canPostPages.find((page) => page.id === selectedPageId);
+  const tagAccessContext = {
+    postingAsVerifiedPage: Boolean(selectedPostingPage?.isVerified),
+  };
+
+  const knownTagsByName = useMemo(() => {
+    const map = new Map<string, Tag>();
+    for (const tag of [...trendingTags, ...featuredTags, ...tagSuggestions]) {
+      map.set(tag.name.toLowerCase(), tag);
+    }
+    return map;
+  }, [trendingTags, featuredTags, tagSuggestions]);
+
+  const filteredTags = (() => {
+    if (!tagInput.trim()) return [];
+    if (tagSuggestions.length > 0) {
+      return filterUsableTags(tagSuggestions, user, tagAccessContext)
+        .map((t: Tag) => t.name)
+        .filter((tag) => !tagsList.some((t) => t.tag.toLowerCase() === tag.toLowerCase()));
+    }
+    return availableTags.filter(
+      (tag) =>
+        tag.toLowerCase().includes(tagInput.toLowerCase()) &&
+        !tagsList.some((t) => t.tag.toLowerCase() === tag.toLowerCase())
+    );
+  })();
+
+  useEffect(() => {
+    setTagRestrictionError(null);
+  }, [selectedPageId]);
+
+  const popularTags = !tagInput.trim()
+    ? filterUsableTags(
+        [...trendingTags, ...featuredTags].filter(
+          (tag, index, self) => index === self.findIndex((t) => t.slug === tag.slug)
+        ),
+        user,
+        tagAccessContext
+      )
+        .slice(0, 12)
+        .map((t: Tag) => t.name)
+        .filter((tag) => !tagsList.some((t) => t.tag.toLowerCase() === tag.toLowerCase()))
+    : [];
 
   const contentTypes = [
     { id: 'post' as ContentType, name: 'Post', icon: FileText, color: 'from-blue-500 to-cyan-500' },
@@ -626,6 +637,14 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
     if (tagsList.some(t => t.tag === tag)) {
       return;
     }
+
+    const tagMeta = knownTagsByName.get(tag.toLowerCase());
+    if (tagMeta && !canUseRestrictedTag(tagMeta, user, tagAccessContext)) {
+      setTagRestrictionError('This tag is restricted to verified users, verified pages, or admins.');
+      return;
+    }
+
+    setTagRestrictionError(null);
 
     // Get color for the tag (from saved colors or generate new)
     let tagColor = newTagsWithColors[tag];
@@ -1818,6 +1837,9 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                 disabled={tagsList.length >= MAX_TAGS}
                 className="w-full px-4 py-3.5 sm:py-4 rounded-lg bg-white dark:bg-gray-900 focus:outline-none transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base sm:text-lg touch-manipulation"
               />
+              {tagRestrictionError && (
+                <p className="mt-2 text-xs sm:text-sm text-red-600 dark:text-red-400">{tagRestrictionError}</p>
+              )}
               {showTagSuggestions && tagsList.length < MAX_TAGS && (
                 <div className="absolute z-[100] left-4 right-4 mt-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700  max-h-80 overflow-y-auto">
                   {loadingTags ? (
