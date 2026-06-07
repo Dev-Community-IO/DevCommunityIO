@@ -180,13 +180,13 @@ export function Navbar({ onCreatePost, onPostClick, onLogoClick, onNotifications
                       e.stopPropagation();
                       setShowUserMenu(!showUserMenu);
                     }}
-                    className="flex-shrink-0 rounded-lg ring-2 ring-transparent transition-[transform,box-shadow] hover:ring-zinc-200/80 dark:hover:ring-white/15"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-2 ring-transparent transition-[box-shadow] hover:ring-zinc-200/80 dark:hover:ring-white/15"
                     aria-label="User Menu"
                     aria-expanded={showUserMenu}
                     type="button"
                   >
                     <Avatar
-                      src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                      src={user?.avatarUrl || user?.avatar || ''}
                       alt={user?.username || 'User'}
                       size="sm"
 
@@ -197,7 +197,7 @@ export function Navbar({ onCreatePost, onPostClick, onLogoClick, onNotifications
                       <div className="border-b border-zinc-100 p-4 dark:border-white/[0.06]">
                         <div className="flex items-center gap-3">
                           <Avatar
-                            src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                            src={user?.avatarUrl || user?.avatar || ''}
                             alt={user?.username || 'User'}
                             size="md"
                           />
@@ -288,7 +288,7 @@ export function Navbar({ onCreatePost, onPostClick, onLogoClick, onNotifications
                       <div className="border-b border-zinc-100 p-4 dark:border-white/[0.06]">
                         <div className="flex items-center gap-3">
                           <Avatar
-                            src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.username || 'User')}`}
+                            src={user?.avatarUrl || user?.avatar || ''}
                             alt={user?.username || 'User'}
                             size="md"
                           />

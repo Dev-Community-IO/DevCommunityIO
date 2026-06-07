@@ -3,6 +3,25 @@ import authService from '../services/api/auth.service';
 import onboardingService from '../services/api/onboarding.service';
 import { isNetworkError } from '../services/api/config';
 import { localStorageCache, CacheKeys } from '../utils/cache';
+import { markOnboardingDone, migrateLegacyOnboardingStorage } from '../utils/onboardingStorage';
+import {
+  shouldShowOnboardingWizard,
+  shouldForceOnboardingForNewUser,
+  reconcileUserOnboardingState,
+} from '../utils/resolveOnboardingVisibility';
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar';
+
+function withResolvedAvatar<T extends { username?: string; avatarUrl?: string; avatar?: string }>(
+  userData: T
+): T {
+  const raw = userData.avatarUrl || (userData as { avatar_url?: string }).avatar_url || userData.avatar;
+  const resolved = resolveUserAvatarUrl(raw, userData.username);
+  return {
+    ...userData,
+    avatarUrl: resolved,
+    avatar: resolved,
+  };
+}
 
 export interface User {
   id: string;
@@ -69,18 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load user from cache immediately on mount
   useEffect(() => {
+    migrateLegacyOnboardingStorage();
+
     // Try to load from cache first for instant UI
     const cachedUser = localStorageCache.get<User>(CacheKeys.USER);
     const cachedSession = localStorageCache.get<{ timestamp: number }>(CacheKeys.USER_SESSION);
     
     if (cachedUser && cachedSession) {
-      // Normalize avatar field
-      const normalizedUser = {
-        ...cachedUser,
-        avatarUrl: cachedUser.avatarUrl || (cachedUser as any).avatar_url || cachedUser.avatar,
-        avatar: cachedUser.avatar || cachedUser.avatarUrl || (cachedUser as any).avatar_url,
-      };
-      setUser(normalizedUser);
+      const normalizedCachedUser = withResolvedAvatar(cachedUser);
+      setUser(normalizedCachedUser);
+      setShowOnboarding(shouldShowOnboardingWizard(normalizedCachedUser));
       setIsLoading(false);
     }
     
@@ -119,12 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // Normalize avatar field: ensure avatarUrl is used, fallback to avatar for legacy support
-      const normalizedUser = {
+      const normalizedUser = withResolvedAvatar({
         ...userData,
         avatarUrl: userData.avatarUrl || (userData as any).avatar_url || userData.avatar,
-        avatar: userData.avatar || userData.avatarUrl || (userData as any).avatar_url, // Legacy support
-      };
+        avatar: userData.avatar || userData.avatarUrl || (userData as any).avatar_url,
+      });
       setUser(normalizedUser);
       
       // Cache user data (5 minutes expiry for session validation)
@@ -135,39 +151,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (normalizedUser) {
         try {
           const onboardingStatus = await onboardingService.getStatus();
-          
-          // Database state is the source of truth - check completed and skipped flags
-          const isCompleted = onboardingStatus.completed === true;
-          const isSkipped = onboardingStatus.skipped === true;
-          
-          // Show onboarding if NOT completed AND NOT skipped
-          if (!isCompleted && !isSkipped) {
+          const reconciledUser = reconcileUserOnboardingState(normalizedUser, onboardingStatus);
+
+          if (reconciledUser !== normalizedUser) {
+            setUser(reconciledUser);
+            localStorage.setItem('user', JSON.stringify(reconciledUser));
+            localStorageCache.set(CacheKeys.USER, reconciledUser, 5 * 60 * 1000);
+          }
+
+          if (shouldForceOnboardingForNewUser(reconciledUser, onboardingStatus)) {
+            setShowOnboarding(true);
+          } else if (shouldShowOnboardingWizard(reconciledUser, onboardingStatus)) {
             setShowOnboarding(true);
           } else {
-            // Hide onboarding if completed or skipped
             setShowOnboarding(false);
-            // Update user object with completion status
-            if (!normalizedUser.onboardingCompleted) {
-              updateUser({ onboardingCompleted: true });
-            }
-            // Sync skip flag to localStorage for consistency
-            if (isSkipped) {
-              localStorage.setItem('onboarding_skipped', 'true');
-            } else if (isCompleted) {
-              localStorage.setItem('onboarding_skipped', 'true'); // Also set for completed
+            markOnboardingDone(reconciledUser.id);
+            if (!reconciledUser.onboardingCompleted) {
+              const completedUser = { ...reconciledUser, onboardingCompleted: true };
+              setUser(completedUser);
+              localStorage.setItem('user', JSON.stringify(completedUser));
+              localStorageCache.set(CacheKeys.USER, completedUser, 5 * 60 * 1000);
             }
           }
         } catch (error) {
           console.error('Failed to check onboarding status:', error);
-          // Don't block auth if onboarding check fails
-          // Default to showing onboarding for new users if API fails
-          const skippedInLocalStorage = localStorage.getItem('onboarding_skipped') === 'true';
-          if (skippedInLocalStorage || normalizedUser.onboardingCompleted) {
-            setShowOnboarding(false);
-          } else {
-            // New user - show onboarding by default if we can't check status
-            setShowOnboarding(true);
-          }
+          // New accounts should still see onboarding when status API is unavailable
+          setShowOnboarding(shouldShowOnboardingWizard(normalizedUser));
         }
       }
       
@@ -199,6 +208,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (userData: User, token?: string) => {
+    migrateLegacyOnboardingStorage();
+
     setUser(userData);
     if (token) {
       localStorage.setItem('auth_token', token);
@@ -209,52 +220,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorageCache.set(CacheKeys.USER, userData, 5 * 60 * 1000);
     localStorageCache.set(CacheKeys.USER_SESSION, { timestamp: Date.now() }, 5 * 60 * 1000);
     
-    // For new users, show onboarding immediately (don't wait for API check)
-    // But we'll validate with API right after
-    const skippedInLocalStorage = localStorage.getItem('onboarding_skipped') === 'true';
-    const isNewUser = !userData.onboardingCompleted && !skippedInLocalStorage;
-    
-    if (isNewUser) {
-      // Immediately show onboarding for new users (optimistic)
+    // New accounts always see onboarding immediately
+    if (shouldForceOnboardingForNewUser(userData)) {
       setShowOnboarding(true);
     }
     
-    // Then check onboarding status from API (database is source of truth)
     try {
       const onboardingStatus = await onboardingService.getStatus();
-      
-      // Database state is the source of truth - check completed and skipped flags
-      const isCompleted = onboardingStatus.completed === true;
-      const isSkipped = onboardingStatus.skipped === true;
-      
-      // Show onboarding if NOT completed AND NOT skipped
-      if (!isCompleted && !isSkipped) {
+      const reconciledUser = reconcileUserOnboardingState(userData, onboardingStatus);
+
+      if (reconciledUser !== userData) {
+        setUser(reconciledUser);
+        localStorage.setItem('user', JSON.stringify(reconciledUser));
+        localStorageCache.set(CacheKeys.USER, reconciledUser, 5 * 60 * 1000);
+      }
+
+      if (shouldShowOnboardingWizard(reconciledUser, onboardingStatus)) {
         setShowOnboarding(true);
       } else {
-        // Hide onboarding if completed or skipped
         setShowOnboarding(false);
-        // Ensure userData has onboardingCompleted flag
-        if (!userData.onboardingCompleted) {
+        markOnboardingDone(reconciledUser.id);
+        if (!reconciledUser.onboardingCompleted) {
           updateUser({ onboardingCompleted: true });
-        }
-        // Sync skip flag to localStorage for consistency
-        if (isSkipped) {
-          localStorage.setItem('onboarding_skipped', 'true');
-        } else if (isCompleted) {
-          localStorage.setItem('onboarding_skipped', 'true'); // Also set for completed
         }
       }
     } catch (error) {
       console.error('Failed to check onboarding status after login:', error);
-      // Don't block login if onboarding check fails
-      // For new users (no onboardingCompleted flag), show onboarding by default
-      // Only skip if user explicitly has onboardingCompleted flag or skip flag in localStorage
-      if (skippedInLocalStorage || userData.onboardingCompleted) {
-        setShowOnboarding(false);
-      } else {
-        // New user - show onboarding by default
-        setShowOnboarding(true);
-      }
+      setShowOnboarding(shouldShowOnboardingWizard(userData));
     }
   };
 
@@ -286,8 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hide onboarding if user completed it or skipped it
       if (userData.onboardingCompleted) {
         setShowOnboarding(false);
-        // Also set skip flag in localStorage as backup
-        localStorage.setItem('onboarding_skipped', 'true');
+        markOnboardingDone(user.id);
       }
     }
   };

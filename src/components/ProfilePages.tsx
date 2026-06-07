@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { InfiniteScroll } from './InfiniteScroll';
 import { Plus, Users, Settings, BarChart3, UserPlus, Crown, Shield, ArrowLeft, Layout, FileText, Building2, Sparkles, Hash, X, ExternalLink, Upload, Camera, Save, Loader, AlertCircle, CheckCircle, Trash2, Search, Loader2, Globe, Twitter, Linkedin, Github, Send, MessageCircle, Facebook, Instagram, Youtube, Gamepad2, Pencil, UserX, ArrowRightLeft, ChevronRight } from 'lucide-react';
 import { TabPills } from './TabPills';
 import { GlassCard } from './GlassCard';
@@ -22,6 +23,7 @@ import pagesService from '../services/api/pages.service';
 import { PageCardSkeletonList, PostSkeletonList } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { CreatePageModal } from './CreatePageModal';
+import { usePaginatedPageMembers } from '../hooks/usePaginatedPageMembers';
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
 interface ProfilePagesProps {
@@ -431,7 +433,6 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'posts' | 'overview' | 'members' | 'settings'>('dashboard');
   const [userPages, setUserPages] = useState<any[]>([]);
-  const [pageMembers, setPageMembers] = useState<any[]>([]);
   const [pagePosts, setPagePosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -562,22 +563,6 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   }, [username]);
 
   useEffect(() => {
-    const fetchPageMembers = async () => {
-      if (selectedPageId) {
-        try {
-          const members = await pagesService.getMembers(selectedPageId);
-          setPageMembers(members.members || members || []);
-        } catch (err) {
-          console.error('Error fetching page members:', err);
-          setPageMembers([]);
-        }
-      }
-    };
-
-    fetchPageMembers();
-  }, [selectedPageId]);
-
-  useEffect(() => {
     const fetchPagePosts = async () => {
   const selectedPage = userPages.find(p => p.id === selectedPageId);
       if (activeTab === 'posts' && selectedPage && selectedPage.slug) {
@@ -622,6 +607,16 @@ export function ProfilePages({ username }: ProfilePagesProps) {
   const memberPages = filteredPages.filter(p => !canManage(p));
 
   const selectedPage = userPages.find(p => p.id === selectedPageId);
+
+  const membersPagination = usePaginatedPageMembers({
+    pageId: selectedPageId,
+    type: 'team',
+    enabled: viewMode === 'manage' && activeTab === 'members' && Boolean(selectedPageId),
+  });
+
+  const membersTabCount =
+    membersPagination.total ||
+    Number(selectedPage?.memberCount ?? selectedPage?.members ?? 0);
 
   // Create a stable string representation of social links for dependency tracking
   const selectedPageSocialLinksStr = useMemo(() => {
@@ -1006,8 +1001,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       setSearchError(null)
 
       // Refresh members for the managed page
-      const members = await pagesService.getMembers(pageId)
-      setPageMembers(members.members || members || [])
+      await membersPagination.refresh();
 
       // Refresh overall pages list for the profile owner
       try {
@@ -1031,8 +1025,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       await pagesService.updateTeamMemberRole(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id, newRole);
       
       // Refresh members
-      const members = await pagesService.getMembers(selectedPageId);
-      setPageMembers(members.members || members || []);
+      await membersPagination.refresh();
       
       // Refresh pages list
       const pages = await usersService.getUserPages(username);
@@ -1058,8 +1051,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       await pagesService.removeTeamMember(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id);
       
       // Refresh members
-      const members = await pagesService.getMembers(selectedPageId);
-      setPageMembers(members.members || members || []);
+      await membersPagination.refresh();
       
       // Refresh pages list
       const pages = await usersService.getUserPages(username);
@@ -1084,8 +1076,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
       await pagesService.transferOwnership(selectedPageId, selectedMemberForAction.userId || selectedMemberForAction.id);
       
       // Refresh members and pages
-      const members = await pagesService.getMembers(selectedPageId);
-      setPageMembers(members.members || members || []);
+      await membersPagination.refresh();
       
       const pages = await usersService.getUserPages(username);
       const pagesWithRoles = Array.isArray(pages) ? pages : [];
@@ -1208,7 +1199,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                       src={
                         user.avatarUrl ||
                         user.avatar_url ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username || user.pseudo || 'member')}`
+                        ''
                       }
                       alt={user.username || user.pseudo || 'User'}
                       size="md"
@@ -1917,7 +1908,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
             tabs={[
               { id: 'overview', label: 'Overview', icon: Layout },
               { id: 'posts', label: 'Posts', icon: FileText, count: pagePosts.length },
-              { id: 'members', label: 'Members', icon: Users, count: pageMembers.length },
+              { id: 'members', label: 'Members', icon: Users, count: membersTabCount },
               { id: 'settings', label: 'Settings', icon: Settings },
             ]}
           />
@@ -1933,7 +1924,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: 'Members', value: selectedPage.memberCount || selectedPage.members || 0 },
+                    { label: 'Members', value: membersTabCount },
                     { label: 'Posts', value: selectedPage.postCount || selectedPage.posts || 0 },
                     {
                       label: 'Category',
@@ -2022,7 +2013,7 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                 <div>
                   <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Team members</h3>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    People who can post and manage this page
+                    {membersTabCount.toLocaleString()} people who can post and manage this page
                   </p>
                 </div>
                 <button
@@ -2038,39 +2029,69 @@ export function ProfilePages({ username }: ProfilePagesProps) {
                 </button>
               </div>
 
-              {pageMembers.length > 0 ? (
-                <div className={manageMemberGridClass}>
-                  {pageMembers.map((member: any) => {
-                    const isOwner =
-                      selectedPage?.ownerId === (member.userId || member.id) || member.role === 'owner';
-                    const canEditMember = canManage(selectedPage) && !isOwner;
-                    const isCurrentUser = authUser?.id === (member.userId || member.id);
-
-                    return (
-                      <ManageTeamMemberCard
-                        key={member.id || member.userId}
-                        member={member}
-                        isOwner={isOwner}
-                        canEdit={canEditMember}
-                        isCurrentUser={isCurrentUser}
-                        showTransfer={selectedPage?.ownerId === authUser?.id}
-                        onUpdateRole={() => {
-                          setSelectedMemberForAction(member);
-                          setNewRole(member.role === 'admin' ? 'moderator' : 'admin');
-                          setShowUpdateRoleModal(true);
-                        }}
-                        onRemove={() => {
-                          setSelectedMemberForAction(member);
-                          setShowRemoveMemberModal(true);
-                        }}
-                        onTransfer={() => {
-                          setSelectedMemberForAction(member);
-                          setShowTransferOwnershipModal(true);
-                        }}
-                      />
-                    );
-                  })}
+              {membersPagination.initialLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 size={24} className="animate-spin text-zinc-500" strokeWidth={2} />
                 </div>
+              ) : membersPagination.error ? (
+                <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+                  <p className="text-sm text-red-600 dark:text-red-400">{membersPagination.error}</p>
+                </div>
+              ) : membersPagination.items.length > 0 ? (
+                <InfiniteScroll
+                  dataLength={membersPagination.items.length}
+                  next={membersPagination.loadMore}
+                  hasMore={membersPagination.hasMore}
+                  isLoading={membersPagination.loadingMore}
+                  loader={
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 size={20} className="animate-spin text-zinc-500" strokeWidth={2} />
+                      <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Loading more members…
+                      </span>
+                    </div>
+                  }
+                  endMessage={
+                    (membersPagination.total || membersTabCount) > 20 ? (
+                      <p className="py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                        All {(membersPagination.total || membersTabCount).toLocaleString()} members loaded
+                      </p>
+                    ) : null
+                  }
+                >
+                  <div className={manageMemberGridClass}>
+                    {membersPagination.items.map((member: any) => {
+                      const isOwner =
+                        selectedPage?.ownerId === (member.userId || member.id) || member.role === 'owner';
+                      const canEditMember = canManage(selectedPage) && !isOwner;
+                      const isCurrentUser = authUser?.id === (member.userId || member.id);
+
+                      return (
+                        <ManageTeamMemberCard
+                          key={member.id || member.userId}
+                          member={member}
+                          isOwner={isOwner}
+                          canEdit={canEditMember}
+                          isCurrentUser={isCurrentUser}
+                          showTransfer={selectedPage?.ownerId === authUser?.id}
+                          onUpdateRole={() => {
+                            setSelectedMemberForAction(member);
+                            setNewRole(member.role === 'admin' ? 'moderator' : 'admin');
+                            setShowUpdateRoleModal(true);
+                          }}
+                          onRemove={() => {
+                            setSelectedMemberForAction(member);
+                            setShowRemoveMemberModal(true);
+                          }}
+                          onTransfer={() => {
+                            setSelectedMemberForAction(member);
+                            setShowTransferOwnershipModal(true);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </InfiniteScroll>
               ) : (
                 <div className={`${asidePanelClass} px-6 py-10 text-center`}>
                   <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">

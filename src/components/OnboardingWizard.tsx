@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Check, ChevronRight, ChevronLeft, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import onboardingService from '../services/api/onboarding.service';
+import { celebrateOnboarding } from '../utils/celebrateOnboarding';
+import { markOnboardingDone } from '../utils/onboardingStorage';
 import { InterestSelection } from './InterestSelection';
 import { PageSuggestions } from './PageSuggestions';
 import { ProfileSetup } from './ProfileSetup';
@@ -23,12 +25,12 @@ type Step = 'profile' | 'interests' | 'pages' | 'complete';
 const steps: { id: Step; label: string; hint: string }[] = [
   { id: 'profile', label: 'Profile', hint: 'Username, bio & skills' },
   { id: 'interests', label: 'Interests', hint: 'Pick 3+ topics' },
-  { id: 'pages', label: 'Communities', hint: 'Follow recommended pages' },
+  { id: 'pages', label: 'Pages', hint: 'Follow at least one page' },
   { id: 'complete', label: 'Done', hint: 'You\'re all set' },
 ];
 
 export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWizardProps) {
-  const { user, updateUser, checkAuth, setShowOnboarding } = useAuth();
+  const { user, updateUser, setShowOnboarding } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('profile');
   const [profileData, setProfileData] = useState({
     username: '',
@@ -97,6 +99,17 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
 
   if (!isOpen) return null;
 
+  const finishOnboarding = () => {
+    if (user?.id) {
+      markOnboardingDone(user.id);
+    }
+    updateUser({ onboardingCompleted: true, ...profileData });
+    setShowOnboarding(false);
+    celebrateOnboarding();
+    onComplete();
+    onClose();
+  };
+
   const handleNext = async () => {
     setIsLoading(true);
     setAuthError(null);
@@ -110,23 +123,21 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
         await onboardingService.saveFollows([], selectedPages);
         setCurrentStep('complete');
       } else if (currentStep === 'complete') {
-        try {
-          await onboardingService.updateProfile(profileData);
-        } catch (error) {
-          console.error('Failed to update profile:', error);
-        }
+        finishOnboarding();
 
-        try {
-          await onboardingService.complete();
-        } catch (error) {
-          console.error('Failed to complete onboarding:', error);
-        }
+        void (async () => {
+          try {
+            await onboardingService.updateProfile(profileData);
+          } catch (error) {
+            console.error('Failed to update profile:', error);
+          }
 
-        updateUser({ onboardingCompleted: true, ...profileData });
-        setShowOnboarding(false);
-        checkAuth().catch((error) => console.error('Failed to refresh auth:', error));
-        onComplete();
-        onClose();
+          try {
+            await onboardingService.complete();
+          } catch (error) {
+            console.error('Failed to complete onboarding:', error);
+          }
+        })();
       }
     } catch (error: any) {
       console.error('Onboarding error:', error);
@@ -134,14 +145,11 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
       if (status === 401) {
         setAuthError('Your session expired. Please sign in again to continue setup.');
         setShowOnboarding(false);
-        await checkAuth().catch(() => undefined);
         return;
       }
       if (currentStep === 'complete') {
-        updateUser({ onboardingCompleted: true, ...profileData });
-        setShowOnboarding(false);
-        onComplete();
-        onClose();
+        finishOnboarding();
+        return;
       }
     } finally {
       setIsLoading(false);
@@ -158,20 +166,17 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
     try {
       setIsLoading(true);
       await onboardingService.skip();
-      updateUser({ onboardingCompleted: true });
-      setShowOnboarding(false);
-      localStorage.setItem('onboarding_skipped', 'true');
-      await checkAuth();
-      onComplete();
-      onClose();
     } catch (error) {
       console.error('Skip onboarding error:', error);
+    } finally {
+      if (user?.id) {
+        markOnboardingDone(user.id);
+      }
       updateUser({ onboardingCompleted: true });
       setShowOnboarding(false);
-      localStorage.setItem('onboarding_skipped', 'true');
+      celebrateOnboarding();
       onComplete();
       onClose();
-    } finally {
       setIsLoading(false);
     }
   };
@@ -314,7 +319,7 @@ export function OnboardingWizard({ isOpen, onClose, onComplete }: OnboardingWiza
                       <span className="tabular-nums font-semibold text-zinc-800 dark:text-zinc-200">
                         {selectedPages.length}
                       </span>
-                      <span>communities</span>
+                      <span>pages</span>
                     </div>
                   </div>
                 </div>

@@ -714,7 +714,7 @@ export function HackathonDetail({ hackathonId, onClose }: HackathonDetailProps) 
                   onClick={() => navigate(`/profile/${hackathon.organizer?.username}`)}
                 >
                   <Avatar
-                    src={hackathon.organizer.avatarUrl || hackathon.organizer.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(hackathon.organizer.username)}`}
+                    src={hackathon.organizer.avatarUrl || hackathon.organizer.avatar || ''}
                     alt={hackathon.organizer.username}
                     size="md"
                   />

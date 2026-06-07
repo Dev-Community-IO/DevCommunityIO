@@ -1,6 +1,7 @@
 import { Search, Bell, Plus } from 'lucide-react';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
+import { DEFAULT_GUEST_AVATAR } from '../utils/defaultAvatar';
 import { GlassCard } from './GlassCard';
 
 interface HeaderProps {
@@ -45,8 +46,8 @@ export function Header({ onCreatePost }: HeaderProps) {
           </button>
 
           <Avatar
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=Guest"
-            alt="User"
+            src={DEFAULT_GUEST_AVATAR}
+            alt="Guest"
             size="sm"
             className="w-8 h-8 sm:w-10 sm:h-10"
           />

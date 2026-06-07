@@ -321,7 +321,7 @@ export function RightSidebar({ onHackathonClick, onEventClick, onOpportunityClic
           src={
             author.avatarUrl ||
             author.avatar ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.username || 'user'}`
+            ''
           }
           alt={author.username || 'User'}
           size="sm"

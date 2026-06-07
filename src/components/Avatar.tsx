@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getDefaultUserAvatar, resolveUserAvatarUrl } from '../utils/defaultAvatar';
 
 interface AvatarProps {
   src: string;
@@ -20,10 +21,8 @@ export function Avatar({ src, alt, size = 'md', className = '' }: AvatarProps) {
 
   const sizeClass = className.includes('w-') ? '' : sizes[size];
 
-  const getFallbackAvatar = () => {
-    const seed = alt || 'default';
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
-  };
+  const getFallbackAvatar = () => getDefaultUserAvatar(alt);
+  const normalizedSrc = resolveUserAvatarUrl(src, alt);
 
   const handleError = () => {
     setImgError(true);
@@ -34,7 +33,7 @@ export function Avatar({ src, alt, size = 'md', className = '' }: AvatarProps) {
     setImgLoading(false);
   };
 
-  const avatarSrc = imgError || !src ? getFallbackAvatar() : src;
+  const avatarSrc = imgError ? getFallbackAvatar() : normalizedSrc;
 
   return (
     <div

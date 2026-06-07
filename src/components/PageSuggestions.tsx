@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, Check, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 import onboardingService, { type SuggestedPage } from '../services/api/onboarding.service';
+import { pagesService, type Page } from '../services/api/pages.service';
 import { Avatar } from './Avatar';
 import { VerifiedBadge } from './VerifiedBadge';
 import {
@@ -22,6 +23,25 @@ interface PageSuggestionsProps {
   selectedPages: string[];
   selectedTagIds?: string[];
   onPagesChange: (pages: string[]) => void;
+}
+
+function normalizePage(item: Page | SuggestedPage): SuggestedPage {
+  const page = item as Page & SuggestedPage;
+  return {
+    id: page.id,
+    name: page.name,
+    slug: page.slug,
+    logoUrl: page.logoUrl || page.logo,
+    description: page.description || page.shortBio || '',
+    category: page.category || '',
+    members: page.members ?? page.memberCount ?? page.member_count ?? page.followerCount ?? 0,
+    postsCount: page.postsCount ?? page.postCount ?? 0,
+    isVerified: page.isVerified,
+    isTrending: page.isTrending,
+    isRecommended: page.isRecommended,
+    matchingTags: page.matchingTags,
+    reason: page.reason,
+  };
 }
 
 function PageCard({
@@ -73,7 +93,7 @@ function PageCard({
             )}
 
             <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-              {page.description || 'Community on DevCommunity'}
+              {page.description || 'Page on DevCommunity'}
             </p>
 
             {page.matchingTags && page.matchingTags.length > 0 && (
@@ -130,14 +150,34 @@ export function PageSuggestions({
     setIsLoading(true);
     try {
       const result = await onboardingService.getSuggestedPages(selectedTagIds);
-      setPages(Array.isArray(result.pages) ? result.pages : []);
-      setRecommendedIds(Array.isArray(result.recommendedIds) ? result.recommendedIds : []);
-      setBasedOnInterests(result.basedOnInterests);
+      let loaded = Array.isArray(result.pages) ? result.pages.map(normalizePage) : [];
+      let recIds = Array.isArray(result.recommendedIds) ? result.recommendedIds : [];
+      let based = result.basedOnInterests;
+
+      if (loaded.length === 0) {
+        const response = await pagesService.getPages({ page: 1, limit: 100 });
+        const rawPages = Array.isArray(response?.data) ? response.data : [];
+        loaded = rawPages.map(normalizePage);
+        recIds = [];
+        based = false;
+      }
+
+      setPages(loaded);
+      setRecommendedIds(recIds);
+      setBasedOnInterests(based);
     } catch (error) {
       console.error('Failed to load pages:', error);
-      setPages([]);
-      setRecommendedIds([]);
-      setBasedOnInterests(false);
+      try {
+        const response = await pagesService.getPages({ page: 1, limit: 100 });
+        const rawPages = Array.isArray(response?.data) ? response.data : [];
+        setPages(rawPages.map(normalizePage));
+        setRecommendedIds([]);
+        setBasedOnInterests(false);
+      } catch {
+        setPages([]);
+        setRecommendedIds([]);
+        setBasedOnInterests(false);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -185,11 +225,11 @@ export function PageSuggestions({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className={onboardingStepTitleClass}>Follow communities</h3>
+        <h3 className={onboardingStepTitleClass}>Follow pages</h3>
         <p className={onboardingStepDescClass}>
-          {basedOnInterests
-            ? 'We picked these based on the topics you chose — follow at least one.'
-            : 'Follow at least one community to fill your feed.'}
+          {basedOnInterests && recommendedIds.length > 0
+            ? 'Recommended pages are at the top — follow at least one.'
+            : 'Browse all pages and follow at least one to fill your feed.'}
         </p>
       </div>
 
@@ -214,7 +254,7 @@ export function PageSuggestions({
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search communities…"
+          placeholder="Search pages…"
           className={`${onboardingInputClass} pl-8`}
         />
       </div>
@@ -222,11 +262,11 @@ export function PageSuggestions({
       {isLoading ? (
         <div className="flex flex-col items-center gap-2 py-8">
           <Loader2 size={20} className="animate-spin text-zinc-400" strokeWidth={2} />
-          <p className={onboardingHintClass}>Finding communities for you…</p>
+          <p className={onboardingHintClass}>Loading pages…</p>
         </div>
       ) : filteredPages.length === 0 ? (
         <p className={`py-6 text-center ${onboardingHintClass}`}>
-          {searchQuery ? `No results for “${searchQuery}”` : 'No communities available yet.'}
+          {searchQuery ? `No pages match “${searchQuery}”` : 'No pages available yet.'}
         </p>
       ) : (
         <>
@@ -253,11 +293,9 @@ export function PageSuggestions({
 
           {otherPages.length > 0 && (
             <section className="space-y-2">
-              {recommendedPages.length > 0 && (
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  More communities
-                </h4>
-              )}
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                {recommendedPages.length > 0 ? 'All pages' : `All pages (${otherPages.length})`}
+              </h4>
               <ul className="space-y-2">
                 {otherPages.map((page) => (
                   <PageCard
@@ -275,8 +313,8 @@ export function PageSuggestions({
             <span className="inline-flex items-center gap-1.5">
               <Users size={12} strokeWidth={2} />
               {selectedPages.length === 0
-                ? 'Follow at least one community'
-                : `${selectedPages.length} following`}
+                ? 'Follow at least one page'
+                : `${selectedPages.length} page${selectedPages.length === 1 ? '' : 's'} followed`}
             </span>
             {selectedPages.length >= 1 && (
               <Check size={14} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />

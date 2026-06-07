@@ -215,7 +215,7 @@ export function ContentReportsModal({ isOpen, onClose, contentType, contentId, c
                     <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 mb-2">
                       <div className="flex items-center gap-1.5">
                         <Avatar
-                          src={report.reporter.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${report.reporter.username}`}
+                          src={report.reporter.avatar || ''}
                           alt={report.reporter.username}
                           size="sm"
                         />

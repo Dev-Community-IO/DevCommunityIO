@@ -570,7 +570,7 @@ export function AdminPages() {
                       {page.owner && (
                         <div className="flex items-center gap-2">
                           <Avatar
-                            src={page.owner.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${page.owner.username}`}
+                            src={page.owner.avatar || ''}
                             alt={page.owner.username}
                             size="sm"
 
@@ -907,7 +907,7 @@ export function AdminPages() {
                         }`}
                       >
                         <Avatar
-                          src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                          src={user.avatarUrl || user.avatar || ''}
                           alt={user.username}
                           size="sm"
 
@@ -933,7 +933,7 @@ export function AdminPages() {
                     </p>
                     <div className="flex items-center gap-3">
                       <Avatar
-                        src={selectedNewOwner.avatarUrl || selectedNewOwner.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedNewOwner.username}`}
+                        src={selectedNewOwner.avatarUrl || selectedNewOwner.avatar || ''}
                         alt={selectedNewOwner.username}
                         size="sm"
                       />
@@ -1051,7 +1051,7 @@ export function AdminPages() {
                           >
                             <div className="flex items-center gap-3">
                               <Avatar
-                                src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                src={user.avatarUrl || user.avatar || ''}
                                 alt={user.username}
                                 size="sm"
                               />
@@ -1107,7 +1107,7 @@ export function AdminPages() {
                         >
                           <div className="flex items-center gap-3">
                             <Avatar
-                              src={member.user?.avatarUrl || member.user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user?.username || member.username}`}
+                              src={member.user?.avatarUrl || member.user?.avatar || ''}
                               alt={member.user?.username || member.username}
                               size="sm"
 

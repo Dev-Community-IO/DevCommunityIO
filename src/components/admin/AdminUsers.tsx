@@ -707,7 +707,7 @@ export function AdminUsers() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar
-                            src={user.avatarUrl || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                            src={user.avatarUrl || user.avatar || ''}
                             alt={user.username}
                             size="sm"
 

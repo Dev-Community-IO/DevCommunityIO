@@ -200,7 +200,7 @@ createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
-            <App />
+              <App />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>

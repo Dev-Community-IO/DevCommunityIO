@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import authService from '../services/api/auth.service';
 import { connectCardanoWallet, getAvailableWallets, signCardanoMessage, stringToHex } from '../utils/cardanoWallet';
+import { SafrochainWalletPicker, type SafrochainLoginStep } from './SafrochainWalletPicker';
 import { executeRecaptcha } from '../utils/recaptcha';
 
 interface LoginModalProps {
@@ -21,7 +22,7 @@ interface LoginModalProps {
   onClose: () => void;
 }
 
-type LoginStep = 'select' | 'connecting' | 'signing';
+type LoginStep = 'select' | SafrochainLoginStep;
 
 const modalShellClass =
   'rounded-xl border border-zinc-200/80 bg-white p-5 shadow-sm sm:p-6 dark:border-white/[0.08] dark:bg-zinc-900';
@@ -36,11 +37,12 @@ const walletTileClass =
   'flex flex-col items-center gap-2 rounded-xl border border-zinc-200/80 bg-white p-3 transition-colors hover:border-zinc-300 hover:bg-zinc-50/90 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-white/15 dark:hover:bg-white/[0.05]';
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
-  const { login, checkAuth } = useAuth();
+  const { login } = useAuth();
   const [step, setStep] = useState<LoginStep>('select');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showCardanoWallets, setShowCardanoWallets] = useState(false);
+  const [showSafrochainWallets, setShowSafrochainWallets] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -48,6 +50,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
       setError('');
       setIsLoading(false);
       setShowCardanoWallets(false);
+      setShowSafrochainWallets(false);
     }
   }, [isOpen]);
 
@@ -78,8 +81,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         stakeAddress
       );
 
-      await login(response.user, response.token);
-      await checkAuth();
+      await login(response.user, response.token ?? response.user?.id);
       onClose();
     } catch (err: unknown) {
       console.error('Cardano login error:', err);
@@ -159,7 +161,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </div>
 
           <p className="mb-4 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
-            Connect a Cardano wallet or continue with Google or GitHub.
+            Connect a Safrochain or Cardano wallet, or continue with Google or GitHub.
           </p>
 
           {error && (
@@ -182,6 +184,66 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </div>
           ) : (
             <div className="space-y-4">
+              <div>
+                {!showSafrochainWallets ? (
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    Safrochain
+                  </p>
+                ) : (
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <img
+                      src="/safrochain-favicon.svg"
+                      alt=""
+                      className="h-4 w-4 shrink-0 object-contain"
+                    />
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Safrochain</span>
+                  </div>
+                )}
+
+                {!showSafrochainWallets ? (
+                  <button type="button" onClick={() => setShowSafrochainWallets(true)} className={optionBtnClass}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200/80 bg-zinc-50 dark:border-white/10 dark:bg-white/[0.04]">
+                      <img
+                        src="/safrochain-favicon.svg"
+                        alt=""
+                        className="h-6 w-6 object-contain"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Safrochain wallet</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Browse available wallets</p>
+                    </div>
+                    <ChevronRight size={16} className="shrink-0 text-zinc-400" strokeWidth={2} />
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <SafrochainWalletPicker
+                      onStepChange={(nextStep) => {
+                        if (nextStep) {
+                          setError('');
+                          setIsLoading(true);
+                          setStep(nextStep);
+                          return;
+                        }
+
+                        setIsLoading(false);
+                        setStep('select');
+                      }}
+                      onComplete={onClose}
+                      onError={setError}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSafrochainWallets(false)}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    >
+                      <ArrowLeft size={14} strokeWidth={2} />
+                      Back
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                   Cardano wallet

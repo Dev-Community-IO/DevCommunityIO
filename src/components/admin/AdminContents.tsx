@@ -804,7 +804,7 @@ export function AdminContents() {
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-1.5">
                           <Avatar
-                            src={item.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author.username}`}
+                            src={item.author.avatar || ''}
                             alt={item.author.username}
                             size="sm"
 

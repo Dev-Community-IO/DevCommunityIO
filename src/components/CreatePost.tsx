@@ -1021,7 +1021,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                       }`}
                     >
                       <Avatar
-                        src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'user'}`}
+                        src={user?.avatarUrl || user?.avatar || ''}
                         alt={user?.username || 'Your Profile'}
                         size="sm"
                         className="w-8 h-8 ring-2 ring-white/30"
@@ -2133,7 +2133,7 @@ export function CreatePost({ onBack, pageId, editPostId, initialContentType }: C
                         }`}
                       >
                         <Avatar
-                          src={user?.avatarUrl || user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'user'}`}
+                          src={user?.avatarUrl || user?.avatar || ''}
                           alt={user?.username || 'Your Profile'}
                           size="sm"
                           className="w-6 h-6"

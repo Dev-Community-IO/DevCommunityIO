@@ -6,7 +6,7 @@ import { OpportunityCard } from './OpportunityCard';
 import { TrendingUp, Sparkles, Trophy, ChevronDown, Loader2, FileText, Hash, X, Heart, Clock, Flame } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
-import InfiniteScroll from 'react-infinite-scroll-component';
+import { InfiniteScroll } from './InfiniteScroll';
 import adsService, { PublicAd } from '../services/api/ads.service';
 import { InFeedAd } from './ads/InFeedAd';
 import { PostSkeletonList } from './skeletons';
@@ -377,6 +377,7 @@ export function PostFeed({ items, onPostClick, onHackathonClick, onEventClick, o
           dataLength={items.length}
           next={fetchMore}
           hasMore={hasMore}
+          isLoading={Boolean(loading)}
           loader={
             <div className="flex items-center justify-center py-6 sm:py-8">
               <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-blue-500" />

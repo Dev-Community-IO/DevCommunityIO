@@ -1,7 +1,9 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { execSync } from 'child_process';
+import { seoDevPlugin } from './seo/vite-seo-plugin.js';
 
 // Get git version info at build time
 function getGitVersion(): string {
@@ -69,7 +71,22 @@ export default defineConfig(({ mode }) => {
         __lucide_fallback__: path.resolve(__dirname, 'node_modules/lucide-react'),
       },
     },
-    plugins: [react()],
+    css: {
+      devSourcemap: false,
+    },
+    plugins: [
+      react(),
+      nodePolyfills({
+        globals: {
+          Buffer: true,
+          global: true,
+          process: true,
+        },
+        protocolImports: true,
+      }),
+      // Dynamic SEO + AI discovery (robots/sitemap/llms) parity in dev on :3351
+      seoDevPlugin(env),
+    ],
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(gitVersion),
       'import.meta.env.VITE_APP_COMMIT_HASH': JSON.stringify(gitCommitHash),
@@ -82,6 +99,8 @@ export default defineConfig(({ mode }) => {
       open: false,
       cors: true,
       allowedHosts: isProduction ? productionDomains : developmentDomains,
+      sourcemapIgnoreList: (sourcePath) =>
+        sourcePath.includes('node_modules') || sourcePath.includes('.vite/deps'),
     },
     preview: {
       port: parseInt(env.VITE_PORT || '4173'),
@@ -116,6 +135,8 @@ export default defineConfig(({ mode }) => {
         'react-router-dom',
         '@lineiconshq/react-lineicons',
         '@lineiconshq/free-icons',
+        'buffer',
+        'process',
       ],
     },
   };

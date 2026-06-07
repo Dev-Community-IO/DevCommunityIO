@@ -54,6 +54,35 @@ class AuthService {
         return response.data;
     }
 
+    // Get nonce for Safrochain wallet authentication
+    async getSafrochainNonce(walletAddress: string, chainId?: string): Promise<WalletNonceResponse> {
+        const response = await apiClient.post('/auth/safrochain/nonce', {
+            walletAddress,
+            chainId,
+        });
+        return response.data;
+    }
+
+    // Verify Safrochain wallet signature
+    async verifySafrochain(
+        walletAddress: string,
+        signature: string,
+        nonce: string,
+        signedMessage: string,
+        chainId?: string,
+        pubKey?: string
+    ): Promise<LoginResponse> {
+        const response = await apiClient.post('/auth/safrochain/verify', {
+            walletAddress,
+            signature,
+            nonce,
+            signedMessage,
+            chainId,
+            pubKey,
+        });
+        return response.data;
+    }
+
     // OAuth - Google login
     getGoogleAuthUrl(recaptchaToken?: string): string {
         const url = new URL(`${apiClient.defaults.baseURL}/auth/google`);

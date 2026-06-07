@@ -3,6 +3,7 @@ import { Edit3, Building2, Briefcase, MapPin, Calendar, MessageSquare, FileText,
 import { SocialLinks } from './SocialLinks';
 import { GlassCard } from './GlassCard';
 import { Avatar } from './Avatar';
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar';
 import { Badge } from './Badge';
 import { VerifiedBadge } from './VerifiedBadge';
 import { TrustedBadge } from './TrustedBadge';
@@ -221,7 +222,7 @@ export function UserProfile({ username, onBack, onOpenLoginModal, activeTab: pro
           id: userData.id,
           username: userData.username,
           pseudo: userData.pseudo || null,
-          avatar: userData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`,
+          avatar: resolveUserAvatarUrl(userData.avatarUrl, userData.username),
           coverImage: userData.coverImageUrl || '',
           walletAddress: '',
           reputation: userData.reputation,

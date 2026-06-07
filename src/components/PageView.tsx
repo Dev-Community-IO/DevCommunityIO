@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Users, MessageSquare, UserPlus, Bell, BellOff, Globe, Calendar, Building2, FileText, ExternalLink, AlertTriangle, Shield, Share2, Loader2, Twitter, Linkedin, Github, Facebook, Instagram, Youtube, Send, MessageCircle, Gamepad2, ChevronRight, Award } from 'lucide-react';
+import { InfiniteScroll } from './InfiniteScroll';
 import { TabPills } from './TabPills';
 import { BioText } from './BioText';
 import { SocialLinks } from './SocialLinks';
@@ -24,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SEOHead } from './SEOHead';
 import { useNavigate } from 'react-router-dom';
 import { PageViewSkeleton } from './skeletons';
+import { usePaginatedPageMembers } from '../hooks/usePaginatedPageMembers';
 const DEFAULT_PAGE_LOGO = 'https://api.dicebear.com/7.x/shapes/svg?seed=Adaex%20App';
 
 type SocialPlatform =
@@ -247,8 +249,6 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [pageData, setPageData] = useState<any>(null);
   const [pagePosts, setPagePosts] = useState<Post[]>([]);
-  const [pageTeamMembers, setPageTeamMembers] = useState<any[]>([]);
-  const [pageFollowers, setPageFollowers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -428,23 +428,6 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           index === self.findIndex((p: Post) => p.id === post.id)
         ) : [];
         setPagePosts(uniquePosts);
-        
-        // Fetch team members and followers
-        if (pageDataFromApi.id) {
-          try {
-            const [teamResponse, followersResponse] = await Promise.all([
-              pagesService.getMembers(pageDataFromApi.id, { type: 'team' }),
-              pagesService.getMembers(pageDataFromApi.id, { type: 'followers' })
-            ]);
-            
-            setPageTeamMembers(teamResponse.members || teamResponse.data || teamResponse || []);
-            setPageFollowers(followersResponse.followers || followersResponse.data || followersResponse || []);
-          } catch (err) {
-            console.warn('Could not fetch team members or followers:', err);
-            setPageTeamMembers([]);
-            setPageFollowers([]);
-          }
-        }
       } catch (err: any) {
         setError(err?.message || 'Failed to load page data');
         console.error('Error fetching page:', err);
@@ -537,16 +520,14 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
     );
   }
 
-  const membersCount =
-    pageData.memberCount ??
-    pageData.member_count ??
-    (Array.isArray(pageTeamMembers) ? pageTeamMembers.length : 0);
+  const membersCount = Number(pageData.memberCount ?? pageData.member_count ?? 0);
+  const followersCount = Number(pageData.followerCount ?? pageData.follower_count ?? 0);
 
   const tabs = [
     { id: 'posts', label: 'Posts', icon: MessageSquare, count: pagePosts.length },
     { id: 'about', label: 'About', icon: FileText },
     { id: 'members', label: 'Members', icon: Shield, count: membersCount },
-    { id: 'followers', label: 'Followers', icon: Users, count: pageData.followerCount || pageData.follower_count || 0 },
+    { id: 'followers', label: 'Followers', icon: Users, count: followersCount },
   ];
 
   return (
@@ -829,9 +810,13 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
           <AboutTab pageData={pageData} socialLinkEntries={socialLinkEntries} pagePosts={pagePosts} />
         )}
 
-        {activeTab === 'members' && <MembersTab pageTeamMembers={pageTeamMembers} />}
+        {activeTab === 'members' && pageData?.id && (
+          <MembersTab pageId={pageData.id} totalCount={membersCount} />
+        )}
 
-        {activeTab === 'followers' && <FollowersTab pageFollowers={pageFollowers} />}
+        {activeTab === 'followers' && pageData?.id && (
+          <FollowersTab pageId={pageData.id} totalCount={followersCount} />
+        )}
       </div>
     </div>
     </>
@@ -1102,7 +1087,7 @@ function FollowerMemberCard({
           src={
             follower.avatar_url ||
             follower.avatarUrl ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(follower.username)}`
+            ''
           }
           alt={follower.username}
           size="sm"
@@ -1197,7 +1182,7 @@ function TeamMemberCard({ member, onClick }: { member: any; onClick: () => void 
           src={
             member.avatarUrl ||
             member.avatar_url ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(member.username)}`
+            ''
           }
           alt={member.username}
           size="sm"
@@ -1249,9 +1234,18 @@ function TeamMemberCard({ member, onClick }: { member: any; onClick: () => void 
   );
 }
 
-const MembersTab = ({ pageTeamMembers }: { pageTeamMembers?: unknown[] }) => {
+const PAGE_MEMBERS_PAGE_SIZE = 20;
+
+const MembersTab = ({ pageId, totalCount }: { pageId: string; totalCount: number }) => {
   const navigate = useNavigate();
-  const members = sortPageMembers(dedupePageMembers((pageTeamMembers || []) as any[]));
+  const { items, total, hasMore, initialLoading, loadingMore, loadMore, error } =
+    usePaginatedPageMembers({
+      pageId,
+      type: 'team',
+      enabled: true,
+    });
+  const members = sortPageMembers(dedupePageMembers(items));
+  const displayTotal = total || totalCount;
 
   return (
     <div className="space-y-4">
@@ -1272,21 +1266,49 @@ const MembersTab = ({ pageTeamMembers }: { pageTeamMembers?: unknown[] }) => {
         </div>
         <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs text-zinc-600 dark:text-zinc-400`}>
           <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-            {members.length.toLocaleString()}
+            {displayTotal.toLocaleString()}
           </span>
         </span>
       </div>
 
-      {members.length > 0 ? (
-        <div className={memberGridClass}>
-          {members.map((member) => (
-            <TeamMemberCard
-              key={member.id}
-              member={member}
-              onClick={() => navigate(`/profile/${member.username}`)}
-            />
-          ))}
+      {initialLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={24} className="animate-spin text-zinc-500" strokeWidth={2} />
         </div>
+      ) : error ? (
+        <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      ) : members.length > 0 ? (
+        <InfiniteScroll
+          dataLength={members.length}
+          next={loadMore}
+          hasMore={hasMore}
+          isLoading={loadingMore}
+          loader={
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={20} className="animate-spin text-zinc-500" strokeWidth={2} />
+              <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Loading more members…</span>
+            </div>
+          }
+          endMessage={
+            displayTotal > PAGE_MEMBERS_PAGE_SIZE ? (
+              <p className="py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                All {displayTotal.toLocaleString()} members loaded
+              </p>
+            ) : null
+          }
+        >
+          <div className={memberGridClass}>
+            {members.map((member) => (
+              <TeamMemberCard
+                key={member.id}
+                member={member}
+                onClick={() => navigate(`/profile/${member.username}`)}
+              />
+            ))}
+          </div>
+        </InfiniteScroll>
       ) : (
         <div className={`${asidePanelClass} px-6 py-10 text-center`}>
           <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1298,14 +1320,26 @@ const MembersTab = ({ pageTeamMembers }: { pageTeamMembers?: unknown[] }) => {
           </p>
         </div>
       )}
+
+      {loadingMore && members.length > 0 && (
+        <div className="sr-only" aria-live="polite">
+          Loading more members
+        </div>
+      )}
     </div>
   );
 };
 
 // Followers Tab — people following the page (not team)
-const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
+const FollowersTab = ({ pageId, totalCount }: { pageId: string; totalCount: number }) => {
   const navigate = useNavigate();
-  const followers = (pageFollowers || []) as Array<{
+  const { items, total, hasMore, initialLoading, loadingMore, loadMore, error } =
+    usePaginatedPageMembers({
+      pageId,
+      type: 'followers',
+      enabled: true,
+    });
+  const followers = items as Array<{
     id: string;
     username: string;
     avatar_url?: string;
@@ -1317,6 +1351,7 @@ const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
     createdAt?: string;
     bio?: string;
   }>;
+  const displayTotal = total || totalCount;
 
   return (
     <div className="space-y-4">
@@ -1335,21 +1370,49 @@ const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
         </div>
         <span className={`${asideStatChipClass} shrink-0 tabular-nums text-xs text-zinc-600 dark:text-zinc-400`}>
           <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-            {followers.length.toLocaleString()}
+            {displayTotal.toLocaleString()}
           </span>
         </span>
       </div>
 
-      {followers.length > 0 ? (
-        <div className={memberGridClass}>
-          {followers.map((follower) => (
-            <FollowerMemberCard
-              key={follower.id}
-              follower={follower}
-              onClick={() => navigate(`/profile/${follower.username}`)}
-            />
-          ))}
+      {initialLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={24} className="animate-spin text-zinc-500" strokeWidth={2} />
         </div>
+      ) : error ? (
+        <div className={`${asidePanelClass} px-6 py-10 text-center`}>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      ) : followers.length > 0 ? (
+        <InfiniteScroll
+          dataLength={followers.length}
+          next={loadMore}
+          hasMore={hasMore}
+          isLoading={loadingMore}
+          loader={
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={20} className="animate-spin text-zinc-500" strokeWidth={2} />
+              <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Loading more followers…</span>
+            </div>
+          }
+          endMessage={
+            displayTotal > PAGE_MEMBERS_PAGE_SIZE ? (
+              <p className="py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                All {displayTotal.toLocaleString()} followers loaded
+              </p>
+            ) : null
+          }
+        >
+          <div className={memberGridClass}>
+            {followers.map((follower) => (
+              <FollowerMemberCard
+                key={follower.id}
+                follower={follower}
+                onClick={() => navigate(`/profile/${follower.username}`)}
+              />
+            ))}
+          </div>
+        </InfiniteScroll>
       ) : (
         <div className={`${asidePanelClass} px-6 py-10 text-center`}>
           <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
@@ -1359,6 +1422,12 @@ const FollowersTab = ({ pageFollowers }: { pageFollowers?: unknown[] }) => {
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Be the first to follow this community.
           </p>
+        </div>
+      )}
+
+      {loadingMore && followers.length > 0 && (
+        <div className="sr-only" aria-live="polite">
+          Loading more followers
         </div>
       )}
     </div>

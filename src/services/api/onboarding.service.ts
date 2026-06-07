@@ -37,7 +37,11 @@ export interface SuggestedPageResult {
 class OnboardingService {
     async getStatus(): Promise<any> {
         const response = await apiClient.get('/onboarding/status');
-        return response.data;
+        const data = response.data;
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid onboarding status response');
+        }
+        return data;
     }
 
     async getSuggestedTags(): Promise<any[]> {

@@ -6,7 +6,7 @@ import { PostSkeleton } from './skeletons/PostSkeleton'
 import { GlassCard } from './GlassCard'
 import bookmarksService from '../services/api/bookmarks.service'
 import { Post } from '../types'
-import InfiniteScroll from 'react-infinite-scroll-component'
+import { InfiniteScroll } from './InfiniteScroll'
 
 interface BookmarksPageProps {
     onPostClick: (post: Post) => void
@@ -168,6 +168,7 @@ export function BookmarksPage({ onPostClick, onLoginRequired }: BookmarksPagePro
                     dataLength={bookmarks.length}
                     next={handleLoadMore}
                     hasMore={hasMore}
+                    isLoading={loading && page > 1}
                     loader={
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
