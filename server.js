@@ -118,12 +118,13 @@ async function handleSeoRoute(req, res, type) {
         const publicHost = getPublicHost(req);
         const apiBaseUrl = resolveSeoServerApiBaseUrl(process.env, publicHost) || DEFAULT_API_BASE_URL;
         const fwdHeaders = apiForwardHeaders(req);
-        const metadata = await fetchSeoMetadata({
+        const { data: metadata, apiBase: usedApiBase } = await fetchSeoMetadata({
             apiBaseUrl,
             type,
             identifier,
             headers: fwdHeaders,
             env: process.env,
+            host: publicHost,
         });
 
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: publicHost };
@@ -138,9 +139,9 @@ async function handleSeoRoute(req, res, type) {
         res.setHeader('Cache-Control', usingFallback ? 'public, max-age=300' : 'public, max-age=3600, s-maxage=3600');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('X-SEO-Status', usingFallback ? 'fallback' : 'ok');
-        res.setHeader('X-SEO-API', apiBaseUrl);
+        res.setHeader('X-SEO-API', usedApiBase || apiBaseUrl);
         if (usingFallback) {
-            console.warn(`[SEO Server] fallback for ${type}/${identifier} via ${apiBaseUrl} host=${publicHost || '(none)'}`);
+            console.warn(`[SEO Server] fallback for ${type}/${identifier} tried ${usedApiBase || apiBaseUrl} host=${publicHost || '(none)'}`);
         }
         return res.send(html);
     } catch {

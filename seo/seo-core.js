@@ -130,6 +130,23 @@ export function resolveSeoServerApiBaseUrl(env = {}, host = '') {
     return resolveApiBaseUrl(env, host);
 }
 
+/** Ordered API bases to try (internal first, then public). */
+export function collectSeoApiBases(env = {}, host = '', primaryBase = '') {
+    const seen = new Set();
+    const bases = [];
+    const add = (candidate) => {
+        const normalized = normalizeApiBase(candidate);
+        if (normalized && !seen.has(normalized)) {
+            seen.add(normalized);
+            bases.push(normalized);
+        }
+    };
+    add(primaryBase);
+    add(env.SEO_API_INTERNAL_URL);
+    add(resolveApiBaseUrl(env, host));
+    return bases;
+}
+
 export function escapeHtml(text) {
     if (!text) return '';
     return String(text)
@@ -227,16 +244,15 @@ export async function fetchSeoMetadata({
     headers = {},
     timeout = 10000,
     env = {},
+    host = '',
 }) {
     const cacheKey = `${type}:${identifier}`;
     const cached = getCached(metaCache, cacheKey);
-    if (cached !== undefined) return cached;
-
-    const bases = [apiBaseUrl];
-    const internal = normalizeApiBase(env.SEO_API_INTERNAL_URL);
-    if (internal && internal !== apiBaseUrl) {
-        bases.push(internal);
+    if (cached !== undefined) {
+        return { data: cached, apiBase: apiBaseUrl };
     }
+
+    const bases = collectSeoApiBases(env, host, apiBaseUrl);
 
     for (const base of bases) {
         const data = await fetchSeoMetadataOnce({
@@ -248,11 +264,11 @@ export async function fetchSeoMetadata({
         });
         if (data) {
             setCached(metaCache, cacheKey, data);
-            return data;
+            return { data, apiBase: base };
         }
     }
 
-    return staleOr(metaCache, cacheKey, null);
+    return { data: staleOr(metaCache, cacheKey, null), apiBase: bases[0] || apiBaseUrl };
 }
 
 /** Fetch arbitrary text (sitemap/llms) from the API, cached with stale fallback. */

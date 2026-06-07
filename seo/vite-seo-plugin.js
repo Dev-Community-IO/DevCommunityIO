@@ -75,11 +75,13 @@ export function seoDevPlugin(env = {}) {
                         template = await server.transformIndexHtml(req.url, template, req.originalUrl);
 
                         const publicHost = publicHostOf(req);
-                        const metadata = await fetchSeoMetadata({
+                        const { data: metadata } = await fetchSeoMetadata({
                             apiBaseUrl: resolveApiBaseUrl(env, publicHost) || apiBaseUrl,
                             type,
                             identifier,
                             headers: fwd(req),
+                            env,
+                            host: publicHost,
                         });
                         const baseUrl = baseUrlOf(req);
                         const html = injectMetaTags(
