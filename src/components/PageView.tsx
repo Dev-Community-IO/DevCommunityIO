@@ -253,37 +253,6 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // Determine user role and permissions
-  const isOwner = pageData && user && (
-    pageData.ownerId === user.id ||
-    pageData.owner?.id === user.id
-  );
-  
-  const isAdmin = pageData && user && pageData.userRole && (
-    pageData.userRole === 'admin' ||
-    pageData.userRole === 'owner'
-  );
-  
-  const isModerator = pageData && user && pageData.userRole === 'moderator';
-  
-  // Only hide Follow button if user is owner, admin, or moderator
-  // Default to showing Follow button if we can't determine role
-  const canManage = !!(isOwner || isAdmin || isModerator);
- 
-   // Debug logging (remove in production)
-   if (process.env.NODE_ENV === 'development' && pageData && user) {
-     console.log('PageView Debug:', {
-       userId: user.id,
-       pageOwnerId: pageData.ownerId,
-       userRole: pageData.userRole,
-       isOwner,
-       isAdmin,
-       isModerator,
-       canManage,
-       shouldShowFollowButton: !canManage
-     });
-   }
-
   const pageSocialLinks = useMemo(() => {
     if (!pageData) return {};
     const links = { ...(pageData.socialLinks || {}) } as Record<string, string>;
@@ -570,7 +539,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
               <span className="hidden sm:inline">Pages</span>
             </button>
             <div className="flex items-center gap-1.5">
-              {user && !canManage && (
+              {user && isFollowing && (
                 <button
                   type="button"
                   onClick={handleNotificationToggle}
@@ -640,7 +609,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                         <UserPlus size={14} strokeWidth={2.25} />
                         <span>Follow</span>
                       </button>
-                    ) : !canManage ? (
+                    ) : (
                       <button
                         type="button"
                         onClick={handleFollowToggle}
@@ -658,7 +627,7 @@ export function PageView({ pageId, pageSlug, onBack, onPostClick, onLoginRequire
                         )}
                         <span>{isFollowingLoading ? '…' : isFollowing ? 'Following' : 'Follow'}</span>
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 </div>
 

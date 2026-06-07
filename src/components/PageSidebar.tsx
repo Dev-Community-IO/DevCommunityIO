@@ -107,16 +107,6 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
     }
   }, [(pageProp as Page)?.isFollowing]);
 
-  const isOwnerOrAdmin =
-    isAuthenticated &&
-    user &&
-    pageData &&
-    (pageData.ownerId === user.id ||
-      pageData.owner?.id === user.id ||
-      pageData.userRole === 'owner' ||
-      pageData.userRole === 'admin' ||
-      ['owner', 'admin'].includes(pageData.userRole || ''));
-
   const handleFollow = async () => {
     if (!isAuthenticated) {
       onLoginRequired?.();
@@ -221,15 +211,13 @@ export function PageSidebar({ page: pageProp, onLoginRequired, onFollowChange }:
         </div>
 
         <div className="flex flex-col gap-1.5">
-          {!isOwnerOrAdmin && (
-            <Button
-              variant={isFollowing ? 'secondary' : 'primary'}
-              onClick={handleFollow}
-              className="h-8 w-full text-xs"
-            >
-              {isFollowing ? 'Following' : 'Follow'}
-            </Button>
-          )}
+          <Button
+            variant={isFollowing ? 'secondary' : 'primary'}
+            onClick={handleFollow}
+            className="h-8 w-full text-xs"
+          >
+            {isFollowing ? 'Following' : 'Follow'}
+          </Button>
 
           <button type="button" onClick={() => pageData.slug && navigate(`/pages/${pageData.slug}`)} className={asideGhostBtnClass}>
             <ExternalLink size={14} strokeWidth={2} />
