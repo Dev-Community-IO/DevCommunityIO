@@ -108,7 +108,11 @@ async function handleSeoRoute(req, res, type) {
         });
 
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || req.url || '', host: req.get('host') };
-        html = injectMetaTags(html, metadata || getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME }), ctx);
+        html = injectMetaTags(
+            html,
+            metadata || getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME, currentPath: ctx.currentPath }),
+            ctx
+        );
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
@@ -116,7 +120,7 @@ async function handleSeoRoute(req, res, type) {
         return res.send(html);
     } catch {
         const ctx = { baseUrl: getBaseUrl(req), currentPath: req.originalUrl || '', host: req.get('host') };
-        const fallback = getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME });
+        const fallback = getFallbackMetadata({ baseUrl: ctx.baseUrl, siteName: SITE_NAME, currentPath: ctx.currentPath });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'public, max-age=300');
         return res.send(injectMetaTags(html, fallback, ctx));

@@ -59,20 +59,39 @@ function normalizeApiBase(url) {
     return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 }
 
+function isProductionPublicHost(host) {
+    if (!host) return false;
+    const h = host.split(':')[0].toLowerCase();
+    const base = h.replace(/^www\./, '');
+    return PRODUCTION_DOMAINS.has(h) || PRODUCTION_DOMAINS.has(base);
+}
+
+function isLocalApiUrl(url) {
+    return /localhost|127\.0\.0\.1/i.test(String(url || ''));
+}
+
 /**
  * Resolve the API base URL from env (and optionally the request host).
+ * When the public site is served on a production domain, always use the
+ * matching api.<domain> host — even if VITE_API_BASE_URL points at localhost.
  * @param {object} env  process.env
  * @param {string} [host]  request host header
  */
 export function resolveApiBaseUrl(env = {}, host = '') {
+    const hostOnly = host ? host.split(':')[0].toLowerCase() : '';
+    if (isProductionPublicHost(hostOnly)) {
+        const baseDomain = hostOnly.replace(/^www\./, '');
+        return `https://api.${baseDomain}/api`;
+    }
+
     const order = [env.SEO_API_URL, env.SEO_API_BASE_URL, env.VITE_API_BASE_URL, env.VITE_API_URL];
     for (const candidate of order) {
         const normalized = normalizeApiBase(candidate);
-        if (normalized) return normalized;
+        if (normalized && !isLocalApiUrl(normalized)) return normalized;
     }
-    if (host && PRODUCTION_DOMAINS.has(host)) {
-        const baseDomain = host.replace(/^www\./, '');
-        return `https://api.${baseDomain}/api`;
+    for (const candidate of order) {
+        const normalized = normalizeApiBase(candidate);
+        if (normalized) return normalized;
     }
     const apiPort = env.SEO_API_PORT || env.VITE_API_PORT || env.API_PORT || 3333;
     const protocol = env.SEO_API_PROTOCOL || 'http';
@@ -185,19 +204,27 @@ function staleOr(cache, key, fallback) {
     return hit ? hit.data : fallback;
 }
 
-export function getFallbackMetadata({ baseUrl, siteName = 'DevCommunity' }) {
+export function getFallbackMetadata({ baseUrl, siteName = 'DevCommunity', currentPath = '' }) {
+    const root = (baseUrl || 'https://devcommunity.io').replace(/\/+$/, '');
+    const path =
+        currentPath && currentPath !== '/'
+            ? currentPath.startsWith('/')
+                ? currentPath.replace(/\/$/, '')
+                : `/${currentPath}`
+            : '';
+    const url = `${root}${path}`;
     const description = `${siteName} - Where Developers Build the Future`;
     return {
         title: siteName,
         description,
-        url: baseUrl,
+        url,
         type: 'website',
         openGraph: {
-            'og:type': 'website', 'og:url': baseUrl, 'og:title': siteName,
+            'og:type': 'website', 'og:url': url, 'og:title': siteName,
             'og:description': description, 'og:site_name': siteName, 'og:locale': 'en_US',
         },
         twitter: {
-            'twitter:card': 'summary_large_image', 'twitter:url': baseUrl,
+            'twitter:card': 'summary_large_image', 'twitter:url': url,
             'twitter:title': siteName, 'twitter:description': description,
         },
     };

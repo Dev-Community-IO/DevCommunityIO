@@ -73,7 +73,7 @@ export function seoDevPlugin(env = {}) {
                         const baseUrl = baseUrlOf(req);
                         const html = injectMetaTags(
                             template,
-                            metadata || getFallbackMetadata({ baseUrl, siteName }),
+                            metadata || getFallbackMetadata({ baseUrl, siteName, currentPath: pathname }),
                             { baseUrl, currentPath: pathname, host: req.headers.host }
                         );
                         res.setHeader('Content-Type', 'text/html; charset=utf-8');
