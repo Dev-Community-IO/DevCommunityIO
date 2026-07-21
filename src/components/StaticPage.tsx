@@ -1,8 +1,9 @@
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { GlassCard } from './GlassCard';
-import ReactMarkdown from 'react-markdown';
+import { MarkdownRenderer } from '../utils/markdownRenderer';
 import { useState, useEffect } from 'react';
 import staticPagesService from '../services/api/staticPages.service';
+import { articleProseClass } from '../utils/markdownProse';
 
 interface StaticPageProps {
   slug: string;
@@ -85,24 +86,8 @@ export function StaticPage({
             <p className="text-sm text-gray-500 dark:text-gray-400">Using default content</p>
           </div>
         ) : null}
-        <div className={`prose prose-slate dark:prose-invert max-w-none
-          prose-headings:font-bold
-          prose-h1:text-4xl prose-h1:mb-6 prose-h1:mt-8
-          prose-h2:text-2xl prose-h2:mb-4 prose-h2:mt-8 prose-h2:text-blue-600 dark:prose-h2:text-blue-400
-          prose-h3:text-xl prose-h3:mb-3 prose-h3:mt-6 prose-h3:text-purple-600 dark:prose-h3:text-purple-400
-          prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed
-          prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
-          prose-strong:text-gray-900 dark:prose-strong:text-gray-100 prose-strong:font-semibold
-          prose-ul:my-4 prose-li:my-1
-          prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-700 dark:prose-blockquote:text-gray-300
-          prose-code:text-pink-600 dark:prose-code:text-pink-400 prose-code:bg-pink-50 dark:prose-code:bg-pink-900/20 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-          prose-pre:bg-gray-900 prose-pre:text-gray-100
-          prose-table:border prose-table:border-gray-300 dark:prose-table:border-gray-700
-          prose-th:bg-gray-100 dark:prose-th:bg-gray-800 prose-th:p-2
-          prose-td:p-2 prose-td:border prose-td:border-gray-300 dark:prose-td:border-gray-700
-          prose-hr:border-gray-300 dark:prose-hr:border-gray-700 prose-hr:my-8
-          ${loading || error ? 'hidden' : ''}`}>
-          <ReactMarkdown>{content}</ReactMarkdown>
+        <div className={`${articleProseClass} ${loading || error ? 'hidden' : ''}`}>
+          <MarkdownRenderer content={content} />
         </div>
       </GlassCard>
 

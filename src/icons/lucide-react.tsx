@@ -153,6 +153,9 @@ export const UserPlus = Lucide.UserPlus;
 export const UserX = Lucide.UserX;
 export const Video = Lucide.Video;
 export const Wallet = Lucide.Wallet;
+export const Workflow = Lucide.Workflow;
+export const Maximize2 = Lucide.Maximize2;
+export const Minimize2 = Lucide.Minimize2;
 
 const __default = Lucide;
 export default __default;

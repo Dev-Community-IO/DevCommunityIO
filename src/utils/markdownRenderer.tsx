@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 import { articleProseClass, compactProseClass } from './markdownProse';
+import { MermaidBlock } from '../components/MermaidBlock';
 
 interface MarkdownRendererProps {
   content: string;
@@ -53,8 +54,13 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
     const flushCodeBlock = () => {
       if (codeBlockContent.length > 0) {
         const code = codeBlockContent.join('\n');
+        const lang = codeBlockLang.trim().toLowerCase();
         elements.push(
-          <CodeBlock key={`code-${currentIndex}`} code={code} language={codeBlockLang} />
+          lang === 'mermaid' ? (
+            <MermaidBlock key={`mermaid-${currentIndex}`} code={code} compact={compact} />
+          ) : (
+            <CodeBlock key={`code-${currentIndex}`} code={code} language={codeBlockLang} />
+          )
         );
         codeBlockContent = [];
         codeBlockLang = '';

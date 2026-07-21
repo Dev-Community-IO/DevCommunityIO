@@ -1,4 +1,4 @@
-import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye, HelpCircle, ChevronUp, Hash, AtSign, ExternalLink, GripVertical } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Code, Image as ImageIcon, Heading1, Heading2, Quote, Table, Minus, Eye, HelpCircle, ChevronUp, Hash, AtSign, ExternalLink, GripVertical, Workflow } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { MarkdownRenderer } from '../utils/markdownRenderer';
 import usersService from '../services/api/users.service';
@@ -477,6 +477,16 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
     { icon: Quote, action: () => insertAtLineStart('> '), title: 'Quote' },
     { icon: Code, action: () => insertMarkdown('`', '`', 'code'), title: 'Inline Code' },
     { icon: Code, action: () => insertMarkdown('\n```\n', '\n```\n', 'code block'), title: 'Code Block', label: '{}' },
+    {
+      icon: Workflow,
+      action: () =>
+        insertMarkdown(
+          '\n```mermaid\nflowchart LR\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Do something]\n  B -->|No| D[Skip]\n```\n',
+          '',
+          ''
+        ),
+      title: 'Mermaid Diagram',
+    },
     { icon: LinkIcon, action: () => insertMarkdown('[', '](url)', 'link text'), title: 'Link' },
     { icon: ImageIcon, action: triggerImageUpload, title: 'Upload Image', isUpload: true },
     { icon: Table, action: () => insertMarkdown('\n| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n', ''), title: 'Table' },
@@ -614,6 +624,25 @@ export function MarkdownEditor({ value, onChange, placeholder = 'Write your cont
                 <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded"># Heading</code> for headers</div>
                 <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">- List</code> for bullet lists</div>
                 <div><code className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 rounded">[text](url)</code> for links</div>
+              </div>
+            </div>
+
+            {/* Mermaid */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+                <Workflow size={16} className="text-sky-600 dark:text-sky-400" />
+                <span>Mermaid Diagrams</span>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-xs leading-relaxed">
+                Use a <code className="px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 rounded text-xs">mermaid</code> code fence for flowcharts, sequence diagrams, and more. Preview renders a polished diagram on any page.
+              </p>
+              <div className="mt-2 p-2 bg-white dark:bg-gray-800 rounded border border-sky-200 dark:border-sky-800">
+                <code className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+{`\`\`\`mermaid
+flowchart LR
+  A --> B
+\`\`\``}
+                </code>
               </div>
             </div>
 
