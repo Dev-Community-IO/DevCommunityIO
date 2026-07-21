@@ -55,11 +55,13 @@ export function MarkdownRenderer({ content, className = '', compact = false }: M
       if (codeBlockContent.length > 0) {
         const code = codeBlockContent.join('\n');
         const lang = codeBlockLang.trim().toLowerCase();
+        // Decode entities so Mermaid arrows like A->>B survive HTML-escaped content
+        const decoded = decodeHtmlEntities(code);
         elements.push(
           lang === 'mermaid' ? (
-            <MermaidBlock key={`mermaid-${currentIndex}`} code={code} compact={compact} />
+            <MermaidBlock key={`mermaid-${currentIndex}`} code={decoded} compact={compact} />
           ) : (
-            <CodeBlock key={`code-${currentIndex}`} code={code} language={codeBlockLang} />
+            <CodeBlock key={`code-${currentIndex}`} code={decoded} language={codeBlockLang} />
           )
         );
         codeBlockContent = [];
