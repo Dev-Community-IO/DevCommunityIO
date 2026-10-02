@@ -161,6 +161,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
   const [bookmarkCount, setBookmarkCount] = useState<number | null>(null);
   const [featuredTags, setFeaturedTags] = useState<Tag[]>([]);
   const [trendingTags, setTrendingTags] = useState<Tag[]>([]);
+  const [tagSectionLabel, setTagSectionLabel] = useState('Trending');
   const [githubContributeUrl, setGithubContributeUrl] = useState<string | null>(null);
   const [siteSettings, setSiteSettings] = useState<{
     siteName?: string | null;
@@ -209,21 +210,40 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
     fetchBookmarkCount();
   }, [isAuthenticated]);
 
-  // Fetch featured and trending tags
+  // Featured tags, then trending. If the last 7 days are quiet, fall back to 30 days, then most-used tags.
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        const [featuredResponse, trendingResponse] = await Promise.all([
-          tagsService.getFeaturedTags(3).catch(() => ({ tags: [] })),
-          tagsService.getTrendingTags('7d', 6).catch(() => ({ tags: [] }))
-        ]);
+        const featuredResponse = await tagsService.getFeaturedTags(5).catch(() => ({ tags: [] }));
+        const featured = featuredResponse?.tags || [];
+        setFeaturedTags(featured);
 
-        setFeaturedTags(featuredResponse?.tags || []);
-        setTrendingTags(trendingResponse?.tags || []);
+        const featuredIds = new Set(featured.map((tag) => tag.id));
+        const withoutFeatured = (tags: Tag[]) => tags.filter((tag) => !featuredIds.has(tag.id));
+
+        const week = await tagsService.getTrendingTags('7d', 8).catch(() => ({ tags: [] }));
+        let next = withoutFeatured(week?.tags || []);
+        let label = 'Trending';
+
+        if (next.length === 0) {
+          const month = await tagsService.getTrendingTags('30d', 8).catch(() => ({ tags: [] }));
+          next = withoutFeatured(month?.tags || []);
+        }
+
+        if (next.length === 0) {
+          const popular = await tagsService
+            .getTags({ limit: 12, includeRestricted: true })
+            .catch(() => ({ tags: [] }));
+          const list = Array.isArray(popular) ? popular : popular?.tags || popular?.data || [];
+          next = withoutFeatured(list);
+          label = 'Tags';
+        }
+
+        setTagSectionLabel(label);
+        setTrendingTags(next.slice(0, 6));
       } catch (err: any) {
-        // Don't log network errors (server offline) - already handled by interceptor
         if (!isNetworkError(err)) {
-        console.error('Error fetching tags:', err);
+          console.error('Error fetching tags:', err);
         }
       }
     };
@@ -504,7 +524,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
             <>
               {isNavRail && (
                 <div>
-                  <p className="sr-only">Trending</p>
+                  <p className="sr-only">{tagSectionLabel}</p>
                   {collapsedRailDivider}
                   <div className={panelRailClass}>
                     <ul className={menuListClass} role="list">
@@ -533,7 +553,7 @@ export function Sidebar({ activeCategory, onCategoryChange, forceIconOnly = fals
 
               {(isMobileSidebar || isLgUp) && (
                 <div className="w-full">
-                  <p className={sectionLabelClass}>Trending</p>
+                  <p className={sectionLabelClass}>{tagSectionLabel}</p>
                 <div className={`${panelClass} p-2`}>
                   <div className="flex flex-wrap gap-1">
                     {trendingTags.slice(0, 5).map((tag) => (
